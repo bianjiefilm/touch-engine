@@ -13,9 +13,10 @@ import (
 
 // Feature flag environment keys (default: off).
 const (
-	EnvFeatureNotify = "FEATURE_NOTIFY"
-	EnvFeatureUpload = "FEATURE_UPLOAD"
-	EnvFeatureTask   = "FEATURE_TASK"
+	EnvFeatureNotify      = "FEATURE_NOTIFY"
+	EnvFeatureUpload      = "FEATURE_UPLOAD"
+	EnvFeatureTask        = "FEATURE_TASK"
+	EnvFeatureLeadsCapture = "FEATURE_LEADS_CAPTURE"
 )
 
 // Config is the resolved server configuration.
@@ -47,9 +48,16 @@ type Config struct {
 	TaskBaseURL   string
 	TaskToken     string
 
-	FeatureUpload bool
-	FeatureNotify bool
-	FeatureTask   bool
+	// Lead capture (HUI-1747): delivery goes through platform-notify directed
+	// events. The target acquisition app and the phone-fingerprint pepper are
+	// dedicated, fail-closed configuration — never derived from request input.
+	LeadsTargetApp   string // LEADS_TARGET_APP_ID (e.g. the CRM/acquisition app id)
+	LeadsPhonePepper string // LEADS_PHONE_PEPPER (server-side HMAC pepper for phone fingerprints)
+
+	FeatureUpload       bool
+	FeatureNotify       bool
+	FeatureTask         bool
+	FeatureLeadsCapture bool
 }
 
 // FromEnv reads configuration from the process environment.
@@ -76,9 +84,12 @@ func Load(get func(string) string) Config {
 		NotifyToken:     get("PLATFORM_NOTIFY_TOKEN"),
 		TaskBaseURL:     get("PLATFORM_TASK_BASE_URL"),
 		TaskToken:       get("PLATFORM_TASK_TOKEN"),
+		LeadsTargetApp:  get("LEADS_TARGET_APP_ID"),
+		LeadsPhonePepper: get("LEADS_PHONE_PEPPER"),
 		FeatureUpload:   isTruthy(get(EnvFeatureUpload)),
 		FeatureNotify:   isTruthy(get(EnvFeatureNotify)),
 		FeatureTask:     isTruthy(get(EnvFeatureTask)),
+		FeatureLeadsCapture: isTruthy(get(EnvFeatureLeadsCapture)),
 	}
 }
 
@@ -119,6 +130,20 @@ func (c Config) Gate() []string {
 			problems = append(problems, "PLATFORM_TASK_TOKEN is required when FEATURE_TASK=on")
 		}
 	}
+	if c.FeatureLeadsCapture {
+		if strings.TrimSpace(c.NotifyBaseURL) == "" {
+			problems = append(problems, "FEATURE_LEADS_CAPTURE=on requires PLATFORM_NOTIFY_BASE_URL (directed-event delivery)")
+		}
+		if strings.TrimSpace(c.NotifyToken) == "" {
+			problems = append(problems, "FEATURE_LEADS_CAPTURE=on requires PLATFORM_NOTIFY_TOKEN")
+		}
+		if strings.TrimSpace(c.LeadsTargetApp) == "" {
+			problems = append(problems, "FEATURE_LEADS_CAPTURE=on requires LEADS_TARGET_APP_ID (acquisition/CRM app the lead events are directed to)")
+		}
+		if strings.TrimSpace(c.LeadsPhonePepper) == "" {
+			problems = append(problems, "FEATURE_LEADS_CAPTURE=on requires LEADS_PHONE_PEPPER (server-side phone-fingerprint pepper; never commit a real value)")
+		}
+	}
 	return problems
 }
 
@@ -126,7 +151,7 @@ func (c Config) Gate() []string {
 func (c Config) Production() bool { return strings.EqualFold(strings.TrimSpace(c.Env), "production") }
 
 func (c Config) Describe() string {
-	flags := fmt.Sprintf("upload=%v,notify=%v,task=%v", c.FeatureUpload, c.FeatureNotify, c.FeatureTask)
+	flags := fmt.Sprintf("upload=%v,notify=%v,task=%v,leads=%v", c.FeatureUpload, c.FeatureNotify, c.FeatureTask, c.FeatureLeadsCapture)
 	return fmt.Sprintf("env=%s app_id=%s addr=%s db=%s features(%s)",
 		c.Env, c.AppID, c.HTTPAddr, c.DBPath, flags)
 }
