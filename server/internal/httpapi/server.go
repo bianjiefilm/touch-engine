@@ -112,7 +112,7 @@ func authzMember(c *caller) *authz.Member {
 		return nil
 	}
 	return &authz.Member{ID: c.Member.ID, TenantID: c.Member.TenantID, PrincipalRef: c.Member.PrincipalRef,
-		Role: authz.Role(c.Member.Role), Enabled: c.Member.Enabled}
+		Role: authz.Role(c.Member.Role), StoreScope: c.Member.StoreScope, Enabled: c.Member.Enabled}
 }
 
 // ---- responses --------------------------------------------------------------
@@ -146,6 +146,10 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/stores", s.requireSession(s.handleStoreList))
 	mux.Handle("POST /api/v1/stores", s.requireSession(s.handleStoreCreate))
 	mux.Handle("GET /api/v1/stores/{id}", s.requireSession(s.handleStoreGet))
+	// HUI-1674 连锁多门店:org_owner 治理面(改店/停用店)。停用不级联:
+	// 存量活动逐个显式处理,公共页附「门店暂不可用」标注。
+	mux.Handle("PATCH /api/v1/stores/{id}", s.requireSession(s.handleStorePatch))
+	mux.Handle("POST /api/v1/stores/{id}/status", s.requireSession(s.handleStoreStatus))
 
 	mux.Handle("GET /api/v1/campaigns", s.requireSession(s.handleCampaignList))
 	mux.Handle("POST /api/v1/campaigns", s.requireSession(s.handleCampaignCreate))

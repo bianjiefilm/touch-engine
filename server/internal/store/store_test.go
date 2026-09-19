@@ -33,9 +33,9 @@ func seedTwoTenants(t *testing.T, s *Store) tenantCtx {
 	must(t, err)
 	ctx.tenB, err = s.CreateTenant("商家B")
 	must(t, err)
-	ctx.ownA, err = s.CreateMember(ctx.tenA.ID, "usr_owner_a", "owner", "A老板", "seed", true)
+	ctx.ownA, err = s.CreateMember(ctx.tenA.ID, "usr_owner_a", "org_owner", "A老板", "seed", true)
 	must(t, err)
-	ctx.ownB, err = s.CreateMember(ctx.tenB.ID, "usr_owner_b", "owner", "B老板", "seed", true)
+	ctx.ownB, err = s.CreateMember(ctx.tenB.ID, "usr_owner_b", "org_owner", "B老板", "seed", true)
 	must(t, err)
 	return ctx
 }

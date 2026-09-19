@@ -62,6 +62,18 @@ export function classifyEntry(raw: string | null | undefined): PublicEntry {
   return "unsupported";
 }
 
+// HUI-1674 FEAT-0175 门店停用标注(Go 侧 store_notice 白名单常量)。
+// 停用门店不级联下线活动:页面照常展示,仅附门店暂不可用提示。
+export const STORE_NOTICE_TEXT: Record<string, string> = {
+  store_unavailable: "门店暂不可用:活动信息可能不是最新,请以门店现场公告为准",
+};
+
+// 未知/缺省标注一律返回空串(不渲染)。
+export function storeNoticeText(raw: string | null | undefined): string {
+  if (raw && raw in STORE_NOTICE_TEXT) return STORE_NOTICE_TEXT[raw];
+  return "";
+}
+
 // 网络层失败归一:fetch 抛错(status=null)或 BFF/上游 502/503/504 →
 // network_error;服务端正常作答(含 404)交给 state 文案,不冒充网络故障。
 export function failureState(status: number | null): PublicUiState {

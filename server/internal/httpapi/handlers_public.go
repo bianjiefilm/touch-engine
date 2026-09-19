@@ -24,7 +24,14 @@ type publicLinkView struct {
 	PublicContent string `json:"public_content,omitempty"`
 	StartsAt      string `json:"starts_at,omitempty"`
 	EndsAt        string `json:"ends_at,omitempty"`
+	// StoreNotice (HUI-1674): 白名单常量 "store_unavailable" — 活动绑定的门店
+	// 已停用(公共页标注「门店暂不可用」)。不含任何门店内部字段;仅 available
+	// 态出现,非可用态保持单字段白名单形状。
+	StoreNotice string `json:"store_notice,omitempty"`
 }
+
+// storeNoticeUnavailable is the only value store_notice may carry.
+const storeNoticeUnavailable = "store_unavailable"
 
 func (s *Server) handlePublicLink(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -41,6 +48,9 @@ func (s *Server) handlePublicLink(w http.ResponseWriter, r *http.Request) {
 		view.PublicContent = res.Campaign.PublicContent
 		view.StartsAt = res.Campaign.StartsAt
 		view.EndsAt = res.Campaign.EndsAt
+		if res.StoreUnavailable {
+			view.StoreNotice = storeNoticeUnavailable
+		}
 		writeJSON(w, http.StatusOK, view)
 		return
 	}

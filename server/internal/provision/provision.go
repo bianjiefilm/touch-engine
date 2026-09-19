@@ -4,7 +4,9 @@ package provision
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/bianjiefilm/touch-engine/server/internal/authz"
 	"github.com/bianjiefilm/touch-engine/server/internal/db"
 	"github.com/bianjiefilm/touch-engine/server/internal/store"
 )
@@ -33,12 +35,26 @@ func Tenant(dbPath, name string) (string, error) {
 
 // Member attaches an existing platform principal to a tenant.
 // principalRef must be an identity-derived usr_* id.
-func Member(dbPath, tenantID, principalRef, role, displayName string, enabled bool) (string, error) {
+//
+// HUI-1674 roles: "owner" is accepted as a legacy alias for "org_owner";
+// "store_manager" requires storeScope (a store of this tenant); org_owner and
+// staff must carry an empty scope.
+func Member(dbPath, tenantID, principalRef, role, displayName string, enabled bool, storeScope string) (string, error) {
 	if len(principalRef) < 5 || principalRef[:4] != "usr_" {
 		return "", fmt.Errorf("principal_ref must be an identity principal id (usr_*), got %q", principalRef)
 	}
-	if role != "owner" && role != "staff" {
-		return "", fmt.Errorf("role must be owner or staff, got %q", role)
+	canonical, ok := authz.CanonicalRole(authz.Role(role))
+	if !ok {
+		return "", fmt.Errorf("role must be org_owner (or legacy owner), store_manager or staff, got %q", role)
+	}
+	role = string(canonical)
+	storeScope = strings.TrimSpace(storeScope)
+	if role == "store_manager" {
+		if storeScope == "" {
+			return "", fmt.Errorf("store_manager requires -store <store_id>")
+		}
+	} else if storeScope != "" {
+		return "", fmt.Errorf("-store is only allowed for store_manager")
 	}
 	s, closeFn, err := open(dbPath)
 	if err != nil {
@@ -48,7 +64,12 @@ func Member(dbPath, tenantID, principalRef, role, displayName string, enabled bo
 	if _, err := s.GetTenant(tenantID); err != nil {
 		return "", fmt.Errorf("tenant %s: %w", tenantID, err)
 	}
-	m, err := s.CreateMember(tenantID, principalRef, role, displayName, "provision", enabled)
+	if storeScope != "" {
+		if _, err := s.GetStore(storeScope, tenantID); err != nil {
+			return "", fmt.Errorf("store %s: %w", storeScope, err)
+		}
+	}
+	m, err := s.CreateMemberScoped(tenantID, principalRef, role, displayName, "provision", enabled, storeScope)
 	if err != nil {
 		return "", err
 	}

@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/bianjiefilm/touch-engine/server/internal/campaign"
@@ -60,43 +61,53 @@ type Member struct {
 	TenantID     string `json:"tenant_id"`
 	PrincipalRef string `json:"principal_ref"`
 	Role         string `json:"role"`
-	Enabled      bool   `json:"enabled"`
-	DisplayName  string `json:"display_name"`
-	CreatedBy    string `json:"created_by"`
-	CreatedAt    string `json:"created_at"`
-	UpdatedAt    string `json:"updated_at"`
+	// StoreScope: "" / NULL = 总部(全门店);非空 = 仅该门店(store id)。
+	// HUI-1674:服务端作用域事实,只有 store_manager 行允许非空。
+	StoreScope  string `json:"store_scope,omitempty"`
+	Enabled     bool   `json:"enabled"`
+	DisplayName string `json:"display_name"`
+	CreatedBy   string `json:"created_by"`
+	CreatedAt   string `json:"created_at"`
+	UpdatedAt   string `json:"updated_at"`
 }
 
+const memberCols = `id,tenant_id,principal_ref,role,store_scope,enabled,display_name,created_by,created_at,updated_at`
+
 func (s *Store) CreateMember(tenantID, principalRef, role, displayName, createdBy string, enabled bool) (Member, error) {
+	return s.CreateMemberScoped(tenantID, principalRef, role, displayName, createdBy, enabled, "")
+}
+
+// CreateMemberScoped is CreateMember with an explicit store scope (""=总部/全门店).
+func (s *Store) CreateMemberScoped(tenantID, principalRef, role, displayName, createdBy string, enabled bool, storeScope string) (Member, error) {
 	m := Member{
 		ID: newID("mem_"), TenantID: tenantID, PrincipalRef: principalRef,
 		Role: role, Enabled: enabled, DisplayName: displayName,
-		CreatedBy: createdBy, CreatedAt: now(), UpdatedAt: now(),
+		StoreScope: storeScope,
+		CreatedBy:  createdBy, CreatedAt: now(), UpdatedAt: now(),
 	}
 	_, err := s.DB.Exec(
-		`INSERT INTO members(id,tenant_id,principal_ref,role,enabled,display_name,created_by,created_at,updated_at)
-		 VALUES(?,?,?,?,?,?,?,?,?)`,
-		m.ID, m.TenantID, m.PrincipalRef, m.Role, boolInt(m.Enabled), m.DisplayName, m.CreatedBy, m.CreatedAt, m.UpdatedAt)
+		`INSERT INTO members(id,tenant_id,principal_ref,role,store_scope,enabled,display_name,created_by,created_at,updated_at)
+		 VALUES(?,?,?,?,?,?,?,?,?,?)`,
+		m.ID, m.TenantID, m.PrincipalRef, m.Role, nullable(m.StoreScope), boolInt(m.Enabled), m.DisplayName, m.CreatedBy, m.CreatedAt, m.UpdatedAt)
 	return m, err
 }
 
 func (s *Store) GetMemberByPrincipal(tenantID, principalRef string) (Member, error) {
 	row := s.DB.QueryRow(
-		`SELECT id,tenant_id,principal_ref,role,enabled,display_name,created_by,created_at,updated_at
-		 FROM members WHERE tenant_id=? AND principal_ref=?`, tenantID, principalRef)
+		`SELECT `+memberCols+` FROM members WHERE tenant_id=? AND principal_ref=?`, tenantID, principalRef)
 	return scanMember(row)
 }
 
 func (s *Store) GetMember(id string) (Member, error) {
-	row := s.DB.QueryRow(
-		`SELECT id,tenant_id,principal_ref,role,enabled,display_name,created_by,created_at,updated_at FROM members WHERE id=?`, id)
+	row := s.DB.QueryRow(`SELECT `+memberCols+` FROM members WHERE id=?`, id)
 	return scanMember(row)
 }
 
 func scanMember(row *sql.Row) (Member, error) {
 	var m Member
 	var enabled int
-	err := row.Scan(&m.ID, &m.TenantID, &m.PrincipalRef, &m.Role, &enabled, &m.DisplayName, &m.CreatedBy, &m.CreatedAt, &m.UpdatedAt)
+	var storeScope sql.NullString
+	err := row.Scan(&m.ID, &m.TenantID, &m.PrincipalRef, &m.Role, &storeScope, &enabled, &m.DisplayName, &m.CreatedBy, &m.CreatedAt, &m.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Member{}, ErrNotFound
 	}
@@ -104,12 +115,19 @@ func scanMember(row *sql.Row) (Member, error) {
 		return Member{}, err
 	}
 	m.Enabled = enabled == 1
+	m.StoreScope = storeScope.String
 	return m, nil
 }
 
 // UpdateMember changes role/enabled/display_name only. principal_ref is
 // immutable by construction: there is no parameter for it here.
 func (s *Store) UpdateMember(id string, role *string, enabled *bool, displayName *string) (Member, error) {
+	return s.UpdateMemberScoped(id, role, enabled, displayName, nil)
+}
+
+// UpdateMemberScoped additionally allows moving/clearing the store scope
+// (storeScope nil=unchanged, pointer to ""=clear, pointer to id=rebind).
+func (s *Store) UpdateMemberScoped(id string, role *string, enabled *bool, displayName *string, storeScope *string) (Member, error) {
 	cur, err := s.GetMember(id)
 	if err != nil {
 		return Member{}, err
@@ -123,16 +141,18 @@ func (s *Store) UpdateMember(id string, role *string, enabled *bool, displayName
 	if displayName != nil {
 		cur.DisplayName = *displayName
 	}
+	if storeScope != nil {
+		cur.StoreScope = *storeScope
+	}
 	cur.UpdatedAt = now()
-	_, err = s.DB.Exec(`UPDATE members SET role=?,enabled=?,display_name=?,updated_at=? WHERE id=?`,
-		cur.Role, boolInt(cur.Enabled), cur.DisplayName, cur.UpdatedAt, cur.ID)
+	_, err = s.DB.Exec(`UPDATE members SET role=?,enabled=?,display_name=?,store_scope=?,updated_at=? WHERE id=?`,
+		cur.Role, boolInt(cur.Enabled), cur.DisplayName, nullable(cur.StoreScope), cur.UpdatedAt, cur.ID)
 	return cur, err
 }
 
 func (s *Store) ListMembers(tenantID string) ([]Member, error) {
 	rows, err := s.DB.Query(
-		`SELECT id,tenant_id,principal_ref,role,enabled,display_name,created_by,created_at,updated_at
-		 FROM members WHERE tenant_id=? ORDER BY created_at`, tenantID)
+		`SELECT `+memberCols+` FROM members WHERE tenant_id=? ORDER BY created_at`, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -141,10 +161,12 @@ func (s *Store) ListMembers(tenantID string) ([]Member, error) {
 	for rows.Next() {
 		var m Member
 		var enabled int
-		if err := rows.Scan(&m.ID, &m.TenantID, &m.PrincipalRef, &m.Role, &enabled, &m.DisplayName, &m.CreatedBy, &m.CreatedAt, &m.UpdatedAt); err != nil {
+		var storeScope sql.NullString
+		if err := rows.Scan(&m.ID, &m.TenantID, &m.PrincipalRef, &m.Role, &storeScope, &enabled, &m.DisplayName, &m.CreatedBy, &m.CreatedAt, &m.UpdatedAt); err != nil {
 			return nil, err
 		}
 		m.Enabled = enabled == 1
+		m.StoreScope = storeScope.String
 		out = append(out, m)
 	}
 	return out, rows.Err()
@@ -152,35 +174,79 @@ func (s *Store) ListMembers(tenantID string) ([]Member, error) {
 
 // ---- stores (门店) ----------------------------------------------------------
 
+// Store lifecycle (HUI-1674). 停用门店 = 禁止新建活动 + 公共页标注;存量活动/
+// 短码/标签逐个显式处理,存储层绝不级联改动。
+const (
+	StoreStatusActive   = "active"
+	StoreStatusDisabled = "disabled"
+)
+
 type StoreRecord struct {
 	ID        string `json:"id"`
 	TenantID  string `json:"tenant_id"`
 	Name      string `json:"name"`
 	Address   string `json:"address"`
+	Status    string `json:"status"`
 	CreatedBy string `json:"created_by"`
 	CreatedAt string `json:"created_at"`
 	UpdatedAt string `json:"updated_at"`
 }
 
-const storeCols = `id,tenant_id,name,address,created_by,created_at,updated_at`
+const storeCols = `id,tenant_id,name,address,status,created_by,created_at,updated_at`
 
 func (s *Store) CreateStore(tenantID, name, address, createdBy string) (StoreRecord, error) {
 	r := StoreRecord{ID: newID("sto_"), TenantID: tenantID, Name: name, Address: address,
+		Status: StoreStatusActive,
 		CreatedBy: createdBy, CreatedAt: now(), UpdatedAt: now()}
 	_, err := s.DB.Exec(
-		`INSERT INTO stores(`+storeCols+`) VALUES(?,?,?,?,?,?,?)`,
-		r.ID, r.TenantID, r.Name, r.Address, r.CreatedBy, r.CreatedAt, r.UpdatedAt)
+		`INSERT INTO stores(`+storeCols+`) VALUES(?,?,?,?,?,?,?,?)`,
+		r.ID, r.TenantID, r.Name, r.Address, r.Status, r.CreatedBy, r.CreatedAt, r.UpdatedAt)
 	return r, err
 }
 
 func (s *Store) GetStore(id, tenantID string) (StoreRecord, error) {
 	row := s.DB.QueryRow(`SELECT `+storeCols+` FROM stores WHERE id=? AND tenant_id=?`, id, tenantID)
 	var r StoreRecord
-	err := row.Scan(&r.ID, &r.TenantID, &r.Name, &r.Address, &r.CreatedBy, &r.CreatedAt, &r.UpdatedAt)
+	err := row.Scan(&r.ID, &r.TenantID, &r.Name, &r.Address, &r.Status, &r.CreatedBy, &r.CreatedAt, &r.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return StoreRecord{}, ErrNotFound
 	}
 	return r, err
+}
+
+// UpdateStore changes name/address only (org_owner surface). nil = unchanged.
+func (s *Store) UpdateStore(id, tenantID string, name, address *string) (StoreRecord, error) {
+	cur, err := s.GetStore(id, tenantID)
+	if err != nil {
+		return StoreRecord{}, err
+	}
+	if name != nil {
+		cur.Name = *name
+	}
+	if address != nil {
+		cur.Address = *address
+	}
+	cur.UpdatedAt = now()
+	_, err = s.DB.Exec(`UPDATE stores SET name=?,address=?,updated_at=? WHERE id=? AND tenant_id=?`,
+		cur.Name, cur.Address, cur.UpdatedAt, id, tenantID)
+	return cur, err
+}
+
+// SetStoreStatus flips the store lifecycle flag. It NEVER cascades: campaigns,
+// links and tags of the store keep their own state (逐个显式处理).
+func (s *Store) SetStoreStatus(id, tenantID string, status string) (StoreRecord, error) {
+	if status != StoreStatusActive && status != StoreStatusDisabled {
+		return StoreRecord{}, fmt.Errorf("store: bad status %q", status)
+	}
+	if _, err := s.GetStore(id, tenantID); err != nil {
+		return StoreRecord{}, err
+	}
+	_, err := s.DB.Exec(`UPDATE stores SET status=?,updated_at=? WHERE id=? AND tenant_id=?`,
+		status, now(), id, tenantID)
+	if err != nil {
+		return StoreRecord{}, err
+	}
+	return s.GetStore(id, tenantID)
 }
 
 func (s *Store) ListStores(tenantID string) ([]StoreRecord, error) {
@@ -192,7 +258,7 @@ func (s *Store) ListStores(tenantID string) ([]StoreRecord, error) {
 	out := make([]StoreRecord, 0)
 	for rows.Next() {
 		var r StoreRecord
-		if err := rows.Scan(&r.ID, &r.TenantID, &r.Name, &r.Address, &r.CreatedBy, &r.CreatedAt, &r.UpdatedAt); err != nil {
+		if err := rows.Scan(&r.ID, &r.TenantID, &r.Name, &r.Address, &r.Status, &r.CreatedBy, &r.CreatedAt, &r.UpdatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, r)
@@ -268,6 +334,27 @@ func (s *Store) GetCampaign(id, tenantID string) (Campaign, error) {
 
 func (s *Store) ListCampaigns(tenantID string) ([]Campaign, error) {
 	rows, err := s.DB.Query(`SELECT `+campaignCols+` FROM campaigns WHERE tenant_id=? ORDER BY created_at DESC`, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]Campaign, 0)
+	for rows.Next() {
+		c, err := scanCampaign(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+// ListCampaignsByStore narrows the list to one store (HUI-1674 store_manager
+// scope). The tenant is mandatory; the store filter is a bound parameter.
+func (s *Store) ListCampaignsByStore(tenantID, storeID string) ([]Campaign, error) {
+	rows, err := s.DB.Query(
+		`SELECT `+campaignCols+` FROM campaigns WHERE tenant_id=? AND store_id=? ORDER BY created_at DESC`,
+		tenantID, storeID)
 	if err != nil {
 		return nil, err
 	}
@@ -452,6 +539,10 @@ type ResolvedLink struct {
 	Outcome  ResolveOutcome
 	Campaign Campaign // valid only when Outcome == OutcomeAvailable
 	Link     CampaignLink
+	// StoreUnavailable (HUI-1674): the campaign's bound store is disabled.
+	// 停用门店不级联下线活动——公共页照常展示,仅附「门店暂不可用」标注。
+	// Only ever set together with OutcomeAvailable.
+	StoreUnavailable bool
 }
 
 // ResolveLink performs the public, unauthenticated short-code lookup.
@@ -486,7 +577,8 @@ func (s *Store) ResolveLink(code string, at time.Time) ResolvedLink {
 		case "not_started":
 			return ResolvedLink{Outcome: OutcomeNotStarted, Campaign: c, Link: l}
 		}
-		return ResolvedLink{Outcome: OutcomeAvailable, Campaign: c, Link: l}
+		return ResolvedLink{Outcome: OutcomeAvailable, Campaign: c, Link: l,
+			StoreUnavailable: s.storeDisabled(c.TenantID, c.StoreID)}
 	case campaign.StatusPaused:
 		return ResolvedLink{Outcome: OutcomePaused, Campaign: c, Link: l}
 	case campaign.StatusDraft:
@@ -496,6 +588,20 @@ func (s *Store) ResolveLink(code string, at time.Time) ResolvedLink {
 	default:
 		return ResolvedLink{Outcome: OutcomeNotFound}
 	}
+}
+
+// storeDisabled reports whether the store exists and is disabled. Unbound
+// campaigns (no store) and lookup failures are never "disabled" (fail open for
+// the notice only; routing never depends on it).
+func (s *Store) storeDisabled(tenantID, storeID string) bool {
+	if storeID == "" {
+		return false
+	}
+	st, err := s.GetStore(storeID, tenantID)
+	if err != nil {
+		return false
+	}
+	return st.Status == StoreStatusDisabled
 }
 
 // ---- campaign assets (素材引用) -----------------------------------------------
