@@ -165,6 +165,21 @@ func (s *Server) Handler() http.Handler {
 	// canonical short-code URL as a server-rendered PNG (or json payload).
 	mux.Handle("GET /api/v1/campaigns/{id}/links/{linkId}/qrcode", s.requireSession(s.handleLinkQRCode))
 
+	// NFC tag management (HUI-1665 FEAT-0166): owner-only CRUD/batch/export.
+	// Tags wrap EXISTING campaign_links (no second link model); disable/enable
+	// propagates to the bound link so the public route follows the existing
+	// five-state logic. No FEATURE gate: this is an admin surface.
+	mux.Handle("GET /api/v1/nfc/tag-groups", s.requireSession(s.handleTagGroupList))
+	mux.Handle("POST /api/v1/nfc/tag-groups", s.requireSession(s.handleTagGroupCreate))
+	mux.Handle("DELETE /api/v1/nfc/tag-groups/{id}", s.requireSession(s.handleTagGroupDelete))
+	mux.Handle("GET /api/v1/nfc/tags/export.csv", s.requireSession(s.handleTagExportCSV))
+	mux.Handle("GET /api/v1/nfc/tags", s.requireSession(s.handleTagList))
+	mux.Handle("POST /api/v1/nfc/tags/batch", s.requireSession(s.handleTagBatchCreate))
+	mux.Handle("GET /api/v1/nfc/tags/{id}", s.requireSession(s.handleTagGet))
+	mux.Handle("PATCH /api/v1/nfc/tags/{id}", s.requireSession(s.handleTagPatch))
+	mux.Handle("DELETE /api/v1/nfc/tags/{id}", s.requireSession(s.handleTagDelete))
+	mux.Handle("POST /api/v1/nfc/tags/{id}/status", s.requireSession(s.handleTagStatus))
+
 	mux.Handle("GET /api/v1/admin/members", s.requireSession(s.handleMemberList))
 	mux.Handle("POST /api/v1/admin/members", s.requireSession(s.handleMemberCreate))
 	mux.Handle("PATCH /api/v1/admin/members/{id}", s.requireSession(s.handleMemberPatch))
