@@ -102,7 +102,10 @@ export async function proxyToServer(
     if (!HOP_BY_HOP.has(key.toLowerCase())) outHeaders.append(key, value);
   });
   const body = await upstream.arrayBuffer();
-  return new Response(body, {
+  // 204/304 must carry a null body (a zero-length buffer is still a body and
+  // makes the Response constructor throw — e.g. the view-event beacon).
+  const nullBody = upstream.status === 204 || upstream.status === 304;
+  return new Response(nullBody ? null : body, {
     status: upstream.status,
     statusText: upstream.statusText,
     headers: outHeaders,

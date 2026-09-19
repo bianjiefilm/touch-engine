@@ -17,9 +17,12 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/bianjiefilm/touch-engine/server/internal/config"
 	"github.com/bianjiefilm/touch-engine/server/internal/httpapi"
+	"github.com/bianjiefilm/touch-engine/server/internal/leads"
+	"github.com/bianjiefilm/touch-engine/server/internal/notifytask"
 	"github.com/bianjiefilm/touch-engine/server/internal/provision"
 )
 
@@ -57,6 +60,18 @@ func cmdServe() {
 	h := srv.Handler()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	// HUI-1747: lead forwarder drives the leads outbox to platform-notify.
+	// Started only with FEATURE_LEADS_CAPTURE=on AND a satisfied config gate
+	// (fail-closed; the outbox keeps its facts until a later start).
+	if cfg.FeatureLeadsCapture && len(cfg.Gate()) == 0 {
+		poster := notifytask.NewDirectedClient(
+			notifytask.New(notifytask.SideNotify, true, cfg.NotifyBaseURL, cfg.NotifyToken, cfg.AppID, "X-Notify-App-ID"), nil)
+		fw := leads.NewForwarder(srv.St, poster, log.Default())
+		go fw.Run(ctx, 15*time.Second)
+		log.Printf("touch-server: leads forwarder started (interval 15s)")
+	}
+
 	if err := serveHTTP(ctx, cfg.HTTPAddr, h); err != nil {
 		log.Fatalf("touch-server: %v", err)
 	}

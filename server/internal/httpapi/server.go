@@ -30,6 +30,7 @@ import (
 	"github.com/bianjiefilm/touch-engine/server/internal/config"
 	"github.com/bianjiefilm/touch-engine/server/internal/db"
 	"github.com/bianjiefilm/touch-engine/server/internal/identity"
+	"github.com/bianjiefilm/touch-engine/server/internal/leads"
 	"github.com/bianjiefilm/touch-engine/server/internal/redact"
 	"github.com/bianjiefilm/touch-engine/server/internal/store"
 	"github.com/bianjiefilm/touch-engine/server/internal/upload"
@@ -46,14 +47,26 @@ type Server struct {
 	Upload  *upload.Client
 	Log     *log.Logger
 	closeDB func()
+
+	// LeadsLimiter gates the public lead-write surface per client IP
+	// (single-process sliding window; not distributed by design for T1).
+	LeadsLimiter *leads.RateLimiter
 }
+
+// leadsRatePerMinute bounds the public lead-write surface per client IP.
+// Generous enough that legitimate retries/duplicates pass (they are idempotent
+// anyway); strict enough to stop bulk form spam. Single-process scope by design.
+const leadsRatePerMinute = 30
 
 // New builds a Server over an opened database.
 func New(cfg config.Config, database *sql.DB, idc *identity.Client, upc *upload.Client, logger *log.Logger) *Server {
 	if logger == nil {
 		logger = log.Default()
 	}
-	return &Server{Cfg: cfg, St: store.New(database), ID: idc, Upload: upc, Log: logger}
+	return &Server{
+		Cfg: cfg, St: store.New(database), ID: idc, Upload: upc, Log: logger,
+		LeadsLimiter: leads.NewRateLimiter(leadsRatePerMinute, time.Minute),
+	}
 }
 
 // Open opens the database and returns a ready Server.
@@ -155,6 +168,19 @@ func (s *Server) Handler() http.Handler {
 	// public guest surface (公共活动页): GET-only, no session, whitelist fields.
 	// Any other method on the public path is answered 405 before anything else.
 	mux.Handle("GET /api/v1/public/links/{code}", http.HandlerFunc(s.handlePublicLink))
+
+	// public lead-capture surface (HUI-1747): the ONLY guest-write surface.
+	// Gated by FEATURE_LEADS_CAPTURE (off -> uniform 404, surface invisible).
+	mux.Handle("GET /api/v1/public/links/{code}/lead-form", http.HandlerFunc(s.handlePublicLeadForm))
+	mux.Handle("POST /api/v1/public/links/{code}/lead-submissions", http.HandlerFunc(s.handlePublicLeadSubmit))
+	mux.Handle("POST /api/v1/public/links/{code}/lead-revocations", http.HandlerFunc(s.handlePublicLeadRevoke))
+	mux.Handle("POST /api/v1/public/links/{code}/view-events", http.HandlerFunc(s.handlePublicViewEvent))
+
+	// admin lead surface (HUI-1747): merchant visibility of their own leads.
+	mux.Handle("POST /api/v1/campaigns/{id}/lead-form", s.requireSession(s.handleLeadFormUpsert))
+	mux.Handle("GET /api/v1/campaigns/{id}/leads", s.requireSession(s.handleLeadList))
+	mux.Handle("GET /api/v1/campaigns/{id}/lead-stats", s.requireSession(s.handleLeadStats))
+	mux.Handle("GET /api/v1/campaigns/{id}/leads/{ref}/audit", s.requireSession(s.handleLeadAudit))
 
 	return s.withRequestLog(mux)
 }

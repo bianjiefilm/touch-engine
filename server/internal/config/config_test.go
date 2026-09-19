@@ -1,6 +1,9 @@
 package config
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestDefaults(t *testing.T) {
 	cfg := Load(func(string) string { return "" })
@@ -16,7 +19,7 @@ func TestDefaults(t *testing.T) {
 	if cfg.SessionCookie != "touch_session" {
 		t.Fatalf("SessionCookie = %q", cfg.SessionCookie)
 	}
-	if cfg.FeatureUpload || cfg.FeatureNotify || cfg.FeatureTask {
+	if cfg.FeatureUpload || cfg.FeatureNotify || cfg.FeatureTask || cfg.FeatureLeadsCapture {
 		t.Fatal("feature flags must default to off")
 	}
 }
@@ -74,6 +77,35 @@ func TestGateNotifyTaskScaffolding(t *testing.T) {
 	cfg = Load(func(k string) string { return env[k] })
 	if len(cfg.Gate()) != 0 {
 		t.Fatalf("gate problems = %v, want none", cfg.Gate())
+	}
+}
+
+func TestGateLeadsCapture(t *testing.T) {
+	base := map[string]string{
+		"TOUCH_INTERNAL_TOKEN":       "s",
+		"PLATFORM_IDENTITY_BASE_URL": "http://127.0.0.1:18101",
+		"PLATFORM_IDENTITY_TOKEN":    "t",
+	}
+	// off (default): no leads-specific gate entries
+	cfg := Load(func(k string) string { return base[k] })
+	for _, p := range cfg.Gate() {
+		if strings.Contains(p, "LEADS") {
+			t.Fatalf("leads gate entry with feature off: %v", p)
+		}
+	}
+	// on without config: 4 explicit entries (notify url/token, target app, pepper)
+	base["FEATURE_LEADS_CAPTURE"] = "on"
+	cfg = Load(func(k string) string { return base[k] })
+	if len(cfg.Gate()) != 4 {
+		t.Fatalf("gate problems = %v, want 4 leads entries", cfg.Gate())
+	}
+	base["PLATFORM_NOTIFY_BASE_URL"] = "http://127.0.0.1:18105"
+	base["PLATFORM_NOTIFY_TOKEN"] = "n"
+	base["LEADS_TARGET_APP_ID"] = "crm-app"
+	base["LEADS_PHONE_PEPPER"] = "dev-pepper"
+	cfg = Load(func(k string) string { return base[k] })
+	if problems := cfg.Gate(); len(problems) != 0 {
+		t.Fatalf("gate problems = %v, want none", problems)
 	}
 }
 
