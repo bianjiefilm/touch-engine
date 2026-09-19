@@ -30,6 +30,55 @@ func (s *Server) requireTagOwner(c *caller, w http.ResponseWriter) bool {
 	return s.requireAction(c, authz.ActionManageTags, authzScope(c), w)
 }
 
+// requireTagFace authorizes the NFC TAG face (groups stay org_owner-only via
+// requireTagOwner). HUI-1674: org_owner reaches every tag; store_manager works
+// only on own-store tags (enforced per-record, never by client input). Everyone
+// else is refused exactly as before (staff → 403 forbidden).
+// Returns the member's store scope ("" = org_owner, no narrowing).
+func (s *Server) requireTagFace(c *caller, w http.ResponseWriter) (string, bool) {
+	m := authzMember(c)
+	if m == nil {
+		fail(w, http.StatusForbidden, authz.ReasonNotMember, "no membership resolved")
+		return "", false
+	}
+	if !m.Enabled {
+		fail(w, http.StatusForbidden, authz.ReasonDisabled, "member disabled")
+		return "", false
+	}
+	switch m.Role {
+	case authz.RoleOrgOwner:
+		return "", true
+	case authz.RoleStoreManager:
+		if m.StoreScope == "" {
+			// malformed row: fail closed
+			fail(w, http.StatusForbidden, authz.ReasonOutOfScope, "store manager without store scope")
+			return "", false
+		}
+		return m.StoreScope, true
+	default:
+		fail(w, http.StatusForbidden, authz.ReasonForbidden, "action not allowed for this member")
+		return "", false
+	}
+}
+
+// tagScoped fetches the tag view in the caller's tenant and enforces the
+// member's store scope on it. Missing and out-of-scope are both 404 (掩码).
+func (s *Server) tagScoped(c *caller, id string, w http.ResponseWriter) (store.NfcTagView, bool) {
+	v, err := s.St.GetTagView(id, c.Member.TenantID)
+	if errors.Is(err, store.ErrNotFound) {
+		fail(w, http.StatusNotFound, "not_found", "tag not found")
+		return store.NfcTagView{}, false
+	}
+	if err != nil {
+		fail(w, http.StatusInternalServerError, "internal", "tag lookup failed")
+		return store.NfcTagView{}, false
+	}
+	if !s.requireScopedAction(c, authz.ActionManageTags, authz.RecordScope{TenantID: c.Member.TenantID, StoreID: v.StoreID}, true, w) {
+		return store.NfcTagView{}, false
+	}
+	return v, true
+}
+
 // ---- tag groups ---------------------------------------------------------------
 
 func (s *Server) handleTagGroupCreate(w http.ResponseWriter, r *http.Request) {
@@ -108,7 +157,8 @@ func parseTagFilter(r *http.Request) (store.TagFilter, bool) {
 
 func (s *Server) handleTagBatchCreate(w http.ResponseWriter, r *http.Request) {
 	c := callerFrom(r)
-	if !s.requireTagOwner(c, w) {
+	scope, ok := s.requireTagFace(c, w)
+	if !ok {
 		return
 	}
 	var in struct {
@@ -139,6 +189,25 @@ func (s *Server) handleTagBatchCreate(w http.ResponseWriter, r *http.Request) {
 	if in.BindMode == "shared" && len(in.LinkIDs) != 1 {
 		fail(w, http.StatusBadRequest, "bad_links", "shared mode requires exactly one link")
 		return
+	}
+	// HUI-1674: the target campaign must be inside the caller's store scope
+	// (跨店活动 404 掩码;org_owner 不受限)。
+	if _, ok := s.campaignScoped(c, in.CampaignID, authz.ActionManageTags, w); !ok {
+		return
+	}
+	// HUI-1674: 门店经理的绑定事实由服务端决定——缺省=本店;显式他店=403。
+	if scope != "" {
+		if in.StoreID == "" {
+			in.StoreID = scope
+		} else if in.StoreID != scope {
+			fail(w, http.StatusForbidden, authz.ReasonOutOfScope, "store manager may only bind tags to its own store")
+			return
+		}
+		// 分组是总部级组织手段(无门店作用域),经理不参与
+		if in.GroupID != "" {
+			fail(w, http.StatusForbidden, authz.ReasonOutOfScope, "store manager may not assign tag groups")
+			return
+		}
 	}
 	if in.StoreID != "" {
 		if _, err := s.St.GetStore(in.StoreID, c.Member.TenantID); err != nil {
@@ -171,13 +240,18 @@ func (s *Server) handleTagBatchCreate(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleTagList(w http.ResponseWriter, r *http.Request) {
 	c := callerFrom(r)
-	if !s.requireTagOwner(c, w) {
+	scope, ok := s.requireTagFace(c, w)
+	if !ok {
 		return
 	}
 	f, ok := parseTagFilter(r)
 	if !ok {
 		fail(w, http.StatusBadRequest, "bad_filter", "status must be active or disabled")
 		return
+	}
+	// HUI-1674: 服务端强制作用域过滤——客户端传来的 store_id 永不放宽经理视野
+	if scope != "" {
+		f.StoreID = scope
 	}
 	items, err := s.St.ListTags(c.Member.TenantID, f)
 	if err != nil {
@@ -189,16 +263,11 @@ func (s *Server) handleTagList(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleTagGet(w http.ResponseWriter, r *http.Request) {
 	c := callerFrom(r)
-	if !s.requireTagOwner(c, w) {
+	if _, ok := s.requireTagFace(c, w); !ok {
 		return
 	}
-	v, err := s.St.GetTagView(r.PathValue("id"), c.Member.TenantID)
-	if errors.Is(err, store.ErrNotFound) {
-		fail(w, http.StatusNotFound, "not_found", "tag not found")
-		return
-	}
-	if err != nil {
-		fail(w, http.StatusInternalServerError, "internal", "tag lookup failed")
+	v, ok := s.tagScoped(c, r.PathValue("id"), w)
+	if !ok {
 		return
 	}
 	writeJSON(w, http.StatusOK, v)
@@ -206,7 +275,12 @@ func (s *Server) handleTagGet(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleTagPatch(w http.ResponseWriter, r *http.Request) {
 	c := callerFrom(r)
-	if !s.requireTagOwner(c, w) {
+	scope, ok := s.requireTagFace(c, w)
+	if !ok {
+		return
+	}
+	cur, ok := s.tagScoped(c, r.PathValue("id"), w)
+	if !ok {
 		return
 	}
 	var in struct {
@@ -238,6 +312,32 @@ func (s *Server) handleTagPatch(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "bad_link", "link_id must not be empty (omit to keep the binding)")
 		return
 	}
+	// HUI-1674: 门店经理的改动边界(全部服务端强制)
+	if scope != "" {
+		if in.GroupID != nil {
+			fail(w, http.StatusForbidden, authz.ReasonOutOfScope, "store manager may not change tag groups")
+			return
+		}
+		if in.StoreID != nil && *in.StoreID != scope {
+			fail(w, http.StatusForbidden, authz.ReasonOutOfScope, "store manager may only keep its own store binding")
+			return
+		}
+		if in.LinkID != nil && *in.LinkID != cur.LinkID {
+			// 换绑目标的活动必须仍在本店(跨店 404 掩码)
+			target, err := s.St.GetLink(*in.LinkID, c.Member.TenantID)
+			if errors.Is(err, store.ErrNotFound) {
+				fail(w, http.StatusNotFound, "not_found", "tag or referenced record not found in this tenant")
+				return
+			}
+			if err != nil {
+				fail(w, http.StatusInternalServerError, "internal", "link lookup failed")
+				return
+			}
+			if _, ok := s.campaignScoped(c, target.CampaignID, authz.ActionManageTags, w); !ok {
+				return
+			}
+		}
+	}
 	v, err := s.St.PatchTag(r.PathValue("id"), c.Member.TenantID, store.TagPatch{
 		Label: in.Label, LinkID: in.LinkID, GroupID: in.GroupID, StoreID: in.StoreID, UIDHint: in.UIDHint,
 	})
@@ -255,7 +355,10 @@ func (s *Server) handleTagPatch(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleTagStatus(w http.ResponseWriter, r *http.Request) {
 	c := callerFrom(r)
-	if !s.requireTagOwner(c, w) {
+	if _, ok := s.requireTagFace(c, w); !ok {
+		return
+	}
+	if _, ok := s.tagScoped(c, r.PathValue("id"), w); !ok {
 		return
 	}
 	var in struct {
@@ -280,7 +383,10 @@ func (s *Server) handleTagStatus(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleTagDelete(w http.ResponseWriter, r *http.Request) {
 	c := callerFrom(r)
-	if !s.requireTagOwner(c, w) {
+	if _, ok := s.requireTagFace(c, w); !ok {
+		return
+	}
+	if _, ok := s.tagScoped(c, r.PathValue("id"), w); !ok {
 		return
 	}
 	// 只删管理面记录;短码 link 与既有生命周期不受影响。
@@ -300,7 +406,8 @@ func (s *Server) handleTagDelete(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleTagExportCSV(w http.ResponseWriter, r *http.Request) {
 	c := callerFrom(r)
-	if !s.requireTagOwner(c, w) {
+	scope, ok := s.requireTagFace(c, w)
+	if !ok {
 		return
 	}
 	// fail-closed:没有对外基地址就无法构造 canonical URL 列,拒绝猜测
@@ -315,6 +422,10 @@ func (s *Server) handleTagExportCSV(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		fail(w, http.StatusBadRequest, "bad_filter", "status must be active or disabled")
 		return
+	}
+	// HUI-1674: 服务端强制作用域过滤
+	if scope != "" {
+		f.StoreID = scope
 	}
 	items, err := s.St.ListTags(c.Member.TenantID, f)
 	if err != nil {

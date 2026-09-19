@@ -19,6 +19,7 @@ interface StoreRec {
   id: string;
   name: string;
   address: string;
+  status: "active" | "disabled";
 }
 
 interface LinkRec {
@@ -66,10 +67,21 @@ export default function AdminPage() {
   const [password, setPassword] = useState("");
   const [tenantId, setTenantId] = useState("");
   const [role, setRole] = useState("");
+  const [storeScope, setStoreScope] = useState(""); // HUI-1674:""=总部;非空=仅该门店
   const [email_, setEmailMasked] = useState("");
   const [error, setError] = useState("");
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [stores, setStores] = useState<StoreRec[]>([]);
+
+  // HUI-1674 门店治理:org_owner 改店/停用;编辑行内状态
+  const [storeEdit, setStoreEdit] = useState<{ id: string; name: string; address: string } | null>(null);
+  const [storeError, setStoreError] = useState("");
+
+  const isOrgOwner = role === "org_owner";
+  const isStoreManager = role === "store_manager";
+  const managedStore = isStoreManager ? stores.find((s) => s.id === storeScope) : undefined;
+  // 建活动/绑标签只可选未停用门店(经理的门店列表服务端已过滤为本店)
+  const activeStores = stores.filter((s) => s.status !== "disabled");
 
   const [newStore, setNewStore] = useState({ name: "", address: "" });
   const [newCampaign, setNewCampaign] = useState({ title: "", public_content: "", starts_at: "", ends_at: "", store_id: "", order_ref: "" });
@@ -197,6 +209,7 @@ export default function AdminPage() {
       return;
     }
     setRole(String(who.data.role ?? ""));
+    setStoreScope(String(who.data.store_scope ?? ""));
     setEmailMasked(String(who.data.email ?? ""));
     setError("");
     const [cmp, sto] = await Promise.all([api("GET", "campaigns"), api("GET", "stores")]);
@@ -235,6 +248,47 @@ export default function AdminPage() {
     await refresh();
   }
 
+  // ---- HUI-1674 门店治理(org_owner) ---------------------------------------
+
+  async function createStore(e: React.FormEvent) {
+    e.preventDefault();
+    const res = await api("POST", "stores", newStore);
+    if (!res.ok) {
+      setStoreError(whoStatusText(res.status, res.data));
+      return;
+    }
+    setStoreError("");
+    setNewStore({ name: "", address: "" });
+    await refresh();
+  }
+
+  async function saveStoreEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!storeEdit) return;
+    const res = await api("PATCH", `stores/${storeEdit.id}`, { name: storeEdit.name, address: storeEdit.address });
+    if (!res.ok) {
+      setStoreError(whoStatusText(res.status, res.data));
+      return;
+    }
+    setStoreError("");
+    setStoreEdit(null);
+    await refresh();
+  }
+
+  async function setStoreStatus(id: string, status: "active" | "disabled") {
+    const res = await api("POST", `stores/${id}/status`, { status });
+    if (!res.ok) {
+      setStoreError(whoStatusText(res.status, res.data));
+      return;
+    }
+    setStoreError(
+      status === "disabled"
+        ? "门店已停用:禁止新建活动,公共活动页将标注「门店暂不可用」;存量活动保持原状,请逐个处理。"
+        : "",
+    );
+    await refresh();
+  }
+
   async function createCampaign(e: React.FormEvent) {
     e.preventDefault();
     const res = await api("POST", "campaigns", {
@@ -242,7 +296,7 @@ export default function AdminPage() {
       public_content: newCampaign.public_content,
       starts_at: newCampaign.starts_at || undefined,
       ends_at: newCampaign.ends_at || undefined,
-      store_id: newCampaign.store_id || undefined,
+      store_id: newCampaign.store_id || managedStore?.id || undefined,
       order_ref: newCampaign.order_ref || undefined,
     });
     if (!res.ok) {
@@ -440,7 +494,16 @@ export default function AdminPage() {
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
         <h1>碰一碰 · 商家后台</h1>
         <div>
-          <span style={{ marginRight: 12 }}>{email_} · {role} · {tenantId}</span>
+          <span style={{ marginRight: 12 }}>
+            {email_} · {role}
+            {isStoreManager
+              ? ` · 门店:${managedStore?.name ?? storeScope}`
+              : isOrgOwner
+                ? " · 总部(全门店)"
+                : ""}
+            {" · "}
+            {tenantId}
+          </span>
           <button onClick={logout} style={btnStyle}>退出</button>
         </div>
       </header>
@@ -448,25 +511,47 @@ export default function AdminPage() {
 
       <section style={sectionStyle}>
         <h2>门店</h2>
-        <ul>
-          {stores.map((s) => (
-            <li key={s.id}>{s.name}({s.address || "无地址"})</li>
-          ))}
-        </ul>
-        <form
-          onSubmit={async (e) => {
-            e.preventDefault();
-            const res = await api("POST", "stores", newStore);
-            if (!res.ok) setError(whoStatusText(res.status, res.data));
-            setNewStore({ name: "", address: "" });
-            await refresh();
-          }}
-          style={{ display: "flex", gap: 8 }}
-        >
-          <input placeholder="门店名" value={newStore.name} onChange={(e) => setNewStore({ ...newStore, name: e.target.value })} style={inputStyle} required />
-          <input placeholder="地址(可选)" value={newStore.address} onChange={(e) => setNewStore({ ...newStore, address: e.target.value })} style={inputStyle} />
-          <button style={btnStyle}>新增门店</button>
-        </form>
+        {storeError && <p style={{ color: isStoreManager ? undefined : "#b45309" }}>{storeError}</p>}
+        {isStoreManager ? (
+          <p style={{ color: "#6b7280" }}>
+            你只管辖本门店:{managedStore ? `${managedStore.name}(${managedStore.address || "无地址"})` : "(门店不存在或已被移除)"}。
+            门店的增删改由总部(org_owner)操作。
+          </p>
+        ) : (
+          <ul>
+            {stores.map((s) => (
+              <li key={s.id} style={{ marginBottom: 4 }}>
+                {storeEdit?.id === s.id ? (
+                  <form onSubmit={saveStoreEdit} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <input value={storeEdit.name} onChange={(e) => setStoreEdit({ ...storeEdit, name: e.target.value })} style={inputStyle} required />
+                    <input value={storeEdit.address} onChange={(e) => setStoreEdit({ ...storeEdit, address: e.target.value })} style={inputStyle} placeholder="地址" />
+                    <button style={btnStyle}>保存</button>
+                    <button type="button" onClick={() => setStoreEdit(null)} style={{ ...btnStyle, background: "#fff", color: "#374151", borderColor: "#d1d5db" }}>取消</button>
+                  </form>
+                ) : (
+                  <>
+                    {s.name}({s.address || "无地址"}){" "}
+                    {s.status === "disabled"
+                      ? <span style={{ color: "#b45309", fontSize: 13 }}>[已停用:禁止新建活动,公共页标注「门店暂不可用」]</span>
+                      : <span style={{ color: "#059669", fontSize: 13 }}>[启用]</span>}
+                    {" "}
+                    <button type="button" onClick={() => setStoreEdit({ id: s.id, name: s.name, address: s.address })} style={{ ...btnStyle, padding: "2px 8px", background: "#fff", color: "#2563eb" }}>编辑</button>
+                    {s.status === "active"
+                      ? <button type="button" onClick={() => void setStoreStatus(s.id, "disabled")} style={{ ...btnStyle, padding: "2px 8px", background: "#fff", color: "#b45309", borderColor: "#b45309" }}>停用</button>
+                      : <button type="button" onClick={() => void setStoreStatus(s.id, "active")} style={{ ...btnStyle, padding: "2px 8px", background: "#fff", color: "#059669", borderColor: "#059669" }}>启用</button>}
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+        {isOrgOwner && (
+          <form onSubmit={createStore} style={{ display: "flex", gap: 8 }}>
+            <input placeholder="门店名" value={newStore.name} onChange={(e) => setNewStore({ ...newStore, name: e.target.value })} style={inputStyle} required />
+            <input placeholder="地址(可选)" value={newStore.address} onChange={(e) => setNewStore({ ...newStore, address: e.target.value })} style={inputStyle} />
+            <button style={btnStyle}>新增门店</button>
+          </form>
+        )}
       </section>
 
       <section style={sectionStyle}>
@@ -538,8 +623,8 @@ export default function AdminPage() {
           <input placeholder="开始时间 RFC3339(可空)" value={newCampaign.starts_at} onChange={(e) => setNewCampaign({ ...newCampaign, starts_at: e.target.value })} style={inputStyle} />
           <input placeholder="结束时间 RFC3339(可空)" value={newCampaign.ends_at} onChange={(e) => setNewCampaign({ ...newCampaign, ends_at: e.target.value })} style={inputStyle} />
           <select value={newCampaign.store_id} onChange={(e) => setNewCampaign({ ...newCampaign, store_id: e.target.value })} style={inputStyle}>
-            <option value="">不关联门店</option>
-            {stores.map((s) => (
+            <option value="">{isStoreManager ? "本门店(自动)" : "不关联门店"}</option>
+            {activeStores.map((s) => (
               <option key={s.id} value={s.id}>{s.name}</option>
             ))}
           </select>
@@ -564,27 +649,29 @@ export default function AdminPage() {
       </section>
 
       <section style={sectionStyle}>
-        <h2>NFC 标签(仅商家管理员可用;物理写入由 NFC 工具按导出文件执行)</h2>
+        <h2>NFC 标签(总部与门店经理可用,门店经理仅见本店标签;物理写入由 NFC 工具按导出文件执行)</h2>
         {nfcError && <p style={{ color: "#b91c1c" }}>{nfcError}</p>}
 
-        {/* 分组 */}
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <form onSubmit={createTagGroup} style={{ display: "flex", gap: 8 }}>
-            <input placeholder="新分组名" value={newGroup} onChange={(e) => setNewGroup(e.target.value)} style={inputStyle} required />
-            <button style={btnStyle}>新建分组</button>
-          </form>
-          <span style={{ fontSize: 14, color: "#6b7280" }}>
-            分组:{tagGroups.length === 0 ? "(无)" : ""}
-          </span>
-          {tagGroups.map((g) => (
-            <span key={g.id} style={{ fontSize: 14, border: "1px solid #e5e7eb", borderRadius: 6, padding: "2px 8px" }}>
-              {g.name}{" "}
-              <button type="button" onClick={() => void deleteTagGroup(g.id)} style={{ ...btnStyle, padding: "0 6px", background: "#fff", color: "#b91c1c", borderColor: "#b91c1c" }} title="删除分组(组内标签变为未分组)">
-                ×
-              </button>
+        {/* 分组(总部 org_owner 专属;门店经理无分组权限,服务端同样裁决) */}
+        {!isStoreManager && (
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <form onSubmit={createTagGroup} style={{ display: "flex", gap: 8 }}>
+              <input placeholder="新分组名" value={newGroup} onChange={(e) => setNewGroup(e.target.value)} style={inputStyle} required />
+              <button style={btnStyle}>新建分组</button>
+            </form>
+            <span style={{ fontSize: 14, color: "#6b7280" }}>
+              分组:{tagGroups.length === 0 ? "(无)" : ""}
             </span>
-          ))}
-        </div>
+            {tagGroups.map((g) => (
+              <span key={g.id} style={{ fontSize: 14, border: "1px solid #e5e7eb", borderRadius: 6, padding: "2px 8px" }}>
+                {g.name}{" "}
+                <button type="button" onClick={() => void deleteTagGroup(g.id)} style={{ ...btnStyle, padding: "0 6px", background: "#fff", color: "#b91c1c", borderColor: "#b91c1c" }} title="删除分组(组内标签变为未分组)">
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
 
         {/* 批量创建 */}
         <form onSubmit={submitBatch} style={{ ...formStyle, marginTop: 12, borderTop: "1px solid #f3f4f6", paddingTop: 12 }}>
@@ -602,17 +689,19 @@ export default function AdminPage() {
             </select>
             <input placeholder="数量(1..500)" value={batch.count} onChange={(e) => setBatch({ ...batch, count: e.target.value })} style={{ ...inputStyle, flex: "0 1 120px" }} required />
             <select value={batch.store} onChange={(e) => setBatch({ ...batch, store: e.target.value })} style={inputStyle}>
-              <option value="">不绑门店</option>
-              {stores.map((s) => (
+              <option value="">{isStoreManager ? "本门店(自动)" : "不绑门店"}</option>
+              {activeStores.map((s) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
-            <select value={batch.group} onChange={(e) => setBatch({ ...batch, group: e.target.value })} style={inputStyle}>
-              <option value="">不分组</option>
-              {tagGroups.map((g) => (
-                <option key={g.id} value={g.id}>{g.name}</option>
-              ))}
-            </select>
+            {!isStoreManager && (
+              <select value={batch.group} onChange={(e) => setBatch({ ...batch, group: e.target.value })} style={inputStyle}>
+                <option value="">不分组</option>
+                {tagGroups.map((g) => (
+                  <option key={g.id} value={g.id}>{g.name}</option>
+                ))}
+              </select>
+            )}
             <input placeholder="标签名前缀(默认 NFC)" value={batch.prefix} onChange={(e) => setBatch({ ...batch, prefix: e.target.value })} style={inputStyle} />
             <button style={btnStyle}>批量生成</button>
           </div>
@@ -644,12 +733,14 @@ export default function AdminPage() {
               <option key={c.id} value={c.id}>{c.title}</option>
             ))}
           </select>
-          <select value={tagFilter.group} onChange={(e) => setTagFilter({ ...tagFilter, group: e.target.value })} style={{ ...inputStyle, flex: "0 1 auto" }}>
-            <option value="">全部分组</option>
-            {tagGroups.map((g) => (
-              <option key={g.id} value={g.id}>{g.name}</option>
-            ))}
-          </select>
+          {!isStoreManager && (
+            <select value={tagFilter.group} onChange={(e) => setTagFilter({ ...tagFilter, group: e.target.value })} style={{ ...inputStyle, flex: "0 1 auto" }}>
+              <option value="">全部分组</option>
+              {tagGroups.map((g) => (
+                <option key={g.id} value={g.id}>{g.name}</option>
+              ))}
+            </select>
+          )}
           <select value={tagFilter.status} onChange={(e) => setTagFilter({ ...tagFilter, status: e.target.value })} style={{ ...inputStyle, flex: "0 1 auto" }}>
             <option value="">全部状态</option>
             <option value="active">启用</option>

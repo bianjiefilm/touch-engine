@@ -96,14 +96,15 @@ func cmdProvisionMember(args []string) {
 	dbPath := fs.String("db", "", "sqlite db path (required)")
 	tenant := fs.String("tenant", "", "tenant id (required)")
 	principal := fs.String("principal", "", "platform principal ref, usr_* (required)")
-	role := fs.String("role", "staff", "owner|staff")
+	role := fs.String("role", "staff", "org_owner (alias: owner)|store_manager|staff")
 	name := fs.String("name", "", "display name")
+	storeScope := fs.String("store", "", "store id; REQUIRED for store_manager, refused otherwise")
 	disabled := fs.Bool("disabled", false, "create as disabled")
 	_ = fs.Parse(args)
 	if *dbPath == "" || *tenant == "" || *principal == "" {
 		fatalUsage("provision-member requires -db, -tenant, -principal")
 	}
-	id, err := provision.Member(*dbPath, *tenant, *principal, *role, *name, !*disabled)
+	id, err := provision.Member(*dbPath, *tenant, *principal, *role, *name, !*disabled, *storeScope)
 	must(err)
 	fmt.Println(id)
 }

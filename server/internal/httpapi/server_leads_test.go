@@ -209,9 +209,9 @@ func newLeadsFixture(t *testing.T) *leadsFixture {
 		t.Fatal(err)
 	}
 	for _, m := range []struct{ tenant, principal, role string }{
-		{tenA.ID, "usr_owner_a", "owner"},
+		{tenA.ID, "usr_owner_a", "org_owner"},
 		{tenA.ID, "usr_staff_a", "staff"},
-		{tenB.ID, "usr_owner_b", "owner"},
+		{tenB.ID, "usr_owner_b", "org_owner"},
 	} {
 		if _, err := st.CreateMember(m.tenant, m.principal, m.role, m.principal, "test", true); err != nil {
 			t.Fatalf("seed: %v", err)
@@ -735,7 +735,7 @@ func TestLeadsRestartRecovery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := st1.CreateMember(ten.ID, "usr_owner_a", "owner", "o", "test", true); err != nil {
+	if _, err := st1.CreateMember(ten.ID, "usr_owner_a", "org_owner", "o", "test", true); err != nil {
 		t.Fatal(err)
 	}
 	cmp, err := st1.CreateCampaign(store.NewCampaign{

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/bianjiefilm/touch-engine/server/internal/authz"
 	"github.com/bianjiefilm/touch-engine/server/internal/redact"
 )
 
@@ -75,11 +76,50 @@ func (s *Server) handleWhoami(w http.ResponseWriter, r *http.Request) {
 		"email":         redact.MaskEmail(c.Principal.Email),
 		"tenant_id":     c.Member.TenantID,
 		"role":          c.Member.Role,
+		"store_scope":   c.Member.StoreScope, // HUI-1674: "" = 总部/全门店;非空 = 仅该门店
 		"enabled":       c.Member.Enabled,
 	})
 }
 
-// ---- member admin (owner only) ------------------------------------------------
+// ---- member admin (org_owner only) ----------------------------------------------
+//
+// HUI-1674 角色模型:
+//   - org_owner  总部/全门店(存量 owner 的语义等价物;输入仍接受 "owner" 别名)
+//   - store_manager  门店经理,必须带 store_scope(本租户内真实门店)
+//   - staff  租户级职员(T0 语义)
+//   - 非 store_manager 成员不得携带 store_scope;store_manager 不得清空作用域。
+
+// parseMemberRole maps the input role to its canonical stored value.
+// Returns "" with ok=false when the input is not a known role.
+func parseMemberRole(in string) (string, bool) {
+	canonical, ok := authz.CanonicalRole(authz.Role(in))
+	if !ok {
+		return "", false
+	}
+	return string(canonical), true
+}
+
+// validateMemberScope enforces the role↔scope invariant against the tenant's
+// stores. Returns the validated scope ("" for non-manager roles).
+func (s *Server) validateMemberScope(c *caller, role, storeScope string, w http.ResponseWriter) (string, bool) {
+	storeScope = strings.TrimSpace(storeScope)
+	if role == "store_manager" {
+		if storeScope == "" {
+			fail(w, http.StatusBadRequest, "bad_scope", "store_manager requires store_scope (a store of this tenant)")
+			return "", false
+		}
+		if _, err := s.St.GetStore(storeScope, c.Member.TenantID); err != nil {
+			fail(w, http.StatusBadRequest, "bad_scope", "store_scope must reference an existing store of this tenant")
+			return "", false
+		}
+		return storeScope, true
+	}
+	if storeScope != "" {
+		fail(w, http.StatusBadRequest, "bad_scope", "store_scope is only allowed for store_manager")
+		return "", false
+	}
+	return "", true
+}
 
 func (s *Server) handleMemberList(w http.ResponseWriter, r *http.Request) {
 	c := callerFrom(r)
@@ -106,6 +146,7 @@ func (s *Server) handleMemberCreate(w http.ResponseWriter, r *http.Request) {
 		PrincipalRef string `json:"principal_ref"`
 		Role         string `json:"role"`
 		DisplayName  string `json:"display_name"`
+		StoreScope   string `json:"store_scope"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		fail(w, http.StatusBadRequest, "bad_request", "invalid json body")
@@ -116,11 +157,16 @@ func (s *Server) handleMemberCreate(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "bad_principal_ref", "principal_ref must be an identity principal id (usr_*); emails/phones never create members")
 		return
 	}
-	if in.Role != "owner" && in.Role != "staff" {
-		fail(w, http.StatusBadRequest, "bad_role", "role must be owner or staff")
+	role, ok := parseMemberRole(in.Role)
+	if !ok {
+		fail(w, http.StatusBadRequest, "bad_role", "role must be org_owner (or legacy owner), store_manager or staff")
 		return
 	}
-	m, err := s.St.CreateMember(c.Member.TenantID, ref, in.Role, in.DisplayName, c.Member.PrincipalRef, true)
+	scope, ok := s.validateMemberScope(c, role, in.StoreScope, w)
+	if !ok {
+		return
+	}
+	m, err := s.St.CreateMemberScoped(c.Member.TenantID, ref, role, in.DisplayName, c.Member.PrincipalRef, true, scope)
 	if err != nil {
 		fail(w, http.StatusConflict, "member_exists", "principal already a member of this tenant (or storage error)")
 		return
@@ -137,6 +183,7 @@ func (s *Server) handleMemberPatch(w http.ResponseWriter, r *http.Request) {
 		Role        *string `json:"role"`
 		Enabled     *bool   `json:"enabled"`
 		DisplayName *string `json:"display_name"`
+		StoreScope  *string `json:"store_scope"`
 		// PrincipalRef is accepted only to be refused: it is immutable.
 		PrincipalRef *string `json:"principal_ref"`
 	}
@@ -148,19 +195,53 @@ func (s *Server) handleMemberPatch(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "principal_immutable", "principal_ref is immutable; it can only come from identity")
 		return
 	}
-	if in.Role != nil && *in.Role != "owner" && *in.Role != "staff" {
-		fail(w, http.StatusBadRequest, "bad_role", "role must be owner or staff")
+	m, err := s.St.GetMember(r.PathValue("id"))
+	if err != nil || m.TenantID != c.Member.TenantID {
+		// member must belong to the caller's tenant (掩码:他租户成员不可见)
+		fail(w, http.StatusNotFound, "not_found", "member not found in this tenant scope")
 		return
 	}
-	m, err := s.St.UpdateMember(r.PathValue("id"), in.Role, in.Enabled, in.DisplayName)
+
+	// resolve the effective target role (current role when not being changed)
+	role := m.Role
+	if in.Role != nil {
+		canonical, ok := parseMemberRole(*in.Role)
+		if !ok {
+			fail(w, http.StatusBadRequest, "bad_role", "role must be org_owner (or legacy owner), store_manager or staff")
+			return
+		}
+		role = canonical
+	}
+	// resolve the effective target scope: explicit pointer wins, otherwise the
+	// current scope (and demotion away from store_manager clears it).
+	scope := m.StoreScope
+	if in.StoreScope != nil {
+		scope = strings.TrimSpace(*in.StoreScope)
+	} else if role != "store_manager" {
+		scope = ""
+	}
+	// role changes wholesale: re-validate the role↔scope invariant whenever the
+	// pair is touched.
+	if in.Role != nil || in.StoreScope != nil {
+		validated, ok := s.validateMemberScope(c, role, scope, w)
+		if !ok {
+			return
+		}
+		scope = validated
+	}
+
+	updated, err := s.St.UpdateMemberScoped(r.PathValue("id"), strPtrOrNil(role, in.Role != nil), in.Enabled, in.DisplayName, &scope)
 	if err != nil {
 		fail(w, http.StatusNotFound, "not_found", "member not found in this tenant scope")
 		return
 	}
-	// member must belong to the caller's tenant
-	if m.TenantID != c.Member.TenantID {
-		fail(w, http.StatusNotFound, "not_found", "member not found in this tenant scope")
-		return
+	writeJSON(w, http.StatusOK, updated)
+}
+
+// strPtrOrNil returns a pointer when set is true (role is canonical already).
+func strPtrOrNil(v string, set bool) *string {
+	if !set {
+		return nil
 	}
-	writeJSON(w, http.StatusOK, m)
+	return &v
 }

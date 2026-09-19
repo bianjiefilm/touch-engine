@@ -16,7 +16,7 @@
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { classifyEntry, failureState, STATE_ACTION, STATE_TEXT, type PublicUiState } from "@/lib/public-state";
+import { classifyEntry, failureState, STATE_ACTION, STATE_TEXT, storeNoticeText, type PublicUiState } from "@/lib/public-state";
 import { inSiteTargetFromParams } from "@/lib/safe-redirect";
 
 interface PublicView {
@@ -25,6 +25,7 @@ interface PublicView {
   public_content?: string;
   starts_at?: string;
   ends_at?: string;
+  store_notice?: string; // HUI-1674:仅白名单常量 store_unavailable(门店暂不可用标注)
 }
 
 interface LeadFormView {
@@ -212,6 +213,11 @@ function PublicCampaignInner() {
             {(view?.starts_at || view?.ends_at) && (
               <p style={{ color: "#6b7280", fontSize: 14 }}>
                 活动时间:{view?.starts_at || "即日起"} ~ {view?.ends_at || "长期"}
+              </p>
+            )}
+            {storeNoticeText(view?.store_notice) && (
+              <p style={{ color: "#b45309", fontSize: 14, background: "#fef3c7", borderRadius: 8, padding: "8px 12px", marginTop: 10 }}>
+                {storeNoticeText(view?.store_notice)}
               </p>
             )}
 

@@ -7,17 +7,17 @@ package httpapi
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 
 	"github.com/bianjiefilm/touch-engine/server/internal/authz"
-	"github.com/bianjiefilm/touch-engine/server/internal/store"
 )
 
 // POST /api/v1/campaigns/{id}/lead-form — enable/configure the fixed light form.
 func (s *Server) handleLeadFormUpsert(w http.ResponseWriter, r *http.Request) {
 	c := callerFrom(r)
-	if !s.requireAction(c, authz.ActionCreate, authzScope(c), w) {
+	// campaign scope first: another tenant's campaign must be invisible here,
+	// and a store manager only reaches own-store campaigns (HUI-1674, 404 mask)
+	if _, ok := s.campaignScoped(c, r.PathValue("id"), authz.ActionCreate, w); !ok {
 		return
 	}
 	// feature off -> the whole lead surface is invisible, admin side included:
@@ -32,11 +32,6 @@ func (s *Server) handleLeadFormUpsert(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		fail(w, http.StatusBadRequest, "bad_request", "invalid json body")
-		return
-	}
-	// campaign scope first: another tenant's campaign must be invisible here
-	if _, err := s.St.GetCampaign(r.PathValue("id"), c.Member.TenantID); err != nil {
-		fail(w, http.StatusNotFound, "not_found", "campaign not found")
 		return
 	}
 	version := in.NoticeVersion
@@ -58,14 +53,10 @@ func (s *Server) handleLeadFormUpsert(w http.ResponseWriter, r *http.Request) {
 // GET /api/v1/campaigns/{id}/leads — tenant-scoped submission list.
 func (s *Server) handleLeadList(w http.ResponseWriter, r *http.Request) {
 	c := callerFrom(r)
-	if !s.requireAction(c, authz.ActionReadList, authzScope(c), w) {
+	if _, ok := s.campaignScoped(c, r.PathValue("id"), authz.ActionReadList, w); !ok {
 		return
 	}
 	if !s.leadsGate(w) {
-		return
-	}
-	if _, err := s.St.GetCampaign(r.PathValue("id"), c.Member.TenantID); err != nil {
-		fail(w, http.StatusNotFound, "not_found", "campaign not found")
 		return
 	}
 	items, err := s.St.ListLeadSubmissions(c.Member.TenantID, r.PathValue("id"))
@@ -80,14 +71,10 @@ func (s *Server) handleLeadList(w http.ResponseWriter, r *http.Request) {
 // deliberately two separate counters.
 func (s *Server) handleLeadStats(w http.ResponseWriter, r *http.Request) {
 	c := callerFrom(r)
-	if !s.requireAction(c, authz.ActionReadList, authzScope(c), w) {
+	if _, ok := s.campaignScoped(c, r.PathValue("id"), authz.ActionReadList, w); !ok {
 		return
 	}
 	if !s.leadsGate(w) {
-		return
-	}
-	if _, err := s.St.GetCampaign(r.PathValue("id"), c.Member.TenantID); errors.Is(err, store.ErrNotFound) {
-		fail(w, http.StatusNotFound, "not_found", "campaign not found")
 		return
 	}
 	subs, views, err := s.St.LeadStats(c.Member.TenantID, r.PathValue("id"))
@@ -101,14 +88,10 @@ func (s *Server) handleLeadStats(w http.ResponseWriter, r *http.Request) {
 // GET /api/v1/campaigns/{id}/leads/{ref}/audit — minimal audit trail.
 func (s *Server) handleLeadAudit(w http.ResponseWriter, r *http.Request) {
 	c := callerFrom(r)
-	if !s.requireAction(c, authz.ActionReadRecord, authzScope(c), w) {
+	if _, ok := s.campaignScoped(c, r.PathValue("id"), authz.ActionReadRecord, w); !ok {
 		return
 	}
 	if !s.leadsGate(w) {
-		return
-	}
-	if _, err := s.St.GetCampaign(r.PathValue("id"), c.Member.TenantID); err != nil {
-		fail(w, http.StatusNotFound, "not_found", "campaign not found")
 		return
 	}
 	// ref must belong to this tenant+campaign

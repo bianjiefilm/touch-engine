@@ -110,9 +110,9 @@ func newFixture(t *testing.T, featureUpload bool) *fixture {
 	for _, m := range []struct {
 		tenant, principal, role string
 	}{
-		{tenA.ID, "usr_owner_a", "owner"},
+		{tenA.ID, "usr_owner_a", "org_owner"},
 		{tenA.ID, "usr_staff_a", "staff"},
-		{tenB.ID, "usr_owner_b", "owner"},
+		{tenB.ID, "usr_owner_b", "org_owner"},
 	} {
 		if _, err := st.CreateMember(m.tenant, m.principal, m.role, m.principal, "test", true); err != nil {
 			t.Fatalf("seed member: %v", err)
