@@ -31,12 +31,17 @@ func TestMatrix(t *testing.T) {
 		{"owner A manages members", ownerA, ActionManageMembers, tenantA, true, ""},
 		{"staff A cannot manage members", staffA, ActionManageMembers, tenantA, false, ReasonForbidden},
 
+		// HUI-1664: QR download is an owner-only export surface
+		{"owner A exports QR", ownerA, ActionExportQR, tenantA, true, ""},
+		{"staff A cannot export QR", staffA, ActionExportQR, tenantA, false, ReasonForbidden},
+
 		// cross-tenant: B has no membership in A, and vice versa
 		{"owner B create in A refused", ownerB, ActionCreate, tenantA, false, ReasonCrossTenant},
 		{"owner B read list A refused", ownerB, ActionReadList, tenantA, false, ReasonCrossTenant},
 		{"owner B read record A refused", ownerB, ActionReadRecord, tenantA, false, ReasonCrossTenant},
 		{"owner B update A refused", ownerB, ActionUpdate, tenantA, false, ReasonCrossTenant},
 		{"owner B manage members A refused", ownerB, ActionManageMembers, tenantA, false, ReasonCrossTenant},
+		{"owner B export A QR refused", ownerB, ActionExportQR, tenantA, false, ReasonCrossTenant},
 		{"owner A create in B refused", ownerA, ActionCreate, tenantB, false, ReasonCrossTenant},
 
 		// disabled member: denied for everything, own tenant included

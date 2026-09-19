@@ -120,3 +120,26 @@ func TestProductionFlag(t *testing.T) {
 		t.Fatal("Production() = false for TOUCH_ENV=production")
 	}
 }
+
+// HUI-1664: PUBLIC_BASE_URL is the QR payload base. It is deliberately NOT in
+// Gate(): QR availability must not take down the whole authenticated surface;
+// the QR endpoint fails closed on its own (503 qr_not_configured).
+func TestPublicBaseURL(t *testing.T) {
+	cfg := Load(func(string) string { return "" })
+	if cfg.PublicBaseURL != "" {
+		t.Fatalf("PublicBaseURL default = %q, want empty", cfg.PublicBaseURL)
+	}
+	cfg = Load(func(k string) string {
+		if k == "PUBLIC_BASE_URL" {
+			return " https://h5.example.com/ "
+		}
+		return ""
+	})
+	if cfg.PublicBaseURL != "https://h5.example.com/" {
+		t.Fatalf("PublicBaseURL = %q, want whitespace-trimmed (trailing slash is handled by qrentry)", cfg.PublicBaseURL)
+	}
+	// and it must not affect the gate either way
+	if problems := cfg.Gate(); len(problems) != 3 {
+		t.Fatalf("gate with only PUBLIC_BASE_URL set = %v, want 3 base entries", problems)
+	}
+}

@@ -161,6 +161,10 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/campaigns/{id}/links", s.requireSession(s.handleLinkCreate))
 	mux.Handle("POST /api/v1/campaigns/{id}/links/{linkId}/enabled", s.requireSession(s.handleLinkEnabled))
 
+	// QR fallback entry (HUI-1664 FEAT-0165): owner-only export of the
+	// canonical short-code URL as a server-rendered PNG (or json payload).
+	mux.Handle("GET /api/v1/campaigns/{id}/links/{linkId}/qrcode", s.requireSession(s.handleLinkQRCode))
+
 	mux.Handle("GET /api/v1/admin/members", s.requireSession(s.handleMemberList))
 	mux.Handle("POST /api/v1/admin/members", s.requireSession(s.handleMemberCreate))
 	mux.Handle("PATCH /api/v1/admin/members/{id}", s.requireSession(s.handleMemberPatch))
