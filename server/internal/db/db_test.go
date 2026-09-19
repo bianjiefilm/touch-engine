@@ -22,6 +22,8 @@ func TestOpenCreatesSchema(t *testing.T) {
 		"lead_submissions",
 		"leads_outbox",
 		"members",
+		"nfc_tag_groups",
+		"nfc_tags",
 		"public_view_stats",
 		"schema_migrations",
 		"stores",

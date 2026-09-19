@@ -36,6 +36,7 @@ const (
 	ActionUpdate        Action = "update"         // campaigns incl. pause/resume/end
 	ActionManageMembers Action = "manage_members" // owner only
 	ActionExportQR      Action = "export_qr"      // HUI-1664 QR download: owner only
+	ActionManageTags    Action = "manage_tags"    // HUI-1665 NFC tags CRUD/batch/export: owner only
 )
 
 // Deny reason codes.
@@ -83,7 +84,7 @@ func Authorize(member *Member, action Action, rec RecordScope) Decision {
 	}
 
 	switch action {
-	case ActionManageMembers, ActionExportQR:
+	case ActionManageMembers, ActionExportQR, ActionManageTags:
 		if member.Role != RoleOwner {
 			return deny(ReasonForbidden)
 		}

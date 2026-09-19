@@ -33,6 +33,24 @@ interface QrMeta {
   size: number;
 }
 
+// HUI-1665 NFC 标签管理(管理面,owner-only;服务端裁决,staff 见 403 文案)
+interface TagGroup {
+  id: string;
+  name: string;
+}
+
+interface TagView {
+  id: string;
+  label: string;
+  code: string;
+  link_id: string;
+  campaign_id: string;
+  status: "active" | "disabled";
+  uid_hint?: string;
+  store_name?: string;
+  group_name?: string;
+}
+
 const QR_SIZES = [128, 256, 512] as const;
 
 interface AssetRec {
@@ -63,6 +81,18 @@ export default function AdminPage() {
   const [qrMeta, setQrMeta] = useState<Record<string, QrMeta>>({});
   const [qrSize, setQrSize] = useState<number>(256);
   const [qrBusy, setQrBusy] = useState(false);
+
+  // HUI-1665 NFC 标签区(分组 / 批量创建 / 标签表 / CSV 导出)
+  const [tagGroups, setTagGroups] = useState<TagGroup[]>([]);
+  const [tags, setTags] = useState<TagView[]>([]);
+  const [nfcError, setNfcError] = useState("");
+  const [newGroup, setNewGroup] = useState("");
+  const [tagFilter, setTagFilter] = useState({ campaign: "", group: "", status: "" });
+  const [batch, setBatch] = useState({ campaign: "", mode: "shared", count: "10", store: "", group: "", prefix: "" });
+  const [batchLinks, setBatchLinks] = useState<LinkRec[]>([]);
+  const [batchLinkIds, setBatchLinkIds] = useState<string[]>([]);
+  const [rebind, setRebind] = useState<{ tagId: string; campaign: string; links: LinkRec[]; linkId: string } | null>(null);
+  const [uidDraft, setUidDraft] = useState<Record<string, string>>({});
 
   useEffect(() => {
     setTenantId(localStorage.getItem(TENANT_KEY) ?? "");
@@ -140,6 +170,25 @@ export default function AdminPage() {
     [tenantId],
   );
 
+  const loadTags = useCallback(async () => {
+    if (!tenantId) return;
+    const qs = new URLSearchParams();
+    if (tagFilter.campaign) qs.set("campaign_id", tagFilter.campaign);
+    if (tagFilter.group) qs.set("group_id", tagFilter.group);
+    if (tagFilter.status) qs.set("status", tagFilter.status);
+    const [grp, tgs] = await Promise.all([
+      api("GET", "nfc/tag-groups"),
+      api("GET", "nfc/tags" + (qs.toString() ? "?" + qs.toString() : "")),
+    ]);
+    if (grp.ok) setTagGroups((grp.data.items as TagGroup[]) ?? []);
+    if (tgs.ok) {
+      setTags((tgs.data.items as TagView[]) ?? []);
+      setNfcError("");
+    } else {
+      setNfcError(whoStatusText(tgs.status, tgs.data));
+    }
+  }, [api, tenantId, tagFilter.campaign, tagFilter.group, tagFilter.status]);
+
   const refresh = useCallback(async () => {
     if (!tenantId) return;
     const who = await api("GET", "whoami");
@@ -153,7 +202,8 @@ export default function AdminPage() {
     const [cmp, sto] = await Promise.all([api("GET", "campaigns"), api("GET", "stores")]);
     if (cmp.ok) setCampaigns((cmp.data.items as Campaign[]) ?? []);
     if (sto.ok) setStores((sto.data.items as StoreRec[]) ?? []);
-  }, [api, tenantId]);
+    await loadTags();
+  }, [api, tenantId, loadTags]);
 
   useEffect(() => {
     void refresh();
@@ -230,6 +280,136 @@ export default function AdminPage() {
     await fetch("/api/auth/logout", { method: "POST" });
     setRole("");
     setEmailMasked("");
+  }
+
+  // ---- HUI-1665 NFC 标签操作(全部 owner-only,服务端裁决) -----------------
+
+  async function nfcFail(res: { ok: boolean; status: number; data: Record<string, unknown> }) {
+    setNfcError(whoStatusText(res.status, res.data));
+    return false;
+  }
+
+  async function createTagGroup(e: React.FormEvent) {
+    e.preventDefault();
+    const res = await api("POST", "nfc/tag-groups", { name: newGroup });
+    if (!res.ok) return nfcFail(res);
+    setNewGroup("");
+    await loadTags();
+  }
+
+  async function deleteTagGroup(id: string) {
+    const res = await api("DELETE", `nfc/tag-groups/${id}`);
+    if (!res.ok) return nfcFail(res);
+    if (tagFilter.group === id) setTagFilter({ ...tagFilter, group: "" });
+    await loadTags();
+  }
+
+  async function loadBatchLinks(campaignId: string) {
+    setBatch({ ...batch, campaign: campaignId });
+    setBatchLinks([]);
+    setBatchLinkIds([]);
+    if (!campaignId) return;
+    const res = await api("GET", `campaigns/${campaignId}/links`);
+    if (!res.ok) return nfcFail(res);
+    setBatchLinks((res.data.items as LinkRec[]) ?? []);
+  }
+
+  async function submitBatch(e: React.FormEvent) {
+    e.preventDefault();
+    const count = Number(batch.count);
+    if (!batch.campaign || batchLinkIds.length === 0 || !Number.isInteger(count) || count < 1 || count > 500) {
+      setNfcError("请选择活动与至少一条短码链接,数量须为 1..500 的整数。");
+      return;
+    }
+    const res = await api("POST", "nfc/tags/batch", {
+      campaign_id: batch.campaign,
+      link_ids: batchLinkIds,
+      bind_mode: batch.mode,
+      count,
+      store_id: batch.store || undefined,
+      group_id: batch.group || undefined,
+      label_prefix: batch.prefix || undefined,
+    });
+    if (!res.ok) return nfcFail(res);
+    setNfcError("");
+    await loadTags();
+  }
+
+  async function setTagStatus(tag: TagView, status: "active" | "disabled") {
+    const res = await api("POST", `nfc/tags/${tag.id}/status`, { status });
+    if (!res.ok) return nfcFail(res);
+    setNfcError(status === "disabled" ? `已停用:短码 ${tag.code} 的公共页随即进入停用态。` : "");
+    await loadTags();
+  }
+
+  async function saveUidHint(tag: TagView) {
+    const res = await api("PATCH", `nfc/tags/${tag.id}`, { uid_hint: uidDraft[tag.id] ?? tag.uid_hint ?? "" });
+    if (!res.ok) return nfcFail(res);
+    setNfcError("");
+    await loadTags();
+  }
+
+  async function deleteTag(id: string) {
+    const res = await api("DELETE", `nfc/tags/${id}`);
+    if (!res.ok) return nfcFail(res);
+    await loadTags();
+  }
+
+  async function openRebind(tag: TagView) {
+    if (rebind?.tagId === tag.id) {
+      setRebind(null);
+      return;
+    }
+    setRebind({ tagId: tag.id, campaign: tag.campaign_id, links: [], linkId: tag.link_id });
+    const res = await api("GET", `campaigns/${tag.campaign_id}/links`);
+    if (!res.ok) return nfcFail(res);
+    setRebind({ tagId: tag.id, campaign: tag.campaign_id, links: (res.data.items as LinkRec[]) ?? [], linkId: tag.link_id });
+  }
+
+  async function rebindCampaign(campaignId: string) {
+    if (!rebind) return;
+    setRebind({ ...rebind, campaign: campaignId, links: [], linkId: "" });
+    if (!campaignId) return;
+    const res = await api("GET", `campaigns/${campaignId}/links`);
+    if (!res.ok) return nfcFail(res);
+    setRebind({ ...rebind, campaign: campaignId, links: (res.data.items as LinkRec[]) ?? [], linkId: "" });
+  }
+
+  async function confirmRebind() {
+    if (!rebind || !rebind.linkId) {
+      setNfcError("请选择目标短码链接。");
+      return;
+    }
+    const res = await api("PATCH", `nfc/tags/${rebind.tagId}`, { link_id: rebind.linkId });
+    if (!res.ok) return nfcFail(res);
+    setNfcError("");
+    setRebind(null);
+    await loadTags();
+  }
+
+  async function exportCsv() {
+    const qs = new URLSearchParams();
+    if (tagFilter.campaign) qs.set("campaign_id", tagFilter.campaign);
+    if (tagFilter.group) qs.set("group_id", tagFilter.group);
+    if (tagFilter.status) qs.set("status", tagFilter.status);
+    const query = qs.toString();
+    const res = await fetch("/api/nfc/tags/export.csv" + (query ? "?" + query : ""), {
+      headers: { "x-tenant-id": tenantId },
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setNfcError(whoStatusText(res.status, data as Record<string, unknown>));
+      return;
+    }
+    const blob = await res.blob();
+    const href = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = href;
+    a.download = "nfc-tags.csv";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(href);
   }
 
   if (!role) {
@@ -381,6 +561,173 @@ export default function AdminPage() {
           <input placeholder="版本(可选,须为平台 sha256)" value={newAsset.version} onChange={(e) => setNewAsset({ ...newAsset, version: e.target.value })} style={inputStyle} />
           <button style={btnStyle}>添加引用</button>
         </form>
+      </section>
+
+      <section style={sectionStyle}>
+        <h2>NFC 标签(仅商家管理员可用;物理写入由 NFC 工具按导出文件执行)</h2>
+        {nfcError && <p style={{ color: "#b91c1c" }}>{nfcError}</p>}
+
+        {/* 分组 */}
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <form onSubmit={createTagGroup} style={{ display: "flex", gap: 8 }}>
+            <input placeholder="新分组名" value={newGroup} onChange={(e) => setNewGroup(e.target.value)} style={inputStyle} required />
+            <button style={btnStyle}>新建分组</button>
+          </form>
+          <span style={{ fontSize: 14, color: "#6b7280" }}>
+            分组:{tagGroups.length === 0 ? "(无)" : ""}
+          </span>
+          {tagGroups.map((g) => (
+            <span key={g.id} style={{ fontSize: 14, border: "1px solid #e5e7eb", borderRadius: 6, padding: "2px 8px" }}>
+              {g.name}{" "}
+              <button type="button" onClick={() => void deleteTagGroup(g.id)} style={{ ...btnStyle, padding: "0 6px", background: "#fff", color: "#b91c1c", borderColor: "#b91c1c" }} title="删除分组(组内标签变为未分组)">
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+
+        {/* 批量创建 */}
+        <form onSubmit={submitBatch} style={{ ...formStyle, marginTop: 12, borderTop: "1px solid #f3f4f6", paddingTop: 12 }}>
+          <strong style={{ fontSize: 14 }}>批量创建标签(绑定既有短码,1..500)</strong>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <select value={batch.campaign} onChange={(e) => void loadBatchLinks(e.target.value)} style={inputStyle} required>
+              <option value="">选择活动</option>
+              {campaigns.map((c) => (
+                <option key={c.id} value={c.id}>{c.title}</option>
+              ))}
+            </select>
+            <select value={batch.mode} onChange={(e) => setBatch({ ...batch, mode: e.target.value })} style={{ ...inputStyle, flex: "0 0 auto" }}>
+              <option value="shared">共用一条短码</option>
+              <option value="rotate">轮流绑定多条短码</option>
+            </select>
+            <input placeholder="数量(1..500)" value={batch.count} onChange={(e) => setBatch({ ...batch, count: e.target.value })} style={{ ...inputStyle, flex: "0 1 120px" }} required />
+            <select value={batch.store} onChange={(e) => setBatch({ ...batch, store: e.target.value })} style={inputStyle}>
+              <option value="">不绑门店</option>
+              {stores.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+            <select value={batch.group} onChange={(e) => setBatch({ ...batch, group: e.target.value })} style={inputStyle}>
+              <option value="">不分组</option>
+              {tagGroups.map((g) => (
+                <option key={g.id} value={g.id}>{g.name}</option>
+              ))}
+            </select>
+            <input placeholder="标签名前缀(默认 NFC)" value={batch.prefix} onChange={(e) => setBatch({ ...batch, prefix: e.target.value })} style={inputStyle} />
+            <button style={btnStyle}>批量生成</button>
+          </div>
+          {batch.campaign && (
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 14 }}>
+              {batchLinks.length === 0 && <span style={{ color: "#6b7280" }}>该活动还没有短码,请先在活动区「生成链接」。</span>}
+              {batchLinks.map((l) => (
+                <label key={l.id} style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
+                  <input
+                    type="checkbox"
+                    checked={batchLinkIds.includes(l.id)}
+                    onChange={(e) =>
+                      setBatchLinkIds(e.target.checked ? [...batchLinkIds, l.id] : batchLinkIds.filter((x) => x !== l.id))
+                    }
+                  />
+                  <code>{l.code}</code>
+                  {!l.enabled && <span style={{ color: "#b45309" }}>(停用)</span>}
+                </label>
+              ))}
+            </div>
+          )}
+        </form>
+
+        {/* 筛选 + 导出 */}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12, alignItems: "center" }}>
+          <select value={tagFilter.campaign} onChange={(e) => setTagFilter({ ...tagFilter, campaign: e.target.value })} style={{ ...inputStyle, flex: "0 1 auto" }}>
+            <option value="">全部活动</option>
+            {campaigns.map((c) => (
+              <option key={c.id} value={c.id}>{c.title}</option>
+            ))}
+          </select>
+          <select value={tagFilter.group} onChange={(e) => setTagFilter({ ...tagFilter, group: e.target.value })} style={{ ...inputStyle, flex: "0 1 auto" }}>
+            <option value="">全部分组</option>
+            {tagGroups.map((g) => (
+              <option key={g.id} value={g.id}>{g.name}</option>
+            ))}
+          </select>
+          <select value={tagFilter.status} onChange={(e) => setTagFilter({ ...tagFilter, status: e.target.value })} style={{ ...inputStyle, flex: "0 1 auto" }}>
+            <option value="">全部状态</option>
+            <option value="active">启用</option>
+            <option value="disabled">停用</option>
+          </select>
+          <button onClick={() => void exportCsv()} style={btnStyle}>导出 CSV(供 NFC 写入工具)</button>
+          <span style={{ fontSize: 13, color: "#6b7280" }}>{tags.length} 条标签</span>
+        </div>
+
+        {/* 标签表 */}
+        <table width="100%" cellPadding={6} style={{ borderCollapse: "collapse", marginTop: 8 }}>
+          <thead>
+            <tr style={{ textAlign: "left", borderBottom: "1px solid #e5e7eb" }}>
+              <th>标签</th><th>短码 / URL</th><th>门店</th><th>分组</th><th>状态</th><th>UID 提示(写入后回填)</th><th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tags.map((t) => (
+              <tr key={t.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                <td>{t.label}</td>
+                <td><code style={{ fontSize: 12 }}>https://…/c/{t.code}</code></td>
+                <td>{t.store_name || "—"}</td>
+                <td>{t.group_name || "—"}</td>
+                <td>{t.status === "active" ? "启用" : <span style={{ color: "#b45309" }}>停用</span>}</td>
+                <td>
+                  <span style={{ display: "inline-flex", gap: 4 }}>
+                    <input
+                      placeholder="如 04:A2:2F"
+                      value={uidDraft[t.id] ?? t.uid_hint ?? ""}
+                      onChange={(e) => setUidDraft({ ...uidDraft, [t.id]: e.target.value })}
+                      style={{ ...inputStyle, flex: "0 1 140px", padding: "4px 6px" }}
+                    />
+                    <button type="button" onClick={() => void saveUidHint(t)} style={{ ...btnStyle, padding: "4px 8px" }}>存</button>
+                  </span>
+                </td>
+                <td style={{ whiteSpace: "nowrap" }}>
+                  {t.status === "active"
+                    ? <button onClick={() => void setTagStatus(t, "disabled")} style={{ ...btnStyle, background: "#fff", color: "#b45309", borderColor: "#b45309" }}>停用</button>
+                    : <button onClick={() => void setTagStatus(t, "active")} style={btnStyle}>恢复</button>}
+                  <button onClick={() => void openRebind(t)} style={{ ...btnStyle, background: "#fff", color: "#2563eb" }}>
+                    {rebind?.tagId === t.id ? "收起换绑" : "换绑"}
+                  </button>
+                  <button onClick={() => void deleteTag(t.id)} style={{ ...btnStyle, background: "#fff", color: "#b91c1c", borderColor: "#b91c1c" }}>删除</button>
+                </td>
+              </tr>
+            ))}
+            {tags.length === 0 && (
+              <tr><td colSpan={7} style={{ color: "#6b7280" }}>暂无标签;先用上方向导批量生成,再导出 CSV 交给 NFC 写入工具。</td></tr>
+            )}
+          </tbody>
+        </table>
+
+        {/* 换绑面板 */}
+        {rebind && (
+          <div style={{ marginTop: 8, border: "1px solid #e5e7eb", borderRadius: 8, padding: 12 }}>
+            <strong style={{ fontSize: 14 }}>换绑标签:先选活动,再选该活动下的短码(标签 URL 随之变化)</strong>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+              <select value={rebind.campaign} onChange={(e) => void rebindCampaign(e.target.value)} style={inputStyle}>
+                <option value="">选择活动</option>
+                {campaigns.map((c) => (
+                  <option key={c.id} value={c.id}>{c.title}</option>
+                ))}
+              </select>
+              <select value={rebind.linkId} onChange={(e) => setRebind({ ...rebind, linkId: e.target.value })} style={inputStyle}>
+                <option value="">选择短码</option>
+                {rebind.links.map((l) => (
+                  <option key={l.id} value={l.id}>{l.code}{l.enabled ? "" : "(停用)"}</option>
+                ))}
+              </select>
+              <button onClick={() => void confirmRebind()} style={btnStyle}>确认换绑</button>
+            </div>
+          </div>
+        )}
+
+        <p style={{ color: "#6b7280", fontSize: 13, margin: "8px 0 0" }}>
+          CSV 列:label, short_code, url, store, group, uid_hint(初始留空);URL 为纯短码地址,不含任何凭证或客户信息。
+          停用标签后其短码公共页立即进入停用态;物理写入与实机验证由 NFC 工具执行。
+        </p>
       </section>
     </main>
   );

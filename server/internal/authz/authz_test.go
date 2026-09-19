@@ -35,6 +35,10 @@ func TestMatrix(t *testing.T) {
 		{"owner A exports QR", ownerA, ActionExportQR, tenantA, true, ""},
 		{"staff A cannot export QR", staffA, ActionExportQR, tenantA, false, ReasonForbidden},
 
+		// HUI-1665: NFC tag management (CRUD/batch/export) is owner-only
+		{"owner A manages tags", ownerA, ActionManageTags, tenantA, true, ""},
+		{"staff A cannot manage tags", staffA, ActionManageTags, tenantA, false, ReasonForbidden},
+
 		// cross-tenant: B has no membership in A, and vice versa
 		{"owner B create in A refused", ownerB, ActionCreate, tenantA, false, ReasonCrossTenant},
 		{"owner B read list A refused", ownerB, ActionReadList, tenantA, false, ReasonCrossTenant},
@@ -42,6 +46,7 @@ func TestMatrix(t *testing.T) {
 		{"owner B update A refused", ownerB, ActionUpdate, tenantA, false, ReasonCrossTenant},
 		{"owner B manage members A refused", ownerB, ActionManageMembers, tenantA, false, ReasonCrossTenant},
 		{"owner B export A QR refused", ownerB, ActionExportQR, tenantA, false, ReasonCrossTenant},
+		{"owner B manage A tags refused", ownerB, ActionManageTags, tenantA, false, ReasonCrossTenant},
 		{"owner A create in B refused", ownerA, ActionCreate, tenantB, false, ReasonCrossTenant},
 
 		// disabled member: denied for everything, own tenant included
