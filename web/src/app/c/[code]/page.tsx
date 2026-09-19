@@ -1,16 +1,23 @@
 "use client";
 
-// 公共活动页(路由区 /c/[code]):游客只读 + HUI-1747 授权留资(唯一游客写面)。
+// 公共活动页(路由区 /c/[code]):游客只读 + HUI-1747 授权留资(唯一游客写面)
+// + HUI-1664 二维码兜底入口语义。
 // 数据仅来自公共白名单 API;本页无会话、无后台信息、不暴露内部 id。
 // 纪律:
-//   - 非有效态(停用/过期/暂停/不存在)分别给出明确文案,统一不带后台信息;
+//   - 与 NFC 共用 T0 五态解析(store.ResolveLink);不建第二套活动模型;
+//   - 非有效态(停用/未开始/过期/暂停/不存在)分别给出明确文案与可恢复动作;
+//     网络失败给「重试」;入口参数非白名单给「入口不支持」指引;
+//   - 任何 next/redirect/return 参数只放行站内相对路径(safe-redirect 守卫),
+//     非法一律忽略,默认落地本活动页;URL 参数绝不派生任何后台能力;
 //   - 留资表单 = 固定最小集(姓名/手机号/可选微信号)+ 告知确认 + 后续营销
 //     **独立勾选**;成功页保留 submission_ref 与撤销渠道文案;
 //   - 加载即发匿名浏览事件(纯聚合计数,与线索池隔离);
 //   - 联系方式只经 POST body 进入表单 API,绝不进 URL/日志。
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
+import { classifyEntry, failureState, STATE_ACTION, STATE_TEXT, type PublicUiState } from "@/lib/public-state";
+import { inSiteTargetFromParams } from "@/lib/safe-redirect";
 
 interface PublicView {
   state: string;
@@ -27,23 +34,29 @@ interface LeadFormView {
   marketing_optin_enabled?: boolean;
 }
 
-const STATE_TEXT: Record<string, string> = {
-  available: "活动进行中",
-  link_disabled: "链接已停用",
-  not_started: "活动尚未开始",
-  expired: "活动已结束",
-  paused: "活动暂停中",
-  draft: "活动未发布",
-  ended: "活动已结束",
-  not_found: "活动不存在",
-};
-
 export default function PublicCampaignPage() {
+  // Next 15:useSearchParams 需在 Suspense 边界内预渲染
+  return (
+    <Suspense fallback={null}>
+      <PublicCampaignInner />
+    </Suspense>
+  );
+}
+
+function PublicCampaignInner() {
   const params = useParams<{ code: string }>();
   const code = params?.code ?? "";
+  const searchParams = useSearchParams();
+
+  // 入口标记(可选元数据):显式非白名单值 → 入口不支持(不发请求)
+  const entry = classifyEntry(searchParams.get("entry"));
+  // 受控跳转:仅站内相对路径;非法(null)→ 默认落地本活动页,不渲染任何跳转
+  const inSiteTarget = inSiteTargetFromParams((k) => searchParams.get(k));
+
   const [view, setView] = useState<PublicView | null>(null);
   const [leadForm, setLeadForm] = useState<LeadFormView | null>(null);
-  const [failed, setFailed] = useState("");
+  const [uiState, setUiState] = useState<PublicUiState>("loading");
+  const [reloadTick, setReloadTick] = useState(0);
 
   // 留资表单状态
   const [name, setName] = useState("");
@@ -64,22 +77,35 @@ export default function PublicCampaignPage() {
   const viewSent = useRef(false);
 
   useEffect(() => {
-    if (!code) return;
+    if (!code || entry === "unsupported") return;
+    let alive = true;
     fetch(`/api/public/links/${encodeURIComponent(code)}`)
       .then(async (res) => {
+        if (!alive) return;
+        // BFF/上游不可达:网络失败兜底(重试动作),不冒充 not_found
+        if (res.status === 502 || res.status === 503 || res.status === 504) {
+          setUiState(failureState(res.status));
+          return;
+        }
         const data = await res.json().catch(() => null);
         if (data && typeof data.state === "string") {
           setView(data as PublicView);
+          setUiState(data.state as PublicUiState);
         } else {
-          setFailed("活动不存在");
+          setUiState("not_found");
         }
       })
-      .catch(() => setFailed("活动不存在"));
-  }, [code]);
+      .catch(() => {
+        if (alive) setUiState(failureState(null));
+      });
+    return () => {
+      alive = false;
+    };
+  }, [code, entry, reloadTick]);
 
   // 浏览埋点 + 留资表单描述(仅 available 态;feature off 时端点 404,静默跳过)
   useEffect(() => {
-    if (!code || view?.state !== "available" || viewSent.current) return;
+    if (!code || uiState !== "available" || viewSent.current) return;
     viewSent.current = true;
     fetch(`/api/public/links/${encodeURIComponent(code)}/view-events`, {
       method: "POST",
@@ -93,7 +119,12 @@ export default function PublicCampaignPage() {
         if (data && data.enabled) setLeadForm(data as LeadFormView);
       })
       .catch(() => undefined);
-  }, [code, view?.state]);
+  }, [code, uiState]);
+
+  const retry = useCallback(() => {
+    setUiState("loading");
+    setReloadTick((t) => t + 1);
+  }, []);
 
   const submitLead = useCallback(() => {
     if (!code || !leadForm?.notice) return;
@@ -149,15 +180,32 @@ export default function PublicCampaignPage() {
       .finally(() => setRevoking(false));
   }, [code, phone, submittedRef]);
 
-  const state = failed ? "not_found" : view?.state ?? "loading";
-  const headline = state === "loading" ? "加载中…" : STATE_TEXT[state] ?? "活动不存在";
+  const state: PublicUiState = entry === "unsupported" ? "entry_unsupported" : uiState;
+  const headline = STATE_TEXT[state] ?? "活动不存在";
+  const action = STATE_ACTION[state] ?? "";
 
   return (
     <main style={{ maxWidth: 520, margin: "80px auto", padding: "0 20px", textAlign: "center" }}>
       <div style={{ background: "#fff", borderRadius: 12, padding: 32, border: "1px solid #e5e7eb" }}>
         <div style={{ fontSize: 40, marginBottom: 12 }}>{state === "available" ? "🎪" : "🔗"}</div>
         <h1 style={{ margin: "0 0 8px" }}>{state === "available" && view?.title ? view.title : headline}</h1>
-        {state !== "available" && <p style={{ color: "#6b7280" }}>{headline}</p>}
+        {state !== "available" && (
+          <p style={{ color: "#6b7280" }}>{headline}</p>
+        )}
+        {state !== "available" && action && <p style={{ color: "#6b7280", fontSize: 14 }}>{action}</p>}
+        {state === "network_error" && (
+          <button
+            onClick={retry}
+            style={{ marginTop: 12, padding: "8px 22px", borderRadius: 6, border: "1px solid #2563eb", background: "#fff", color: "#2563eb", cursor: "pointer" }}
+          >
+            重试
+          </button>
+        )}
+        {inSiteTarget && state !== "available" && (
+          <p style={{ marginTop: 12 }}>
+            <a href={inSiteTarget} style={{ color: "#2563eb", fontSize: 14 }}>返回</a>
+          </p>
+        )}
         {state === "available" && (
           <>
             {view?.public_content && <p style={{ fontSize: 16 }}>{view.public_content}</p>}
