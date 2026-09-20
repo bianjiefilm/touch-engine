@@ -611,6 +611,70 @@ func TestLeadsSubmitNegativeMatrix(t *testing.T) {
 	}
 }
 
+// ---- 5b. D-X1: 国码前缀/分隔符容忍归一(对齐 leads 公共表单语义) --------------------------
+
+func TestLeadsPhonePrefixNormalization(t *testing.T) {
+	f := newLeadsFixture(t)
+
+	// ① +86 前缀 + 分隔符形态 → 201,且落库为裸 11 位(归一先于校验与存储)
+	prefixed := `{"name":"张三","phone":"+86 138-0013-8000","consent_version":"v1","consent":true,"marketing_optin":true,"channel":"wecom"}`
+	status, out := f.submitLead(t, f.code, prefixed)
+	if status != 201 {
+		t.Fatalf("prefixed submit = %d %v", status, out)
+	}
+	ref := out["submission_ref"].(string)
+	lead, err := f.s.St.GetLeadSubmissionByRef(ref)
+	if err != nil || lead.Phone != "13800138000" {
+		t.Fatalf("stored phone = %q, %v; want bare 13800138000", lead.Phone, err)
+	}
+
+	// ② 同号码的 86 前缀形态同日重投 → 幂等命中原 ref(指纹/去重键由归一值派生,一致)
+	altForm := strings.Replace(prefixed, `"+86 138-0013-8000"`, `"8613800138000"`, 1)
+	status2, out2 := f.submitLead(t, f.code, altForm)
+	if status2 != 200 || out2["duplicate"] != true || out2["submission_ref"].(string) != ref {
+		t.Fatalf("86-prefixed resubmit = %d %v; want idempotent hit on %s", status2, out2, ref)
+	}
+	rows, _ := f.s.St.ListLeadSubmissions(f.tenA, f.campaignID)
+	if len(rows) != 1 {
+		t.Fatalf("rows = %d, want 1 (both forms are one logical submission)", len(rows))
+	}
+
+	// ③ 无法归一出合法 11 位 CN 手机号的仍 400 bad_phone,且零落库
+	for _, p := range []string{"+86138001380", "86138001380", "8623800138000", "86138001380001", "12345", "abcdefghijk"} {
+		body := fmt.Sprintf(`{"name":"张三","phone":%q,"consent_version":"v1","consent":true}`, p)
+		st, o := f.submitLead(t, f.code, body)
+		if st != 400 || o["error"] != "bad_phone" {
+			t.Fatalf("phone %q: %d %v, want 400 bad_phone", p, st, o)
+		}
+	}
+	rows, _ = f.s.St.ListLeadSubmissions(f.tenA, f.campaignID)
+	if len(rows) != 1 {
+		t.Fatalf("bad phones wrote rows: %d", len(rows))
+	}
+
+	// ④ PII 门回归(零改变):channel 字段夹带联系方式形态仍在落库前拒绝
+	pii := `{"name":"张三","phone":"13900139000","consent_version":"v1","consent":true,"channel":"call 13800138000 now"}`
+	stPii, oPii := f.submitLead(t, f.code, pii)
+	if stPii != 500 || oPii["error"] != "internal" {
+		t.Fatalf("PII gate = %d %v, want pre-storage refusal", stPii, oPii)
+	}
+	rows, _ = f.s.St.ListLeadSubmissions(f.tenA, f.campaignID)
+	if len(rows) != 1 {
+		t.Fatalf("PII-smuggling body wrote rows: %d", len(rows))
+	}
+
+	// ⑤ 撤销面同一归一器:+86 形态撤销裸值落库的提交 → 命中
+	f.forwarder.Tick(context.Background())
+	revoke := fmt.Sprintf(`{"submission_ref":%q,"phone":"+8613800138000"}`, ref)
+	if st, _, resp := f.guest(t, "POST", "/api/v1/public/links/"+f.code+"/lead-revocations", revoke); st != 200 || resp["state"] != "revoked" {
+		t.Fatalf("prefixed revoke = %d %v", st, resp)
+	}
+	lead, _ = f.s.St.GetLeadSubmissionByRef(ref)
+	if lead.SyncState != "revoked" {
+		t.Fatalf("state = %q, want revoked", lead.SyncState)
+	}
+}
+
 // ---- 6. revocation matrix -----------------------------------------------------------------
 
 func TestLeadsRevokeBeforeDeliveryBlocked(t *testing.T) {
