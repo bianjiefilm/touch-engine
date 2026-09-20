@@ -16,6 +16,8 @@ func TestOpenCreatesSchema(t *testing.T) {
 	want := []string{
 		"campaign_assets",
 		"campaign_links",
+		"campaign_rule_revisions",
+		"campaign_rules",
 		"campaigns",
 		"lead_audit",
 		"lead_forms",

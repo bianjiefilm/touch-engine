@@ -212,6 +212,17 @@ func (s *Server) Handler() http.Handler {
 		mux.Handle("GET /api/v1/dashboard", s.requireSession(s.handleDashboard))
 	}
 
+	// campaign rules (HUI-1676 FEAT-0177): 登记制开关 FEATURE_CAMPAIGN_RULES
+	// (默认 off;off = 路由不注册且 handler gate 再答统一 404 —— 与
+	// FEATURE_DASHBOARD 的 off 双保险同一写法)。规则读写仅 org_owner
+	// (authz.manage_campaign_rules);确定性评估在服务端单点完成,BFF 零业务判断。
+	if s.Cfg.FeatureCampaignRules {
+		mux.Handle("GET /api/v1/campaigns/{id}/rules", s.requireSession(s.handleCampaignRulesGet))
+		mux.Handle("PUT /api/v1/campaigns/{id}/rules", s.requireSession(s.handleCampaignRulesPut))
+		mux.Handle("DELETE /api/v1/campaigns/{id}/rules", s.requireSession(s.handleCampaignRulesDelete))
+		mux.Handle("GET /api/v1/campaigns/{id}/rules/revisions", s.requireSession(s.handleCampaignRulesRevisions))
+	}
+
 	return s.withRequestLog(mux)
 }
 

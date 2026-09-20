@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bianjiefilm/touch-engine/server/internal/campaignrules"
 	"github.com/bianjiefilm/touch-engine/server/internal/leads"
 	"github.com/bianjiefilm/touch-engine/server/internal/store"
 )
@@ -153,6 +154,43 @@ func (s *Server) handlePublicLeadSubmit(w http.ResponseWriter, r *http.Request) 
 	now := time.Now().UTC()
 	phoneFP := leads.PhoneFingerprint(s.Cfg.LeadsPhonePepper, phone)
 	dk := leads.DedupKey(s.Cfg.LeadsPhonePepper, res.Campaign.ID, phoneFP, now)
+
+	// HUI-1676 FEAT-0177: 确定性活动规则——每联系人每日提交频控(登记制开关,
+	// FEATURE_CAMPAIGN_RULES off 时此块整体不存在,现行为逐字节不变)。
+	//   - 幂等重放先短路:同 (活动,手机号,UTC 日) 的重放直接走既有幂等路径,
+	//     不评估也不计数;首次提交才评估频控;
+	//   - 计数口径:租户内该联系人当日全部首次提交(与按活动的同日同号幂等
+	//     正交),按 UTC 日窗;规则值取本活动的规则集;
+	//   - 只拒绝不罚款:拒绝响应按仓内错误惯例带机器原因码 submission_cap_reached。
+	if s.Cfg.FeatureCampaignRules {
+		if _, rerr := s.St.GetLeadSubmissionByDedupKey(dk); errors.Is(rerr, store.ErrNotFound) {
+			rules, gerr := s.St.GetCampaignRulesByCampaign(res.Campaign.ID)
+			if errors.Is(gerr, store.ErrNotFound) {
+				rules.Ruleset = campaignrules.Ruleset{} // 未配置 = 不限
+			} else if gerr != nil {
+				fail(w, http.StatusInternalServerError, "internal", "campaign rules lookup failed")
+				return
+			}
+			if rules.Ruleset.PerContactDailySubmissionCap != nil {
+				n, cerr := s.St.CountContactSubmissionsOnDay(res.Campaign.TenantID, phone, now.Format("2006-01-02"))
+				if cerr != nil {
+					fail(w, http.StatusInternalServerError, "internal", "submission count failed")
+					return
+				}
+				// 评估点只应用本阶段规则(提交入口只看提交频控;发布/奖励规则
+				// 属其各自链路,待 HUI-1670/1671 落地接线)。
+				subRS := campaignrules.Ruleset{PerContactDailySubmissionCap: rules.Ruleset.PerContactDailySubmissionCap}
+				if d := campaignrules.Evaluate(subRS, campaignrules.Facts{Now: now, ContactSubmissionsToday: n}); !d.Allowed {
+					writeJSON(w, http.StatusTooManyRequests, map[string]any{"error": d.Reason, "message": "this contact has reached today's submission limit"})
+					return
+				}
+			}
+		} else if rerr != nil {
+			fail(w, http.StatusInternalServerError, "internal", "submission lookup failed")
+			return
+		}
+	}
+
 	ref, err := leads.NewSubmissionRef()
 	if err != nil {
 		fail(w, http.StatusInternalServerError, "internal", "reference mint failed")

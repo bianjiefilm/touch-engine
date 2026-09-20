@@ -18,6 +18,9 @@ const (
 	EnvFeatureTask         = "FEATURE_TASK"
 	EnvFeatureLeadsCapture = "FEATURE_LEADS_CAPTURE"
 	EnvFeatureDashboard    = "FEATURE_DASHBOARD"
+	// EnvFeatureCampaignRules (HUI-1676 FEAT-0177): 登记制开关,默认 off。
+	// off = 规则路由不注册(404)且频控不生效(现行为逐字节不变)。
+	EnvFeatureCampaignRules = "FEATURE_CAMPAIGN_RULES"
 )
 
 // Config is the resolved server configuration.
@@ -61,11 +64,12 @@ type Config struct {
 	// closed (503 qr_not_configured) when it is unset.
 	PublicBaseURL string
 
-	FeatureUpload       bool
-	FeatureNotify       bool
-	FeatureTask         bool
-	FeatureLeadsCapture bool
-	FeatureDashboard    bool
+	FeatureUpload        bool
+	FeatureNotify        bool
+	FeatureTask          bool
+	FeatureLeadsCapture  bool
+	FeatureDashboard     bool
+	FeatureCampaignRules bool
 }
 
 // FromEnv reads configuration from the process environment.
@@ -77,29 +81,30 @@ func FromEnv() Config {
 // and for alternate config sources).
 func Load(get func(string) string) Config {
 	return Config{
-		HTTPAddr:            firstNonEmpty(get("TOUCH_HTTP_ADDR"), "127.0.0.1:18240"),
-		DBPath:              firstNonEmpty(get("TOUCH_DB_PATH"), "data/touch.db"),
-		Env:                 firstNonEmpty(get("TOUCH_ENV"), "development"),
-		AppID:               firstNonEmpty(get("TOUCH_APP_ID"), "touch-engine"),
-		InternalToken:       get("TOUCH_INTERNAL_TOKEN"),
-		SessionCookie:       firstNonEmpty(get("TOUCH_SESSION_COOKIE"), "touch_session"),
-		IdentityBaseURL:     get("PLATFORM_IDENTITY_BASE_URL"),
-		IdentityToken:       get("PLATFORM_IDENTITY_TOKEN"),
-		IdentityAppHost:     get("PLATFORM_IDENTITY_APP_HOST"),
-		UploadBaseURL:       get("PLATFORM_UPLOAD_BASE_URL"),
-		UploadToken:         get("PLATFORM_UPLOAD_TOKEN"),
-		NotifyBaseURL:       get("PLATFORM_NOTIFY_BASE_URL"),
-		NotifyToken:         get("PLATFORM_NOTIFY_TOKEN"),
-		TaskBaseURL:         get("PLATFORM_TASK_BASE_URL"),
-		TaskToken:           get("PLATFORM_TASK_TOKEN"),
-		LeadsTargetApp:      get("LEADS_TARGET_APP_ID"),
-		LeadsPhonePepper:    get("LEADS_PHONE_PEPPER"),
-		PublicBaseURL:       strings.TrimSpace(get("PUBLIC_BASE_URL")),
-		FeatureUpload:       isTruthy(get(EnvFeatureUpload)),
-		FeatureNotify:       isTruthy(get(EnvFeatureNotify)),
-		FeatureTask:         isTruthy(get(EnvFeatureTask)),
-		FeatureLeadsCapture: isTruthy(get(EnvFeatureLeadsCapture)),
-		FeatureDashboard:    isTruthy(get(EnvFeatureDashboard)),
+		HTTPAddr:             firstNonEmpty(get("TOUCH_HTTP_ADDR"), "127.0.0.1:18240"),
+		DBPath:               firstNonEmpty(get("TOUCH_DB_PATH"), "data/touch.db"),
+		Env:                  firstNonEmpty(get("TOUCH_ENV"), "development"),
+		AppID:                firstNonEmpty(get("TOUCH_APP_ID"), "touch-engine"),
+		InternalToken:        get("TOUCH_INTERNAL_TOKEN"),
+		SessionCookie:        firstNonEmpty(get("TOUCH_SESSION_COOKIE"), "touch_session"),
+		IdentityBaseURL:      get("PLATFORM_IDENTITY_BASE_URL"),
+		IdentityToken:        get("PLATFORM_IDENTITY_TOKEN"),
+		IdentityAppHost:      get("PLATFORM_IDENTITY_APP_HOST"),
+		UploadBaseURL:        get("PLATFORM_UPLOAD_BASE_URL"),
+		UploadToken:          get("PLATFORM_UPLOAD_TOKEN"),
+		NotifyBaseURL:        get("PLATFORM_NOTIFY_BASE_URL"),
+		NotifyToken:          get("PLATFORM_NOTIFY_TOKEN"),
+		TaskBaseURL:          get("PLATFORM_TASK_BASE_URL"),
+		TaskToken:            get("PLATFORM_TASK_TOKEN"),
+		LeadsTargetApp:       get("LEADS_TARGET_APP_ID"),
+		LeadsPhonePepper:     get("LEADS_PHONE_PEPPER"),
+		PublicBaseURL:        strings.TrimSpace(get("PUBLIC_BASE_URL")),
+		FeatureUpload:        isTruthy(get(EnvFeatureUpload)),
+		FeatureNotify:        isTruthy(get(EnvFeatureNotify)),
+		FeatureTask:          isTruthy(get(EnvFeatureTask)),
+		FeatureLeadsCapture:  isTruthy(get(EnvFeatureLeadsCapture)),
+		FeatureDashboard:     isTruthy(get(EnvFeatureDashboard)),
+		FeatureCampaignRules: isTruthy(get(EnvFeatureCampaignRules)),
 	}
 }
 

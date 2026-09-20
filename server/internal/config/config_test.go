@@ -22,6 +22,34 @@ func TestDefaults(t *testing.T) {
 	if cfg.FeatureUpload || cfg.FeatureNotify || cfg.FeatureTask || cfg.FeatureLeadsCapture {
 		t.Fatal("feature flags must default to off")
 	}
+	if cfg.FeatureDashboard || cfg.FeatureCampaignRules {
+		t.Fatal("feature flags must default to off")
+	}
+}
+
+// HUI-1676 FEAT-0177: FEATURE_CAMPAIGN_RULES is a registry-style flag, default
+// off. It needs NO extra platform configuration (rules live entirely inside
+// this app), so it must never add Gate() entries.
+func TestFeatureCampaignRulesFlag(t *testing.T) {
+	base := map[string]string{
+		"TOUCH_INTERNAL_TOKEN":       "s",
+		"PLATFORM_IDENTITY_BASE_URL": "http://127.0.0.1:18101",
+		"PLATFORM_IDENTITY_TOKEN":    "t",
+	}
+	cfg := Load(func(k string) string { return base[k] })
+	if cfg.FeatureCampaignRules {
+		t.Fatal("campaign rules flag must default to off")
+	}
+	base["FEATURE_CAMPAIGN_RULES"] = "on"
+	cfg = Load(func(k string) string { return base[k] })
+	if !cfg.FeatureCampaignRules {
+		t.Fatal("FEATURE_CAMPAIGN_RULES=on must enable the flag")
+	}
+	for _, p := range cfg.Gate() {
+		if strings.Contains(p, "CAMPAIGN_RULES") {
+			t.Fatalf("campaign rules must not add gate entries: %v", p)
+		}
+	}
 }
 
 func TestGate(t *testing.T) {
