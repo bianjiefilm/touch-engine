@@ -204,6 +204,26 @@ func (s *Store) leadByDedupKey(key string) (LeadSubmission, error) {
 	return l, err
 }
 
+// GetLeadSubmissionByDedupKey is the exported replay probe (HUI-1676 FEAT-0177):
+// the submission-frequency control must short-circuit idempotent replays BEFORE
+// evaluating/counting them. Not found = first submission of the (campaign,
+// contact, UTC day) key.
+func (s *Store) GetLeadSubmissionByDedupKey(key string) (LeadSubmission, error) {
+	return s.leadByDedupKey(key)
+}
+
+// CountContactSubmissionsOnDay counts the contact's lead rows inside one UTC
+// day across the tenant (HUI-1676 FEAT-0177 frequency-control counter). The
+// phone is a bound parameter only — it never reaches logs or URLs. created_at
+// is always RFC3339 UTC, so the first 10 characters are the UTC date.
+func (s *Store) CountContactSubmissionsOnDay(tenantID, phone, utcDay string) (int, error) {
+	var n int
+	err := s.DB.QueryRow(
+		`SELECT COUNT(1) FROM lead_submissions WHERE tenant_id=? AND phone=? AND substr(created_at,1,10)=?`,
+		tenantID, phone, utcDay).Scan(&n)
+	return n, err
+}
+
 // isUniqueViolation reports whether err is a sqlite UNIQUE constraint failure
 // on the given column (modernc/sqlite text format).
 func isUniqueViolation(err error, column string) bool {

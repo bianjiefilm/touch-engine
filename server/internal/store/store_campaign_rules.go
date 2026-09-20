@@ -18,51 +18,30 @@ import (
 
 // CampaignRule is the active per-campaign ruleset row plus its version.
 type CampaignRule struct {
-	ID         string `json:"id"`
-	TenantID   string `json:"tenant_id"`
-	CampaignID string `json:"campaign_id"`
-	Ruleset    campaignrules.Ruleset
-	Version    int    `json:"version"`
-	CreatedBy  string `json:"created_by"`
-	CreatedAt  string `json:"created_at"`
-	UpdatedAt  string `json:"updated_at"`
+	ID         string                `json:"id"`
+	TenantID   string                `json:"tenant_id"`
+	CampaignID string                `json:"campaign_id"`
+	Ruleset    campaignrules.Ruleset `json:"ruleset"`
+	Version    int                   `json:"version"`
+	CreatedBy  string                `json:"created_by"`
+	CreatedAt  string                `json:"created_at"`
+	UpdatedAt  string                `json:"updated_at"`
 }
 
 // CampaignRuleRevision is one immutable snapshot in the rule change trail.
 type CampaignRuleRevision struct {
-	ID         string `json:"id"`
-	TenantID   string `json:"tenant_id"`
-	CampaignID string `json:"campaign_id"`
-	Revision   int    `json:"revision"`
-	Action     string `json:"action"` // create | update | delete
-	Ruleset    campaignrules.Ruleset
-	ChangedBy  string `json:"changed_by"`
-	CreatedAt  string `json:"created_at"`
+	ID         string                `json:"id"`
+	TenantID   string                `json:"tenant_id"`
+	CampaignID string                `json:"campaign_id"`
+	Revision   int                   `json:"revision"`
+	Action     string                `json:"action"` // create | update | delete
+	Ruleset    campaignrules.Ruleset `json:"ruleset"`
+	ChangedBy  string                `json:"changed_by"`
+	CreatedAt  string                `json:"created_at"`
 }
 
 const ruleCols = `id,tenant_id,campaign_id,reward_threshold,daily_publish_limit,` +
 	`duplicate_publish_window_hours,per_contact_daily_submission_cap,version,created_by,created_at,updated_at`
-
-func scanRuleset(sc interface{ Scan(...any) error }) (campaignrules.Ruleset, error) {
-	var rs campaignrules.Ruleset
-	var reward, daily, window, cap sql.NullInt64
-	err := sc.Scan(&reward, &daily, &window, &cap)
-	if err != nil {
-		return campaignrules.Ruleset{}, err
-	}
-	nullInt := func(v sql.NullInt64) *int {
-		if !v.Valid {
-			return nil
-		}
-		n := int(v.Int64)
-		return &n
-	}
-	rs.RewardThreshold = nullInt(reward)
-	rs.DailyPublishLimit = nullInt(daily)
-	rs.DuplicatePublishWindowHours = nullInt(window)
-	rs.PerContactDailySubmissionCap = nullInt(cap)
-	return rs, nil
-}
 
 func scanCampaignRule(sc interface{ Scan(...any) error }) (CampaignRule, error) {
 	var r CampaignRule

@@ -29,16 +29,17 @@ import (
 
 // Ruleset is the per-campaign deterministic configuration. A nil field means
 // "not configured / unlimited" for that rule; a non-nil field must be >= 0.
+// JSON 形状即管理面的完整契约(omitempty = 未设,呼应「空 = 不限」)。
 type Ruleset struct {
 	// RewardThreshold: 奖励门槛(有效完成 N 次后达成)。nil = 未设门槛。
-	RewardThreshold *int
+	RewardThreshold *int `json:"reward_threshold,omitempty"`
 	// DailyPublishLimit: 每日发布上限(UTC 日)。nil = 不限。
-	DailyPublishLimit *int
+	DailyPublishLimit *int `json:"daily_publish_limit,omitempty"`
 	// DuplicatePublishWindowHours: 重复发布过滤窗(小时)。nil = 不过滤。
-	DuplicatePublishWindowHours *int
+	DuplicatePublishWindowHours *int `json:"duplicate_publish_window_hours,omitempty"`
 	// PerContactDailySubmissionCap: 每联系人每日提交频控(UTC 日窗)。
 	// nil = 不限。0 = 关闭该活动的首次提交(极端但合法的配置)。
-	PerContactDailySubmissionCap *int
+	PerContactDailySubmissionCap *int `json:"per_contact_daily_submission_cap,omitempty"`
 }
 
 // Validate enforces the field matrix: every set field must be a non-negative
