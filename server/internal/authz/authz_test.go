@@ -53,6 +53,14 @@ func TestMatrix(t *testing.T) {
 		{"owner A manages campaign rules", ownerA, ActionManageCampaignRules, tenantA, true, ""},
 		{"staff A cannot manage campaign rules", staffA, ActionManageCampaignRules, tenantA, false, ReasonForbidden},
 		{"owner B manage A rules refused", ownerB, ActionManageCampaignRules, tenantA, false, ReasonCrossTenant},
+
+		// HUI-1666 FEAT-0167: asset-lib management (register/import assets, pool
+		// CRUD, pool membership, candidate marking) is org_owner-only; selection
+		// and drawing follow the existing business roles instead.
+		{"owner A manages asset lib", ownerA, ActionManageAssetLib, tenantA, true, ""},
+		{"staff A cannot manage asset lib", staffA, ActionManageAssetLib, tenantA, false, ReasonForbidden},
+		{"owner B manage A asset lib refused", ownerB, ActionManageAssetLib, tenantA, false, ReasonCrossTenant},
+		{"staff A draws from tenant pool", staffA, ActionCreate, tenantA, true, ""},
 		{"owner A reads store record", ownerA, ActionReadRecord, RecordScope{TenantID: "tnt_A", StoreID: "sto_S9"}, true, ""},
 		{"owner A updates store-bound record", ownerA, ActionUpdate, RecordScope{TenantID: "tnt_A", StoreID: "sto_S1"}, true, ""},
 
@@ -124,6 +132,10 @@ func TestStoreScopeMatrix(t *testing.T) {
 		{"manager cannot manage members", mgrA_S1, ActionManageMembers, ownS1, false, ReasonForbidden},
 		{"manager cannot export QR", mgrA_S1, ActionExportQR, ownS1, false, ReasonForbidden},
 		{"manager cannot manage campaign rules", mgrA_S1, ActionManageCampaignRules, ownS1, false, ReasonForbidden},
+		{"manager cannot manage asset lib", mgrA_S1, ActionManageAssetLib, ownS1, false, ReasonForbidden},
+		// 池是租户级记录:门店经理既不能管理、也不能调取(out_of_scope,与
+		// 既有租户级记录纪律一致)。
+		{"manager cannot draw tenant pool", mgrA_S1, ActionCreate, hqLevel, false, ReasonOutOfScope},
 
 		// ---- malformed manager rows fail closed ----
 		{"scopeless manager record refused", mgrA_NoScope, ActionReadRecord, ownS1, false, ReasonOutOfScope},

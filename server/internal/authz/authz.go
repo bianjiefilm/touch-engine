@@ -72,6 +72,10 @@ const (
 	ActionExportQR            Action = "export_qr"             // HUI-1664 QR download: org_owner only
 	ActionManageTags          Action = "manage_tags"           // HUI-1665 NFC tags CRUD/batch/export; HUI-1674 store_manager on own-store tags
 	ActionManageCampaignRules Action = "manage_campaign_rules" // HUI-1676 FEAT-0177 活动规则 CRUD: org_owner only
+	// ActionManageAssetLib (HUI-1666 FEAT-0167 商家素材库): 素材登记/导入、池
+	// 增删改、池内引用增删、候选标记 —— 管理动作限 org_owner。选择/调取不走本
+	// 动作(按既有业务角色:ActionCreate/ActionReadList)。
+	ActionManageAssetLib Action = "manage_asset_lib"
 )
 
 // Deny reason codes.
@@ -127,7 +131,7 @@ func Authorize(member *Member, action Action, rec RecordScope) Decision {
 	}
 
 	switch action {
-	case ActionManageMembers, ActionManageStores, ActionExportQR, ActionManageCampaignRules:
+	case ActionManageMembers, ActionManageStores, ActionExportQR, ActionManageCampaignRules, ActionManageAssetLib:
 		// 总部专属治理面。store_manager 对「本店」也无此权(不可建删/改门店)。
 		if member.Role != RoleOrgOwner {
 			return deny(ReasonForbidden)
