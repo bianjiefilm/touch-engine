@@ -205,6 +205,13 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/campaigns/{id}/lead-stats", s.requireSession(s.handleLeadStats))
 	mux.Handle("GET /api/v1/campaigns/{id}/leads/{ref}/audit", s.requireSession(s.handleLeadAudit))
 
+	// dashboard read surface (HUI-1677 FEAT-0178): gated by FEATURE_DASHBOARD
+	// (default off; off = route not registered AND handler gate answers uniform
+	// 404 — an invisible surface). Read-only aggregation, no write paths.
+	if s.Cfg.FeatureDashboard {
+		mux.Handle("GET /api/v1/dashboard", s.requireSession(s.handleDashboard))
+	}
+
 	return s.withRequestLog(mux)
 }
 

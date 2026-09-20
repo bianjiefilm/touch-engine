@@ -13,10 +13,11 @@ import (
 
 // Feature flag environment keys (default: off).
 const (
-	EnvFeatureNotify      = "FEATURE_NOTIFY"
-	EnvFeatureUpload      = "FEATURE_UPLOAD"
-	EnvFeatureTask        = "FEATURE_TASK"
+	EnvFeatureNotify       = "FEATURE_NOTIFY"
+	EnvFeatureUpload       = "FEATURE_UPLOAD"
+	EnvFeatureTask         = "FEATURE_TASK"
 	EnvFeatureLeadsCapture = "FEATURE_LEADS_CAPTURE"
+	EnvFeatureDashboard    = "FEATURE_DASHBOARD"
 )
 
 // Config is the resolved server configuration.
@@ -64,6 +65,7 @@ type Config struct {
 	FeatureNotify       bool
 	FeatureTask         bool
 	FeatureLeadsCapture bool
+	FeatureDashboard    bool
 }
 
 // FromEnv reads configuration from the process environment.
@@ -75,28 +77,29 @@ func FromEnv() Config {
 // and for alternate config sources).
 func Load(get func(string) string) Config {
 	return Config{
-		HTTPAddr:        firstNonEmpty(get("TOUCH_HTTP_ADDR"), "127.0.0.1:18240"),
-		DBPath:          firstNonEmpty(get("TOUCH_DB_PATH"), "data/touch.db"),
-		Env:             firstNonEmpty(get("TOUCH_ENV"), "development"),
-		AppID:           firstNonEmpty(get("TOUCH_APP_ID"), "touch-engine"),
-		InternalToken:   get("TOUCH_INTERNAL_TOKEN"),
-		SessionCookie:   firstNonEmpty(get("TOUCH_SESSION_COOKIE"), "touch_session"),
-		IdentityBaseURL: get("PLATFORM_IDENTITY_BASE_URL"),
-		IdentityToken:   get("PLATFORM_IDENTITY_TOKEN"),
-		IdentityAppHost: get("PLATFORM_IDENTITY_APP_HOST"),
-		UploadBaseURL:   get("PLATFORM_UPLOAD_BASE_URL"),
-		UploadToken:     get("PLATFORM_UPLOAD_TOKEN"),
-		NotifyBaseURL:   get("PLATFORM_NOTIFY_BASE_URL"),
-		NotifyToken:     get("PLATFORM_NOTIFY_TOKEN"),
-		TaskBaseURL:     get("PLATFORM_TASK_BASE_URL"),
-		TaskToken:       get("PLATFORM_TASK_TOKEN"),
-		LeadsTargetApp:  get("LEADS_TARGET_APP_ID"),
-		LeadsPhonePepper: get("LEADS_PHONE_PEPPER"),
-		PublicBaseURL:   strings.TrimSpace(get("PUBLIC_BASE_URL")),
-		FeatureUpload:   isTruthy(get(EnvFeatureUpload)),
-		FeatureNotify:   isTruthy(get(EnvFeatureNotify)),
-		FeatureTask:     isTruthy(get(EnvFeatureTask)),
+		HTTPAddr:            firstNonEmpty(get("TOUCH_HTTP_ADDR"), "127.0.0.1:18240"),
+		DBPath:              firstNonEmpty(get("TOUCH_DB_PATH"), "data/touch.db"),
+		Env:                 firstNonEmpty(get("TOUCH_ENV"), "development"),
+		AppID:               firstNonEmpty(get("TOUCH_APP_ID"), "touch-engine"),
+		InternalToken:       get("TOUCH_INTERNAL_TOKEN"),
+		SessionCookie:       firstNonEmpty(get("TOUCH_SESSION_COOKIE"), "touch_session"),
+		IdentityBaseURL:     get("PLATFORM_IDENTITY_BASE_URL"),
+		IdentityToken:       get("PLATFORM_IDENTITY_TOKEN"),
+		IdentityAppHost:     get("PLATFORM_IDENTITY_APP_HOST"),
+		UploadBaseURL:       get("PLATFORM_UPLOAD_BASE_URL"),
+		UploadToken:         get("PLATFORM_UPLOAD_TOKEN"),
+		NotifyBaseURL:       get("PLATFORM_NOTIFY_BASE_URL"),
+		NotifyToken:         get("PLATFORM_NOTIFY_TOKEN"),
+		TaskBaseURL:         get("PLATFORM_TASK_BASE_URL"),
+		TaskToken:           get("PLATFORM_TASK_TOKEN"),
+		LeadsTargetApp:      get("LEADS_TARGET_APP_ID"),
+		LeadsPhonePepper:    get("LEADS_PHONE_PEPPER"),
+		PublicBaseURL:       strings.TrimSpace(get("PUBLIC_BASE_URL")),
+		FeatureUpload:       isTruthy(get(EnvFeatureUpload)),
+		FeatureNotify:       isTruthy(get(EnvFeatureNotify)),
+		FeatureTask:         isTruthy(get(EnvFeatureTask)),
 		FeatureLeadsCapture: isTruthy(get(EnvFeatureLeadsCapture)),
+		FeatureDashboard:    isTruthy(get(EnvFeatureDashboard)),
 	}
 }
 
@@ -158,7 +161,7 @@ func (c Config) Gate() []string {
 func (c Config) Production() bool { return strings.EqualFold(strings.TrimSpace(c.Env), "production") }
 
 func (c Config) Describe() string {
-	flags := fmt.Sprintf("upload=%v,notify=%v,task=%v,leads=%v", c.FeatureUpload, c.FeatureNotify, c.FeatureTask, c.FeatureLeadsCapture)
+	flags := fmt.Sprintf("upload=%v,notify=%v,task=%v,leads=%v,dashboard=%v", c.FeatureUpload, c.FeatureNotify, c.FeatureTask, c.FeatureLeadsCapture, c.FeatureDashboard)
 	return fmt.Sprintf("env=%s app_id=%s addr=%s db=%s features(%s)",
 		c.Env, c.AppID, c.HTTPAddr, c.DBPath, flags)
 }
