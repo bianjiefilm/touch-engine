@@ -196,7 +196,7 @@ const storeCols = `id,tenant_id,name,address,status,created_by,created_at,update
 
 func (s *Store) CreateStore(tenantID, name, address, createdBy string) (StoreRecord, error) {
 	r := StoreRecord{ID: newID("sto_"), TenantID: tenantID, Name: name, Address: address,
-		Status: StoreStatusActive,
+		Status:    StoreStatusActive,
 		CreatedBy: createdBy, CreatedAt: now(), UpdatedAt: now()}
 	_, err := s.DB.Exec(
 		`INSERT INTO stores(`+storeCols+`) VALUES(?,?,?,?,?,?,?,?)`,

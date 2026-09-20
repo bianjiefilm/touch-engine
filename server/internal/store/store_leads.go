@@ -17,15 +17,15 @@ import (
 // ---- lead forms (挂载点) ------------------------------------------------------
 
 type LeadForm struct {
-	ID                     string `json:"id"`
-	TenantID               string `json:"tenant_id"`
-	CampaignID             string `json:"campaign_id"`
-	NoticeVersion          string `json:"notice_version"`
-	MarketingOptinEnabled  bool   `json:"marketing_optin_enabled"`
-	Enabled                bool   `json:"enabled"`
-	CreatedBy              string `json:"created_by"`
-	CreatedAt              string `json:"created_at"`
-	UpdatedAt              string `json:"updated_at"`
+	ID                    string `json:"id"`
+	TenantID              string `json:"tenant_id"`
+	CampaignID            string `json:"campaign_id"`
+	NoticeVersion         string `json:"notice_version"`
+	MarketingOptinEnabled bool   `json:"marketing_optin_enabled"`
+	Enabled               bool   `json:"enabled"`
+	CreatedBy             string `json:"created_by"`
+	CreatedAt             string `json:"created_at"`
+	UpdatedAt             string `json:"updated_at"`
 }
 
 const leadFormCols = `id,tenant_id,campaign_id,notice_version,marketing_optin_enabled,enabled,created_by,created_at,updated_at`
@@ -133,22 +133,22 @@ const leadColsPlaceholders = `id,tenant_id,campaign_id,store_id,link_id,form_id,
 // NewLeadSubmission carries everything SubmitLead writes in ONE transaction:
 // the lead row and its outbox event (payload pre-built by the caller).
 type NewLeadSubmission struct {
-	TenantID      string
-	CampaignID    string
-	StoreID       string
-	LinkID        string
-	FormID        string
-	SubmissionRef string
-	DedupKey      string
-	Name          string
-	Phone         string
-	Wechat        string
+	TenantID       string
+	CampaignID     string
+	StoreID        string
+	LinkID         string
+	FormID         string
+	SubmissionRef  string
+	DedupKey       string
+	Name           string
+	Phone          string
+	Wechat         string
 	MarketingOptin bool
-	NoticeVersion string
-	ConsentAt     string
-	ConsentIPFP   string // fingerprint of the submitting client IP (rate-limit/audit), not raw IP
-	OutboxEventID string
-	OutboxPayload string // directed-event envelope JSON (reference-only, PII-scanned upstream)
+	NoticeVersion  string
+	ConsentAt      string
+	ConsentIPFP    string // fingerprint of the submitting client IP (rate-limit/audit), not raw IP
+	OutboxEventID  string
+	OutboxPayload  string // directed-event envelope JSON (reference-only, PII-scanned upstream)
 }
 
 // SubmitLead inserts lead + outbox atomically. When dedup_key already exists it

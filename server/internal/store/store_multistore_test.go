@@ -9,8 +9,6 @@ import (
 // HUI-1674 FEAT-0175 存储层:门店启停、成员作用域、按店活动列表、公共解析的
 // 停店标注。全部走真实 sqlite(embedded migrations)。
 
-
-
 func TestStoreStatusLifecycle(t *testing.T) {
 	s := openStore(t)
 	ctx := seedTwoTenants(t, s)
