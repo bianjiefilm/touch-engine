@@ -249,6 +249,29 @@ func (s *Server) Handler() http.Handler {
 		mux.Handle("GET /api/v1/asset-pools/{id}/selections", s.requireSession(s.handleLibPoolSelections))
 	}
 
+	// video templates (HUI-1669 FEAT-0170 视频模板管理): 登记制开关
+	// FEATURE_VIDEO_TEMPLATES(默认 off;off = 全部路由不注册且 handler gate
+	// 再答统一 404 —— 同一双保险写法,面板不可见)。管理动作(模板 CRUD/
+	// 发布/版本/分配)仅 org_owner(authz.manage_video_templates);查询按
+	// 既有业务角色(本店分配查询按 store 作用域)。模板=素材引用集的组织
+	// 单元,零物理存储;视频合成/渲染执行不做(接口零生成/渲染触发字段)。
+	if s.Cfg.FeatureVideoTemplates {
+		mux.Handle("POST /api/v1/video-templates", s.requireSession(s.handleVideoTemplateCreate))
+		mux.Handle("GET /api/v1/video-templates", s.requireSession(s.handleVideoTemplateList))
+		mux.Handle("GET /api/v1/video-templates/{id}", s.requireSession(s.handleVideoTemplateGet))
+		mux.Handle("PATCH /api/v1/video-templates/{id}", s.requireSession(s.handleVideoTemplatePatch))
+		mux.Handle("DELETE /api/v1/video-templates/{id}", s.requireSession(s.handleVideoTemplateDelete))
+		mux.Handle("GET /api/v1/video-templates/{id}/versions", s.requireSession(s.handleVideoTemplateVersionList))
+		mux.Handle("POST /api/v1/video-templates/{id}/versions", s.requireSession(s.handleVideoTemplateVersionCreate))
+		mux.Handle("GET /api/v1/video-templates/{id}/versions/{version}", s.requireSession(s.handleVideoTemplateVersionGet))
+		mux.Handle("PUT /api/v1/video-templates/{id}/versions/{version}", s.requireSession(s.handleVideoTemplateVersionPut))
+		mux.Handle("POST /api/v1/video-templates/{id}/publish", s.requireSession(s.handleVideoTemplatePublish))
+		mux.Handle("POST /api/v1/video-templates/{id}/assignments", s.requireSession(s.handleVideoTemplateAssign))
+		mux.Handle("GET /api/v1/video-templates/{id}/assignments", s.requireSession(s.handleVideoTemplateAssignmentsByTemplate))
+		mux.Handle("DELETE /api/v1/video-templates/{id}/assignments/{storeId}", s.requireSession(s.handleVideoTemplateUnassign))
+		mux.Handle("GET /api/v1/stores/{id}/video-templates", s.requireSession(s.handleVideoTemplatesByStore))
+	}
+
 	return s.withRequestLog(mux)
 }
 

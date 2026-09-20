@@ -34,6 +34,9 @@ func TestOpenCreatesSchema(t *testing.T) {
 		"schema_migrations",
 		"stores",
 		"tenants",
+		"video_template_assignments",
+		"video_template_versions",
+		"video_templates",
 	}
 	got, err := TableNames(d)
 	if err != nil {

@@ -60,6 +60,12 @@ func TestMatrix(t *testing.T) {
 		{"owner A manages asset lib", ownerA, ActionManageAssetLib, tenantA, true, ""},
 		{"staff A cannot manage asset lib", staffA, ActionManageAssetLib, tenantA, false, ReasonForbidden},
 		{"owner B manage A asset lib refused", ownerB, ActionManageAssetLib, tenantA, false, ReasonCrossTenant},
+
+		// HUI-1669 FEAT-0170: 视频模板管理动作(模板 CRUD/发布/分配)是
+		// org_owner-only 治理面;查询走既有业务角色。
+		{"owner A manages video templates", ownerA, ActionManageVideoTemplates, tenantA, true, ""},
+		{"staff A cannot manage video templates", staffA, ActionManageVideoTemplates, tenantA, false, ReasonForbidden},
+		{"owner B manage A video templates refused", ownerB, ActionManageVideoTemplates, tenantA, false, ReasonCrossTenant},
 		{"staff A draws from tenant pool", staffA, ActionCreate, tenantA, true, ""},
 		{"owner A reads store record", ownerA, ActionReadRecord, RecordScope{TenantID: "tnt_A", StoreID: "sto_S9"}, true, ""},
 		{"owner A updates store-bound record", ownerA, ActionUpdate, RecordScope{TenantID: "tnt_A", StoreID: "sto_S1"}, true, ""},
@@ -133,6 +139,7 @@ func TestStoreScopeMatrix(t *testing.T) {
 		{"manager cannot export QR", mgrA_S1, ActionExportQR, ownS1, false, ReasonForbidden},
 		{"manager cannot manage campaign rules", mgrA_S1, ActionManageCampaignRules, ownS1, false, ReasonForbidden},
 		{"manager cannot manage asset lib", mgrA_S1, ActionManageAssetLib, ownS1, false, ReasonForbidden},
+		{"manager cannot manage video templates", mgrA_S1, ActionManageVideoTemplates, ownS1, false, ReasonForbidden},
 		// 池是租户级记录:门店经理既不能管理、也不能调取(out_of_scope,与
 		// 既有租户级记录纪律一致)。
 		{"manager cannot draw tenant pool", mgrA_S1, ActionCreate, hqLevel, false, ReasonOutOfScope},
