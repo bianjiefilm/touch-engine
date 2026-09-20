@@ -15,6 +15,18 @@ func TestNormalizePhone(t *testing.T) {
 		{"13800138000", "13800138000", true},
 		{"138-0013-8000", "13800138000", true},
 		{" 13800138000 ", "13800138000", true},
+		// D-X1: 国码前缀与常见分隔符容忍(对齐 leads 公共表单语义),归一为裸 11 位
+		{"+8613800138000", "13800138000", true},
+		{"8613800138000", "13800138000", true},
+		{"+86 138 0013 8000", "13800138000", true},
+		{"+86-138-0013-8000", "13800138000", true},
+		{"86-13800138000", "13800138000", true},
+		{"（+86）138 0013 8000", "13800138000", true},
+		// 无法归一出合法 11 位 CN 手机号的仍拒绝
+		{"+86138001380", "", false},  // 12 位:前缀不完整,非 13 位前缀形态
+		{"86138001380", "", false},   // 11 位但 8 开头:不是前缀形态也不是合法手机号
+		{"8623800138000", "", false}, // 86 前缀剥掉后 2 开头:仍不合法
+		{"86138001380001", "", false},// 14 位:超长
 		{"23800138000", "", false},
 		{"1380013800", "", false},
 		{"138001380001", "", false},
@@ -28,6 +40,33 @@ func TestNormalizePhone(t *testing.T) {
 		}
 		if !c.ok && err == nil {
 			t.Fatalf("NormalizePhone(%q) accepted, want refused", c.in)
+		}
+	}
+}
+
+// D-X1: the same subscriber number in prefix/separator forms must normalize to
+// the same bare value, hence the same fingerprint and the same dedup key —
+// otherwise the "+86 form" would bypass the bare form's idempotency.
+func TestPhoneFormsShareFingerprintAndDedupKey(t *testing.T) {
+	const pepper = "pepper-x"
+	now := time.Date(2026, 9, 19, 10, 0, 0, 0, time.UTC)
+	bare, err := NormalizePhone("13800138000")
+	if err != nil {
+		t.Fatalf("bare: %v", err)
+	}
+	for _, form := range []string{"+8613800138000", "8613800138000", "+86 138-0013 8000"} {
+		got, err := NormalizePhone(form)
+		if err != nil || got != bare {
+			t.Fatalf("NormalizePhone(%q) = %q, %v; want %q", form, got, err, bare)
+		}
+		// production derivation: fingerprint/dedup consume the NORMALIZED output
+		fpForm := PhoneFingerprint(pepper, got)
+		fpBare := PhoneFingerprint(pepper, bare)
+		if fpForm != fpBare {
+			t.Fatalf("fingerprint diverges for %q", form)
+		}
+		if DedupKey(pepper, "cmp_1", fpForm, now) != DedupKey(pepper, "cmp_1", fpBare, now) {
+			t.Fatalf("dedup key diverges for %q", form)
 		}
 	}
 }

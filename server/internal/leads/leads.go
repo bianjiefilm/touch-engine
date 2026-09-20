@@ -82,15 +82,31 @@ var (
 
 // ---- fingerprints ---------------------------------------------------------------
 
-// NormalizePhone trims separators and validates the loose mainland-CN mobile
-// shape (11 digits starting with 1; separators - and space tolerated).
+// NormalizePhone canonicalizes the loose mainland-CN mobile input into the
+// bare 11-digit form BEFORE validation: separators (space, hyphen, parentheses,
+// dot, and their full-width variants) are dropped, a single leading + is
+// stripped, and an 86 country prefix is stripped when it prefixes a full
+// 13-digit form (86 + 11 digits). The result must be exactly 11 digits
+// starting with 1 — otherwise the input is refused. This mirrors the
+// leads-engine public form normalizer (共测 D-X1): the same subscriber input
+// must yield the same stored phone, fingerprint and dedup key on both sides.
+// Note the discipline: every derivation point (storage, PhoneFingerprint,
+// DedupKey, revoke verification) consumes THIS function's output, so widening
+// the tolerated input forms cannot split an identity in two.
 func NormalizePhone(raw string) (string, error) {
-	p := strings.Map(func(r rune) rune {
-		if r == '-' || r == ' ' {
-			return -1
+	var b strings.Builder
+	for _, r := range strings.TrimSpace(raw) {
+		switch r {
+		case ' ', '-', '(', ')', '.', '　', '－', '（', '）':
+			continue
 		}
-		return r
-	}, strings.TrimSpace(raw))
+		b.WriteRune(r)
+	}
+	p := b.String()
+	p = strings.TrimPrefix(p, "+")
+	if len(p) == 13 && strings.HasPrefix(p, "86") {
+		p = p[2:]
+	}
 	if len(p) != 11 || p[0] != '1' {
 		return "", fmt.Errorf("%w: phone must be a mainland mobile number", ErrInvalidContact)
 	}
