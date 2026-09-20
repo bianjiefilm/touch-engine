@@ -63,14 +63,15 @@ func (m Member) inOwnStore(storeID string) bool {
 type Action string
 
 const (
-	ActionCreate        Action = "create"         // stores/campaigns/assets/links
-	ActionReadList      Action = "read_list"      // own-tenant lists
-	ActionReadRecord    Action = "read_record"    // own-tenant record
-	ActionUpdate        Action = "update"         // campaigns incl. pause/resume/end
-	ActionManageMembers Action = "manage_members" // org_owner only
-	ActionManageStores  Action = "manage_stores"  // HUI-1674 store create/edit/enable/disable: org_owner only
-	ActionExportQR      Action = "export_qr"      // HUI-1664 QR download: org_owner only
-	ActionManageTags    Action = "manage_tags"    // HUI-1665 NFC tags CRUD/batch/export; HUI-1674 store_manager on own-store tags
+	ActionCreate              Action = "create"                // stores/campaigns/assets/links
+	ActionReadList            Action = "read_list"             // own-tenant lists
+	ActionReadRecord          Action = "read_record"           // own-tenant record
+	ActionUpdate              Action = "update"                // campaigns incl. pause/resume/end
+	ActionManageMembers       Action = "manage_members"        // org_owner only
+	ActionManageStores        Action = "manage_stores"         // HUI-1674 store create/edit/enable/disable: org_owner only
+	ActionExportQR            Action = "export_qr"             // HUI-1664 QR download: org_owner only
+	ActionManageTags          Action = "manage_tags"           // HUI-1665 NFC tags CRUD/batch/export; HUI-1674 store_manager on own-store tags
+	ActionManageCampaignRules Action = "manage_campaign_rules" // HUI-1676 FEAT-0177 活动规则 CRUD: org_owner only
 )
 
 // Deny reason codes.
@@ -126,7 +127,7 @@ func Authorize(member *Member, action Action, rec RecordScope) Decision {
 	}
 
 	switch action {
-	case ActionManageMembers, ActionManageStores, ActionExportQR:
+	case ActionManageMembers, ActionManageStores, ActionExportQR, ActionManageCampaignRules:
 		// 总部专属治理面。store_manager 对「本店」也无此权(不可建删/改门店)。
 		if member.Role != RoleOrgOwner {
 			return deny(ReasonForbidden)

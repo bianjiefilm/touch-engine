@@ -48,6 +48,11 @@ func TestMatrix(t *testing.T) {
 		// the org_owner path ignore StoreID (HQ sees every store).
 		{"owner A manages stores", ownerA, ActionManageStores, tenantA, true, ""},
 		{"staff A cannot manage stores", staffA, ActionManageStores, tenantA, false, ReasonForbidden},
+
+		// HUI-1676 FEAT-0177: campaign rules CRUD is an org_owner-only surface
+		{"owner A manages campaign rules", ownerA, ActionManageCampaignRules, tenantA, true, ""},
+		{"staff A cannot manage campaign rules", staffA, ActionManageCampaignRules, tenantA, false, ReasonForbidden},
+		{"owner B manage A rules refused", ownerB, ActionManageCampaignRules, tenantA, false, ReasonCrossTenant},
 		{"owner A reads store record", ownerA, ActionReadRecord, RecordScope{TenantID: "tnt_A", StoreID: "sto_S9"}, true, ""},
 		{"owner A updates store-bound record", ownerA, ActionUpdate, RecordScope{TenantID: "tnt_A", StoreID: "sto_S1"}, true, ""},
 
@@ -118,6 +123,7 @@ func TestStoreScopeMatrix(t *testing.T) {
 		{"manager cannot create store", mgrA_S1, ActionManageStores, ownS1, false, ReasonForbidden},
 		{"manager cannot manage members", mgrA_S1, ActionManageMembers, ownS1, false, ReasonForbidden},
 		{"manager cannot export QR", mgrA_S1, ActionExportQR, ownS1, false, ReasonForbidden},
+		{"manager cannot manage campaign rules", mgrA_S1, ActionManageCampaignRules, ownS1, false, ReasonForbidden},
 
 		// ---- malformed manager rows fail closed ----
 		{"scopeless manager record refused", mgrA_NoScope, ActionReadRecord, ownS1, false, ReasonOutOfScope},
