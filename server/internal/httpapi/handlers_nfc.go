@@ -36,7 +36,7 @@ func (s *Server) requireTagOwner(c *caller, w http.ResponseWriter) bool {
 // else is refused exactly as before (staff → 403 forbidden).
 // Returns the member's store scope ("" = org_owner, no narrowing).
 func (s *Server) requireTagFace(c *caller, w http.ResponseWriter) (string, bool) {
-	m := authzMember(c)
+	m := s.authzMember(c)
 	if m == nil {
 		fail(w, http.StatusForbidden, authz.ReasonNotMember, "no membership resolved")
 		return "", false
