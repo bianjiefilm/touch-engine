@@ -28,6 +28,9 @@ func TestDefaults(t *testing.T) {
 	if cfg.FeatureAssetLib {
 		t.Fatal("feature flags must default to off")
 	}
+	if cfg.FeatureVideoTemplates {
+		t.Fatal("feature flags must default to off")
+	}
 }
 
 // HUI-1676 FEAT-0177: FEATURE_CAMPAIGN_RULES is a registry-style flag, default
@@ -77,6 +80,32 @@ func TestFeatureAssetLibFlag(t *testing.T) {
 	for _, p := range cfg.Gate() {
 		if strings.Contains(p, "ASSET_LIB") {
 			t.Fatalf("asset lib must not add gate entries: %v", p)
+		}
+	}
+}
+
+// HUI-1669 FEAT-0170: FEATURE_VIDEO_TEMPLATES is a registry-style flag, default
+// off. It needs NO extra platform configuration of its own (templates are
+// reference organizations over the existing asset library), so it must never
+// add Gate() entries.
+func TestFeatureVideoTemplatesFlag(t *testing.T) {
+	base := map[string]string{
+		"TOUCH_INTERNAL_TOKEN":       "s",
+		"PLATFORM_IDENTITY_BASE_URL": "http://127.0.0.1:18101",
+		"PLATFORM_IDENTITY_TOKEN":    "t",
+	}
+	cfg := Load(func(k string) string { return base[k] })
+	if cfg.FeatureVideoTemplates {
+		t.Fatal("video templates flag must default to off")
+	}
+	base["FEATURE_VIDEO_TEMPLATES"] = "on"
+	cfg = Load(func(k string) string { return base[k] })
+	if !cfg.FeatureVideoTemplates {
+		t.Fatal("FEATURE_VIDEO_TEMPLATES=on must enable the flag")
+	}
+	for _, p := range cfg.Gate() {
+		if strings.Contains(p, "VIDEO_TEMPLATES") {
+			t.Fatalf("video templates must not add gate entries: %v", p)
 		}
 	}
 }

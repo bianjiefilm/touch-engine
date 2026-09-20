@@ -76,6 +76,10 @@ const (
 	// 增删改、池内引用增删、候选标记 —— 管理动作限 org_owner。选择/调取不走本
 	// 动作(按既有业务角色:ActionCreate/ActionReadList)。
 	ActionManageAssetLib Action = "manage_asset_lib"
+	// ActionManageVideoTemplates (HUI-1669 FEAT-0170 视频模板管理): 模板
+	// CRUD/发布/版本/分配 —— 管理动作限 org_owner。查询不走本动作(按既有
+	// 业务角色:ActionReadList/ActionReadRecord;门店经理仅本店分配查询)。
+	ActionManageVideoTemplates Action = "manage_video_templates"
 )
 
 // Deny reason codes.
@@ -131,7 +135,8 @@ func Authorize(member *Member, action Action, rec RecordScope) Decision {
 	}
 
 	switch action {
-	case ActionManageMembers, ActionManageStores, ActionExportQR, ActionManageCampaignRules, ActionManageAssetLib:
+	case ActionManageMembers, ActionManageStores, ActionExportQR, ActionManageCampaignRules,
+		ActionManageAssetLib, ActionManageVideoTemplates:
 		// 总部专属治理面。store_manager 对「本店」也无此权(不可建删/改门店)。
 		if member.Role != RoleOrgOwner {
 			return deny(ReasonForbidden)
