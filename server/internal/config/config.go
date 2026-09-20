@@ -29,6 +29,10 @@ const (
 	// off = 视频模板全路由不注册(404 不可见)。零额外 Gate 项:模板是素材
 	// 引用集的组织单元(零物理存储),绑定校验只读 assetlib 既有行。
 	EnvFeatureVideoTemplates = "FEATURE_VIDEO_TEMPLATES"
+	// EnvFeatureAgency (HUI-1675 FEAT-0176): 登记制开关,默认 off。
+	// off = 代理与子账号全路由不注册(404 不可见)。零额外 Gate 项:代管关系
+	// 与代开留痕是本库既有行,不引入任何外部依赖。
+	EnvFeatureAgency = "FEATURE_AGENCY"
 )
 
 // Config is the resolved server configuration.
@@ -80,6 +84,7 @@ type Config struct {
 	FeatureCampaignRules  bool
 	FeatureAssetLib       bool
 	FeatureVideoTemplates bool
+	FeatureAgency         bool
 }
 
 // FromEnv reads configuration from the process environment.
@@ -117,6 +122,7 @@ func Load(get func(string) string) Config {
 		FeatureCampaignRules:  isTruthy(get(EnvFeatureCampaignRules)),
 		FeatureAssetLib:       isTruthy(get(EnvFeatureAssetLib)),
 		FeatureVideoTemplates: isTruthy(get(EnvFeatureVideoTemplates)),
+		FeatureAgency:         isTruthy(get(EnvFeatureAgency)),
 	}
 }
 

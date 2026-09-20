@@ -42,7 +42,7 @@ func callerStoreScope(c *caller) string {
 // foreign-store records stay invisible (跨店 404 掩码);for target-parameter
 // checks (create/rebind) it stays 403 out_of_scope.
 func (s *Server) requireScopedAction(c *caller, action authz.Action, rec authz.RecordScope, mask404 bool, w http.ResponseWriter) bool {
-	d := authz.Authorize(authzMember(c), action, rec)
+	d := authz.Authorize(s.authzMember(c), action, rec)
 	if d.Allowed {
 		return true
 	}
@@ -94,12 +94,12 @@ func (s *Server) validateStoreBinding(c *caller, storeID string, w http.Response
 // allowScopedList gates the list surfaces: org_owner/staff pass the tenant-level
 // ReadList gate; a store_manager also passes but MUST continue into the
 // server-side scope-filtered branch (their list is never tenant-wide).
-func allowScopedList(c *caller, w http.ResponseWriter) bool {
+func (s *Server) allowScopedList(c *caller, w http.ResponseWriter) bool {
 	if c == nil || c.Member == nil {
 		fail(w, http.StatusForbidden, authz.ReasonNotMember, "no membership resolved")
 		return false
 	}
-	d := authz.Authorize(authzMember(c), authz.ActionReadList, authz.RecordScope{TenantID: c.Member.TenantID})
+	d := authz.Authorize(s.authzMember(c), authz.ActionReadList, authz.RecordScope{TenantID: c.Member.TenantID})
 	if d.Allowed {
 		return true
 	}
@@ -114,12 +114,12 @@ func allowScopedList(c *caller, w http.ResponseWriter) bool {
 // tenant-level Create gate; a store_manager also passes but the real decision
 // is made afterwards by requireScopedAction against the TARGET store of the
 // request (own store only). Disabled/unknown roles fail as usual.
-func allowScopedCreate(c *caller, w http.ResponseWriter) bool {
+func (s *Server) allowScopedCreate(c *caller, w http.ResponseWriter) bool {
 	if c == nil || c.Member == nil {
 		fail(w, http.StatusForbidden, authz.ReasonNotMember, "no membership resolved")
 		return false
 	}
-	d := authz.Authorize(authzMember(c), authz.ActionCreate, authz.RecordScope{TenantID: c.Member.TenantID})
+	d := authz.Authorize(s.authzMember(c), authz.ActionCreate, authz.RecordScope{TenantID: c.Member.TenantID})
 	if d.Allowed {
 		return true
 	}
@@ -157,7 +157,7 @@ func (s *Server) handleStoreCreate(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleStoreList(w http.ResponseWriter, r *http.Request) {
 	c := callerFrom(r)
-	if !allowScopedList(c, w) {
+	if !s.allowScopedList(c, w) {
 		return
 	}
 	items, err := s.St.ListStores(c.Member.TenantID)
@@ -262,7 +262,7 @@ type campaignIn struct {
 
 func (s *Server) handleCampaignCreate(w http.ResponseWriter, r *http.Request) {
 	c := callerFrom(r)
-	if !allowScopedCreate(c, w) {
+	if !s.allowScopedCreate(c, w) {
 		return
 	}
 	var in campaignIn
@@ -321,7 +321,7 @@ func validateWindow(startsAt, endsAt string) string {
 
 func (s *Server) handleCampaignList(w http.ResponseWriter, r *http.Request) {
 	c := callerFrom(r)
-	if !allowScopedList(c, w) {
+	if !s.allowScopedList(c, w) {
 		return
 	}
 	// HUI-1674:门店经理只见本店活动(服务端强制过滤;未绑定门店的活动=总部级,

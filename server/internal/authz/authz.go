@@ -8,6 +8,11 @@
 // HUI-1674 FEAT-0175 连锁多门店:租户内新增组织角色 org_owner(总部,全门店)
 // 与门店作用域成员 store_manager(仅本门店)。作用域是服务端裁决事实
 // (members.store_scope),客户端声明(头/参数/体)永不参与授权。
+//
+// HUI-1675 FEAT-0176 代理与子账号(单级代理 v1):新增代理角色 agent。代理的
+// 权威不在角色本身,而在激活的代管关系行(agency_relations,HTTP 层单点回填
+// Member.AgencyActive);能力 = 白名单(名下商家数据只读 + 开子账号),其余
+// fail-closed。子账号 = 商家租户内的既有成员角色,不设第二套身份/权限体系。
 package authz
 
 // Role of a tenant member.
@@ -17,6 +22,10 @@ const (
 	RoleOrgOwner     Role = "org_owner"     // 连锁总部:全门店管控
 	RoleStoreManager Role = "store_manager" // 门店经理:仅本门店(store_scope)
 	RoleStaff        Role = "staff"         // 租户级职员(T0 语义保留)
+	// RoleAgent (HUI-1675 FEAT-0176 代理与子账号): 服务商代理。成员行只是既有
+	// 成员体系内的挂载点;权威来自激活的代管关系行(HTTP 层回填 AgencyActive)。
+	// 能力 = 白名单:名下商家数据只读 + 开子账号;其余一律拒绝。
+	RoleAgent Role = "agent"
 	// LegacyOwner is the T0 role name. After migration 0004 no row stores it;
 	// it survives only as an INPUT alias for RoleOrgOwner (provision/API),
 	// resolved by CanonicalRole. It is NOT a valid stored role (fails closed).
@@ -25,7 +34,7 @@ const (
 
 // Valid reports whether the role is one of the canonical stored values.
 func (r Role) Valid() bool {
-	return r == RoleOrgOwner || r == RoleStoreManager || r == RoleStaff
+	return r == RoleOrgOwner || r == RoleStoreManager || r == RoleStaff || r == RoleAgent
 }
 
 // CanonicalRole maps an input role to the canonical stored role. The T0 alias
@@ -52,6 +61,10 @@ type Member struct {
 	// store_manager 行允许非空(写路径强制);缺 scope 的 manager 行全拒(fail-closed)。
 	StoreScope string
 	Enabled    bool
+	// AgencyActive (FEAT-0176): 结构体字段,非库列。仅 role=agent 有意义 ——
+	// 由 HTTP 层按 agency_relations 激活行单点回填;false(缺省)= 无激活代管
+	// 关系,agent 能力集整体 fail-closed 关闭。
+	AgencyActive bool
 }
 
 // inOwnStore reports whether the member's scope covers the record's store.
@@ -80,6 +93,14 @@ const (
 	// CRUD/发布/版本/分配 —— 管理动作限 org_owner。查询不走本动作(按既有
 	// 业务角色:ActionReadList/ActionReadRecord;门店经理仅本店分配查询)。
 	ActionManageVideoTemplates Action = "manage_video_templates"
+	// ActionManageAgency (HUI-1675 FEAT-0176 代理与子账号): 建立/解除代管
+	// 关系 —— 平台/owner 类角色(org_owner)专属治理面。代理自身无此权。
+	ActionManageAgency Action = "manage_agency"
+	// ActionManageAgencySubaccounts (HUI-1675 FEAT-0176): 开子账号(代管理
+	// 动作)与代开留痕查询。org_owner 恒可(owner 类保留最高治理权,直开的
+	// 留痕不冒充代理身份);agent 仅当激活代管关系(AgencyActive)。子账号
+	// 角色白名单(staff/store_manager)在处理层与存储层双重把关。
+	ActionManageAgencySubaccounts Action = "manage_agency_subaccounts"
 )
 
 // Deny reason codes.
@@ -92,6 +113,10 @@ const (
 	// member's store scope (another store, or tenant-level/unassigned). The
 	// HTTP layer masks reads as 404 so foreign records stay invisible.
 	ReasonOutOfScope = "out_of_scope"
+	// ReasonAgencyInactive (FEAT-0176): the caller is an agent member whose
+	// 代管关系 is not active (never established or revoked). Fail-closed:
+	// the whole agent capability set is off.
+	ReasonAgencyInactive = "agency_inactive"
 )
 
 // Decision is the outcome of an authorization check.
@@ -136,12 +161,27 @@ func Authorize(member *Member, action Action, rec RecordScope) Decision {
 
 	switch action {
 	case ActionManageMembers, ActionManageStores, ActionExportQR, ActionManageCampaignRules,
-		ActionManageAssetLib, ActionManageVideoTemplates:
-		// 总部专属治理面。store_manager 对「本店」也无此权(不可建删/改门店)。
+		ActionManageAssetLib, ActionManageVideoTemplates, ActionManageAgency:
+		// 总部专属治理面。store_manager 对「本店」也无此权(不可建删/改门店);
+		// agent 无建立/解除代管权(建立/解除是 owner 类治理动作)。
 		if member.Role != RoleOrgOwner {
 			return deny(ReasonForbidden)
 		}
 		return allow()
+	case ActionManageAgencySubaccounts:
+		// FEAT-0176:开子账号。org_owner 恒可;agent 仅当激活代管关系;
+		// 其余角色(含 store_manager/staff 的子账号)一律拒绝。
+		switch member.Role {
+		case RoleOrgOwner:
+			return allow()
+		case RoleAgent:
+			if !member.AgencyActive {
+				return deny(ReasonAgencyInactive)
+			}
+			return allow()
+		default:
+			return deny(ReasonForbidden)
+		}
 	case ActionManageTags:
 		switch member.Role {
 		case RoleOrgOwner:
@@ -159,6 +199,17 @@ func Authorize(member *Member, action Action, rec RecordScope) Decision {
 		case RoleOrgOwner, RoleStaff:
 			// org_owner 看全门店;staff 保留 T0 租户级语义(存量兼容)。
 			return allow()
+		case RoleAgent:
+			// FEAT-0176 白名单:名下商家数据只读(read_list/read_record,租户级
+			// 全量;可见性由成员行+激活关系双门槛限定)。写动作不在白名单,
+			// 无激活关系时连只读都关闭(fail-closed)。
+			if !member.AgencyActive {
+				return deny(ReasonAgencyInactive)
+			}
+			if action == ActionReadList || action == ActionReadRecord {
+				return allow()
+			}
+			return deny(ReasonForbidden)
 		case RoleStoreManager:
 			if member.inOwnStore(rec.StoreID) {
 				return allow()

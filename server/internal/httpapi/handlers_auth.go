@@ -91,7 +91,16 @@ func (s *Server) handleWhoami(w http.ResponseWriter, r *http.Request) {
 
 // parseMemberRole maps the input role to its canonical stored value.
 // Returns "" with ok=false when the input is not a known role.
+//
+// FEAT-0176: "agent" IS a canonical stored role, but it is never issued
+// through the admin members surface: agent memberships are created/re-enabled
+// only by the agency establish flow (代管关系行 + 留痕一体化,单一创建路径)。
+// This surface therefore refuses it (owner 可经既有 PATCH 把 agent 行改回
+// 其他角色,但不经 agency 面铸造 agent 行)。
 func parseMemberRole(in string) (string, bool) {
+	if authz.Role(strings.TrimSpace(in)) == authz.RoleAgent {
+		return "", false
+	}
 	canonical, ok := authz.CanonicalRole(authz.Role(in))
 	if !ok {
 		return "", false

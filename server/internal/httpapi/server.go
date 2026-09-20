@@ -107,12 +107,21 @@ func callerFrom(r *http.Request) *caller {
 	return nil
 }
 
-func authzMember(c *caller) *authz.Member {
+// authzMember maps the resolved membership onto the authz core. FEAT-0176:
+// agent-role members get AgencyActive backfilled here — the SINGLE server-side
+// point where 代管关系 activity enters authorization (any store error answers
+// false, fail-closed). Non-agent roles skip the lookup entirely (zero cost,
+// existing semantics byte-identical).
+func (s *Server) authzMember(c *caller) *authz.Member {
 	if c == nil || c.Member == nil {
 		return nil
 	}
-	return &authz.Member{ID: c.Member.ID, TenantID: c.Member.TenantID, PrincipalRef: c.Member.PrincipalRef,
+	am := &authz.Member{ID: c.Member.ID, TenantID: c.Member.TenantID, PrincipalRef: c.Member.PrincipalRef,
 		Role: authz.Role(c.Member.Role), StoreScope: c.Member.StoreScope, Enabled: c.Member.Enabled}
+	if am.Role == authz.RoleAgent {
+		am.AgencyActive = s.St.HasActiveAgencyRelation(c.Member.TenantID, c.Member.PrincipalRef)
+	}
+	return am
 }
 
 // ---- responses --------------------------------------------------------------
@@ -272,6 +281,23 @@ func (s *Server) Handler() http.Handler {
 		mux.Handle("GET /api/v1/stores/{id}/video-templates", s.requireSession(s.handleVideoTemplatesByStore))
 	}
 
+	// agency (HUI-1675 FEAT-0176 代理与子账号,单级代理 v1): 登记制开关
+	// FEATURE_AGENCY(默认 off;off = 全部路由不注册且 handler gate 再答统一
+	// 404 —— 同一双保险写法,面板不可见)。建立/解除代管限平台/owner 类角色
+	// (authz.manage_agency,org_owner 专属);开子账号与留痕查询走
+	// authz.manage_agency_subaccounts(org_owner 恒可;agent 仅当激活代管关系,
+	// 由 authz 按 AgencyActive 单点裁决)。代理数据可见性 = 既有租户成员行门槛
+	// + 激活代管关系门槛,双 fail-closed;解除代管立即收窄。子账号 = 既有成员
+	// 角色(staff/store_manager),不发明第二套身份/权限体系。不复制租户、
+	// 不动 tenants 语义;多级代理(代理下再挂代理)deferred。
+	if s.Cfg.FeatureAgency {
+		mux.Handle("POST /api/v1/agency/relations", s.requireSession(s.handleAgencyRelationCreate))
+		mux.Handle("GET /api/v1/agency/relations", s.requireSession(s.handleAgencyRelationList))
+		mux.Handle("DELETE /api/v1/agency/relations/{id}", s.requireSession(s.handleAgencyRelationRevoke))
+		mux.Handle("POST /api/v1/agency/sub-accounts", s.requireSession(s.handleAgencySubAccountCreate))
+		mux.Handle("GET /api/v1/agency/sub-accounts", s.requireSession(s.handleAgencySubAccountList))
+	}
+
 	return s.withRequestLog(mux)
 }
 
@@ -380,7 +406,7 @@ func sessionTokenFromRequest(r *http.Request, cookieName string) string {
 
 // requireAction wraps a handler with an authz decision for a specific action.
 func (s *Server) requireAction(c *caller, action authz.Action, rec authz.RecordScope, w http.ResponseWriter) bool {
-	d := authz.Authorize(authzMember(c), action, rec)
+	d := authz.Authorize(s.authzMember(c), action, rec)
 	if d.Allowed {
 		return true
 	}

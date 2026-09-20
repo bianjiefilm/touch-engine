@@ -47,6 +47,12 @@ func Member(dbPath, tenantID, principalRef, role, displayName string, enabled bo
 	if !ok {
 		return "", fmt.Errorf("role must be org_owner (or legacy owner), store_manager or staff, got %q", role)
 	}
+	// FEAT-0176:agent 是合法存储角色,但本运维工具不签发 —— 代理成员行只由
+	// 代理建立/解除代管流程(FEATURE_AGENCY 面)创建,关系行与留痕一体化;
+	// 脱离关系行的 agent 行在 authz 恒 fail-closed,这里直接拒绝以防误用。
+	if canonical == authz.RoleAgent {
+		return "", fmt.Errorf("role agent is managed by the agency surface (FEATURE_AGENCY), not provision")
+	}
 	role = string(canonical)
 	storeScope = strings.TrimSpace(storeScope)
 	if role == "store_manager" {

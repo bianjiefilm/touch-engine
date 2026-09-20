@@ -35,7 +35,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c := callerFrom(r)
-	if !allowScopedList(c, w) {
+	if !s.allowScopedList(c, w) {
 		return
 	}
 	// 作用域:门店经理收窄到其 store_scope;空作用域畸形经理 fail-closed。
