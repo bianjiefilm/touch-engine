@@ -25,6 +25,9 @@ func TestDefaults(t *testing.T) {
 	if cfg.FeatureDashboard || cfg.FeatureCampaignRules {
 		t.Fatal("feature flags must default to off")
 	}
+	if cfg.FeatureAssetLib {
+		t.Fatal("feature flags must default to off")
+	}
 }
 
 // HUI-1676 FEAT-0177: FEATURE_CAMPAIGN_RULES is a registry-style flag, default
@@ -48,6 +51,32 @@ func TestFeatureCampaignRulesFlag(t *testing.T) {
 	for _, p := range cfg.Gate() {
 		if strings.Contains(p, "CAMPAIGN_RULES") {
 			t.Fatalf("campaign rules must not add gate entries: %v", p)
+		}
+	}
+}
+
+// HUI-1666 FEAT-0167: FEATURE_ASSET_LIB is a registry-style flag, default off.
+// Like FEATURE_CAMPAIGN_RULES it needs NO extra platform configuration of its
+// own (asset rows are reference records; reference VALIDATION reuses
+// FEATURE_UPLOAD's client), so it must never add Gate() entries.
+func TestFeatureAssetLibFlag(t *testing.T) {
+	base := map[string]string{
+		"TOUCH_INTERNAL_TOKEN":       "s",
+		"PLATFORM_IDENTITY_BASE_URL": "http://127.0.0.1:18101",
+		"PLATFORM_IDENTITY_TOKEN":    "t",
+	}
+	cfg := Load(func(k string) string { return base[k] })
+	if cfg.FeatureAssetLib {
+		t.Fatal("asset lib flag must default to off")
+	}
+	base["FEATURE_ASSET_LIB"] = "on"
+	cfg = Load(func(k string) string { return base[k] })
+	if !cfg.FeatureAssetLib {
+		t.Fatal("FEATURE_ASSET_LIB=on must enable the flag")
+	}
+	for _, p := range cfg.Gate() {
+		if strings.Contains(p, "ASSET_LIB") {
+			t.Fatalf("asset lib must not add gate entries: %v", p)
 		}
 	}
 }

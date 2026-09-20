@@ -223,6 +223,32 @@ func (s *Server) Handler() http.Handler {
 		mux.Handle("GET /api/v1/campaigns/{id}/rules/revisions", s.requireSession(s.handleCampaignRulesRevisions))
 	}
 
+	// asset library (HUI-1666 FEAT-0167 商家素材库 v1): 登记制开关
+	// FEATURE_ASSET_LIB(默认 off;off = 路由不注册且 handler gate 再答统一
+	// 404 —— 同一双保险写法,面板不可见)。管理动作(登记/导入素材、池增删改、
+	// 池内引用增删、候选标记)仅 org_owner(authz.manage_asset_lib);选择/调取
+	// 按既有业务角色(ActionCreate/ActionReadList)。v1 不建物理文件仓库:
+	// 接口只收元数据+指纹;物理授权资产版本面(HUI-1732)未建,grant_ref 为
+	// 不透明声明引用。
+	if s.Cfg.FeatureAssetLib {
+		mux.Handle("POST /api/v1/assets", s.requireSession(s.handleLibAssetRegister))
+		mux.Handle("POST /api/v1/assets/import", s.requireSession(s.handleLibAssetImport))
+		mux.Handle("GET /api/v1/assets", s.requireSession(s.handleLibAssetList))
+		mux.Handle("GET /api/v1/assets/{id}", s.requireSession(s.handleLibAssetGet))
+		mux.Handle("POST /api/v1/assets/{id}/candidate", s.requireSession(s.handleLibAssetCandidate))
+
+		mux.Handle("POST /api/v1/asset-pools", s.requireSession(s.handleLibPoolCreate))
+		mux.Handle("GET /api/v1/asset-pools", s.requireSession(s.handleLibPoolList))
+		mux.Handle("GET /api/v1/asset-pools/{id}", s.requireSession(s.handleLibPoolGet))
+		mux.Handle("PATCH /api/v1/asset-pools/{id}", s.requireSession(s.handleLibPoolPatch))
+		mux.Handle("DELETE /api/v1/asset-pools/{id}", s.requireSession(s.handleLibPoolDelete))
+		mux.Handle("POST /api/v1/asset-pools/{id}/items", s.requireSession(s.handleLibPoolItemAdd))
+		mux.Handle("GET /api/v1/asset-pools/{id}/items", s.requireSession(s.handleLibPoolItemList))
+		mux.Handle("DELETE /api/v1/asset-pools/{id}/items/{itemId}", s.requireSession(s.handleLibPoolItemRemove))
+		mux.Handle("POST /api/v1/asset-pools/{id}/draw", s.requireSession(s.handleLibPoolDraw))
+		mux.Handle("GET /api/v1/asset-pools/{id}/selections", s.requireSession(s.handleLibPoolSelections))
+	}
+
 	return s.withRequestLog(mux)
 }
 

@@ -21,6 +21,10 @@ const (
 	// EnvFeatureCampaignRules (HUI-1676 FEAT-0177): 登记制开关,默认 off。
 	// off = 规则路由不注册(404)且频控不生效(现行为逐字节不变)。
 	EnvFeatureCampaignRules = "FEATURE_CAMPAIGN_RULES"
+	// EnvFeatureAssetLib (HUI-1666 FEAT-0167): 登记制开关,默认 off。
+	// off = 素材/池/调取路由不注册(404 不可见)。零额外 Gate 项:素材行是
+	// 引用记录,引用校验复用 FEATURE_UPLOAD 的平台客户端。
+	EnvFeatureAssetLib = "FEATURE_ASSET_LIB"
 )
 
 // Config is the resolved server configuration.
@@ -70,6 +74,7 @@ type Config struct {
 	FeatureLeadsCapture  bool
 	FeatureDashboard     bool
 	FeatureCampaignRules bool
+	FeatureAssetLib      bool
 }
 
 // FromEnv reads configuration from the process environment.
@@ -105,6 +110,7 @@ func Load(get func(string) string) Config {
 		FeatureLeadsCapture:  isTruthy(get(EnvFeatureLeadsCapture)),
 		FeatureDashboard:     isTruthy(get(EnvFeatureDashboard)),
 		FeatureCampaignRules: isTruthy(get(EnvFeatureCampaignRules)),
+		FeatureAssetLib:      isTruthy(get(EnvFeatureAssetLib)),
 	}
 }
 
