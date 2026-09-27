@@ -28,7 +28,8 @@ export type PublicUiState =
   | "tenant_suspended"
   | "security_freeze"
   | "offboarding"
-  | "tenant_retired";
+  | "tenant_retired"
+  | "brand_unavailable";
 
 // 机器态 → 游客文案(与 Go 侧 publicLinkView.state 对齐)
 export const STATE_TEXT: Record<PublicUiState, string> = {
@@ -52,6 +53,7 @@ export const STATE_TEXT: Record<PublicUiState, string> = {
   security_freeze: "商家账户已冻结",
   offboarding: "商家正在办理退出",
   tenant_retired: "商家已结束服务",
+  brand_unavailable: "品牌暂不可用",
 };
 
 // 每个非可用态都给出可恢复动作(文案层面)
@@ -76,6 +78,7 @@ export const STATE_ACTION: Record<PublicUiState, string> = {
   security_freeze: "请联系商家或页面客服",
   offboarding: "商家正在办理退出,不再接受新的参与",
   tenant_retired: "请联系商家了解是否还有其他活动",
+  brand_unavailable: "请稍后再试,或联系商家",
 };
 
 // 入口标记白名单:显式非白名单值 → unsupported;缺省 → web(直接访问)。

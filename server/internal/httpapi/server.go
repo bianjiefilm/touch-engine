@@ -324,7 +324,6 @@ func (s *Server) Handler() http.Handler {
 	if s.Cfg.FeatureBrand {
 		mux.Handle("GET /api/v1/public/brand-shell", http.HandlerFunc(s.handlePublicBrandShell))
 		mux.Handle("POST /api/v1/tenant-lifecycle", s.requireSession(s.handleTenantLifecycle))
-		mux.Handle("POST /api/v1/tenant-charge-hold", s.requireSession(s.handleTenantChargeHold))
 		mux.Handle("POST /api/v1/tenant-exports", s.requireSession(s.handleTenantExportCreate))
 		mux.Handle("GET /api/v1/tenant-exports/{id}", s.requireSession(s.handleTenantExportGet))
 		mux.Handle("POST /api/v1/tenant-exports/{id}/revoke", s.requireSession(s.handleTenantExportRevoke))
@@ -427,6 +426,9 @@ func (s *Server) requireSession(next http.HandlerFunc) http.Handler {
 			return
 		}
 		c := &caller{Principal: principal, Member: &member, Brand: gate}
+		if mutating && gate != nil && s.blockTenantMutation(w, r, gate.Tenant) {
+			return
+		}
 		ctx := context.WithValue(r.Context(), callerKey, c)
 		ctx = context.WithValue(ctx, brandKey, gate)
 		next(w, r.WithContext(ctx))

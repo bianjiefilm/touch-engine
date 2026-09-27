@@ -29,8 +29,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		res, rerr := s.Brand.Read(r.Context(), host, false)
-		if rerr != nil || res.Kind != brandctx.KindReady || !res.Manifest.AdmitLogin {
-			fail(w, http.StatusForbidden, "brand_not_admitted", "brand is not admitting login; no session was created")
+		if !brandAdmitsLogin(w, res, rerr) {
 			return
 		}
 	}
@@ -43,6 +42,33 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	s.setSessionCookies(w, pair)
 	// Login does not create a tenant membership and does not select a payer.
 	writeJSON(w, http.StatusOK, map[string]any{"authenticated": true})
+}
+
+// brandAdmitsLogin maps registry kinds to distinct login failures.
+// A registry outage is 503, not a fake rejection, and no cookie is set.
+func brandAdmitsLogin(w http.ResponseWriter, res brandctx.Result, err error) bool {
+	if err != nil || res.Kind == brandctx.KindUnavailable || res.Kind == brandctx.KindInvalid {
+		fail(w, http.StatusServiceUnavailable, "brand_unavailable", "brand registry could not be read; no session was created")
+		return false
+	}
+	switch res.Kind {
+	case brandctx.KindReady:
+		if res.Manifest.AdmitLogin {
+			return true
+		}
+		fail(w, http.StatusForbidden, "brand_not_admitted", "brand is not admitting login; no session was created")
+	case brandctx.KindSuspended:
+		fail(w, http.StatusForbidden, "brand_suspended", "brand is suspended; no session was created")
+	case brandctx.KindRetired:
+		fail(w, http.StatusForbidden, "brand_retiring", "brand is retiring; no session was created")
+	case brandctx.KindUnknown:
+		fail(w, http.StatusNotFound, "unknown_brand", "host is not a registered brand; no session was created")
+	case brandctx.KindDomain:
+		fail(w, http.StatusForbidden, "domain_error", "brand domain is not admitted; no session was created")
+	default:
+		fail(w, http.StatusServiceUnavailable, "brand_unavailable", "brand registry could not be read; no session was created")
+	}
+	return false
 }
 
 func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {

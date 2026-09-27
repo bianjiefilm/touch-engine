@@ -134,7 +134,7 @@ func (s *Store) BuildExportManifest(tenantID, brandID, requester, purpose, brand
 		TagBindings: []map[string]any{}, Publications: []map[string]any{},
 		RewardRules: []map[string]any{}, Submissions: []map[string]any{},
 		Assets: []map[string]any{},
-		Stats: map[string]any{},
+		Stats:  map[string]any{},
 	}
 	if err := s.collectMaps(`SELECT id,name,address FROM stores WHERE tenant_id=? ORDER BY created_at`, tenantID, func(scan func(...any) error) (map[string]any, error) {
 		var id, name, address string
@@ -208,12 +208,25 @@ func (s *Store) BuildExportManifest(tenantID, brandID, requester, purpose, brand
 			return nil, err
 		}
 		return map[string]any{
-			"asset_id": assetID, "version": version, "hash_anchor": version,
-			"type": "campaign_asset_ref", "bytes": "not_packed",
+			"asset_id": assetID, "version": version, "hash": "",
+			"type": "campaign_asset_ref", "deliverable_ref": assetID, "bytes": "not_packed",
 		}, nil
 	}, &m.Assets); err != nil {
 		return m, err
 	}
+	if err := s.collectMaps(`SELECT id,sha256,media_type,grant_ref FROM lib_assets WHERE tenant_id=?`, tenantID, func(scan func(...any) error) (map[string]any, error) {
+		var id, hash, mediaType, grant string
+		if err := scan(&id, &hash, &mediaType, &grant); err != nil {
+			return nil, err
+		}
+		return map[string]any{
+			"asset_id": id, "version": hash, "hash": hash,
+			"type": mediaType, "deliverable_ref": grant, "bytes": "not_packed",
+		}, nil
+	}, &m.Assets); err != nil {
+		return m, err
+	}
+	m.Stats["redemption_ledger"] = "not_stored_in_touch"
 	return m, nil
 }
 

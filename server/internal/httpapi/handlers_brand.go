@@ -17,10 +17,10 @@ import (
 // brandGate is the brand shell attached to an authenticated request.
 // It never grants membership and never selects a payer.
 type brandGate struct {
-	Host     string
-	Result   brandctx.Result
-	Tenant   store.Tenant
-	TouchOn  bool
+	Host    string
+	Result  brandctx.Result
+	Tenant  store.Tenant
+	TouchOn bool
 }
 
 func (s *Server) attachBrand(w http.ResponseWriter, r *http.Request, tenantID string, mutating bool) (*brandGate, bool) {
@@ -53,21 +53,25 @@ func (s *Server) attachBrand(w http.ResponseWriter, r *http.Request, tenantID st
 	case brandctx.KindDomain:
 		fail(w, http.StatusForbidden, "domain_error", "brand domain is not admitted")
 		return nil, false
-	case brandctx.KindSuspended:
-		fail(w, http.StatusForbidden, "brand_suspended", "brand is suspended; historical records stay, new entry is refused")
-		return nil, false
-	case brandctx.KindRetired:
-		fail(w, http.StatusForbidden, "brand_retiring", "brand is retiring")
-		return nil, false
 	case brandctx.KindUnavailable, brandctx.KindInvalid:
 		fail(w, http.StatusServiceUnavailable, "brand_unavailable", "brand registry could not be read; refusing to act (fail-closed)")
 		return nil, false
+	case brandctx.KindSuspended:
+		if mutating && !mutationExempt(r.URL.Path) {
+			fail(w, http.StatusForbidden, "brand_suspended", "brand is suspended; history and export stay, new entry is refused")
+			return nil, false
+		}
+	case brandctx.KindRetired:
+		if mutating && !mutationExempt(r.URL.Path) {
+			fail(w, http.StatusForbidden, "brand_retiring", "brand is retiring; history and export stay, new entry is refused")
+			return nil, false
+		}
 	}
 	if res.Manifest.BrandID != tenant.BrandID {
 		fail(w, http.StatusForbidden, "brand_mismatch", "host brand does not match this tenant; tenant and payer are unchanged")
 		return nil, false
 	}
-	if mutating && !res.Manifest.AdmitLogin {
+	if mutating && !mutationExempt(r.URL.Path) && !res.Manifest.AdmitLogin {
 		fail(w, http.StatusForbidden, "brand_not_admitted", "brand is not admitting authenticated actions")
 		return nil, false
 	}
@@ -77,20 +81,49 @@ func (s *Server) attachBrand(w http.ResponseWriter, r *http.Request, tenantID st
 	}, true
 }
 
-// denyFrozenWrite blocks mutations that the tenant lifecycle does not allow.
-// charge_hold blocks only billable creates. History reads never call this.
-func (s *Server) denyFrozenWrite(c *caller, billable bool, w http.ResponseWriter) bool {
-	if !s.Cfg.FeatureBrand || c == nil || c.Member == nil {
+// mutationExempt keeps export and lifecycle changes available while a tenant
+// is suspended or offboarding. Charge hold is not a merchant toggle.
+func mutationExempt(path string) bool {
+	switch path {
+	case "/api/v1/tenant-lifecycle", "/api/v1/tenant-exports":
+		return true
+	default:
+		return strings.HasPrefix(path, "/api/v1/tenant-exports/")
+	}
+}
+
+// billableCreate is a new paid content action. The client cannot opt out.
+func billableCreate(method, path string) bool {
+	if method != http.MethodPost && method != http.MethodPut {
 		return false
 	}
-	t, err := s.St.GetTenant(c.Member.TenantID)
-	if err != nil {
-		fail(w, http.StatusInternalServerError, "internal", "tenant lookup failed")
+	switch path {
+	case "/api/v1/campaigns", "/api/v1/stores", "/api/v1/nfc/tags/batch", "/api/v1/nfc/tag-groups",
+		"/api/v1/assets", "/api/v1/assets/import", "/api/v1/asset-pools":
 		return true
+	}
+	if strings.HasPrefix(path, "/api/v1/campaigns/") && (strings.HasSuffix(path, "/links") || strings.HasSuffix(path, "/assets") || strings.HasSuffix(path, "/rules")) {
+		return true
+	}
+	if strings.HasPrefix(path, "/api/v1/video-templates") {
+		return true
+	}
+	if strings.HasPrefix(path, "/api/v1/asset-pools/") && (strings.HasSuffix(path, "/items") || strings.HasSuffix(path, "/draw")) {
+		return true
+	}
+	return false
+}
+
+// blockTenantMutation enforces lifecycle and charge hold for every session
+// write, including routes that do not remember to check themselves.
+// Export and lifecycle changes stay available. Returns true if it wrote an error.
+func (s *Server) blockTenantMutation(w http.ResponseWriter, r *http.Request, t store.Tenant) bool {
+	if !s.Cfg.FeatureBrand || mutationExempt(r.URL.Path) {
+		return false
 	}
 	switch t.Lifecycle {
 	case "", store.LifecycleActive:
-		if billable && t.ChargeHold {
+		if t.ChargeHold && billableCreate(r.Method, r.URL.Path) {
 			fail(w, http.StatusConflict, "charge_hold", "paid actions are held; existing campaigns stay visible")
 			return true
 		}
@@ -147,14 +180,14 @@ func (s *Server) handlePublicBrandShell(w http.ResponseWriter, r *http.Request) 
 	case brandctx.KindReady:
 		// Display shell only. No tenant, no other apps, no payer.
 		writeJSON(w, http.StatusOK, map[string]any{
-			"state":          "ready",
-			"display_name":   res.Manifest.DisplayName,
-			"logo_ref":       res.Manifest.LogoRef,
-			"theme":          res.Manifest.Theme,
-			"support_name":   res.Manifest.SupportName,
+			"state":           "ready",
+			"display_name":    res.Manifest.DisplayName,
+			"logo_ref":        res.Manifest.LogoRef,
+			"theme":           res.Manifest.Theme,
+			"support_name":    res.Manifest.SupportName,
 			"support_contact": res.Manifest.SupportContact,
-			"auth_headline":  res.Manifest.AuthHeadline,
-			"touch_enabled":  res.Manifest.TouchEnabled(s.Cfg.AppID),
+			"auth_headline":   res.Manifest.AuthHeadline,
+			"touch_enabled":   res.Manifest.TouchEnabled(s.Cfg.AppID),
 		})
 	default:
 		fail(w, http.StatusServiceUnavailable, "brand_unavailable", "brand registry could not be read")
@@ -205,9 +238,9 @@ func (s *Server) handleTenantLifecycle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"lifecycle": in.Lifecycle,
+		"lifecycle":         in.Lifecycle,
 		"members_unchanged": membersSame(before, after),
-		"note": "restoring a tenant does not re-enable revoked staff, agents, or delegations",
+		"note":              "restoring a tenant does not re-enable revoked staff, agents, or delegations",
 	})
 }
 
@@ -226,25 +259,6 @@ func membersSame(a, b []store.Member) bool {
 		}
 	}
 	return true
-}
-
-func (s *Server) handleTenantChargeHold(w http.ResponseWriter, r *http.Request) {
-	c := callerFrom(r)
-	if !s.requireAction(c, authz.ActionManageMembers, authzScope(c), w) {
-		return
-	}
-	var in struct {
-		Held bool `json:"held"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-		fail(w, http.StatusBadRequest, "bad_request", "held is required")
-		return
-	}
-	if err := s.St.SetChargeHold(c.Member.TenantID, in.Held); err != nil {
-		fail(w, http.StatusInternalServerError, "internal", "charge hold update failed")
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"charge_hold": in.Held})
 }
 
 func (s *Server) handleTenantExportCreate(w http.ResponseWriter, r *http.Request) {

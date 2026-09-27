@@ -32,13 +32,13 @@ const (
 type Kind string
 
 const (
-	KindReady          Kind = "ready"
-	KindUnknown        Kind = "unknown_brand"
-	KindSuspended      Kind = "brand_suspended"
-	KindRetired        Kind = "brand_retiring"
-	KindDomain         Kind = "domain_error"
-	KindUnavailable    Kind = "brand_unavailable"
-	KindInvalid        Kind = "invalid_host"
+	KindReady       Kind = "ready"
+	KindUnknown     Kind = "unknown_brand"
+	KindSuspended   Kind = "brand_suspended"
+	KindRetired     Kind = "brand_retiring"
+	KindDomain      Kind = "domain_error"
+	KindUnavailable Kind = "brand_unavailable"
+	KindInvalid     Kind = "invalid_host"
 )
 
 // App is one registry app row. Touch only acts on its own app id.
@@ -151,9 +151,22 @@ func (c *Client) Read(ctx context.Context, host string, allowStale bool) (Result
 	defer res.Body.Close()
 	body, _ := io.ReadAll(io.LimitReader(res.Body, 1<<20))
 	var m Manifest
-	_ = json.Unmarshal(body, &m)
+	if len(body) > 0 {
+		if err := json.Unmarshal(body, &m); err != nil {
+			if allowStale {
+				if cached, ok := c.fresh(host); ok {
+					cached.LastKnownGood = true
+					return Result{Kind: KindReady, Manifest: cached, Stale: true}, nil
+				}
+			}
+			return Result{Kind: KindUnavailable}, err
+		}
+	}
 	switch res.StatusCode {
 	case http.StatusOK:
+		if strings.TrimSpace(m.BrandID) == "" || m.Status == "" {
+			return Result{Kind: KindUnavailable}, fmt.Errorf("brandctx: ready response missing brand identity")
+		}
 		if m.Status == "retired" {
 			return Result{Kind: KindRetired, Manifest: m}, nil
 		}

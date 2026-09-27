@@ -139,9 +139,6 @@ func (s *Server) handleStoreCreate(w http.ResponseWriter, r *http.Request) {
 	if !s.requireAction(c, authz.ActionManageStores, authzScope(c), w) {
 		return
 	}
-	if s.denyFrozenWrite(c, false, w) {
-		return
-	}
 	var in struct {
 		Name    string `json:"name"`
 		Address string `json:"address"`
@@ -261,7 +258,6 @@ type campaignIn struct {
 	EndsAt        string `json:"ends_at"`
 	StoreID       string `json:"store_id"`
 	OrderRef      string `json:"order_ref"` // optional opaque reference; empty = 无订单活动
-	Billable      bool   `json:"billable"`  // HUI-2053: only a real paid capability sets this
 }
 
 func (s *Server) handleCampaignCreate(w http.ResponseWriter, r *http.Request) {
@@ -292,9 +288,6 @@ func (s *Server) handleCampaignCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.Cfg.FeatureBrand && c.Brand != nil && !c.Brand.TouchOn {
 		fail(w, http.StatusForbidden, "brand_app_disabled", "this brand has not enabled touch; existing records stay readable")
-		return
-	}
-	if s.denyFrozenWrite(c, in.Billable, w) {
 		return
 	}
 	rec, err := s.St.CreateCampaign(store.NewCampaign{
@@ -431,9 +424,6 @@ func (s *Server) handleCampaignStatus(w http.ResponseWriter, r *http.Request) {
 	if _, ok := s.campaignScoped(c, r.PathValue("id"), authz.ActionUpdate, w); !ok {
 		return
 	}
-	if s.denyFrozenWrite(c, false, w) {
-		return
-	}
 	var in struct {
 		Status string `json:"status"`
 	}
@@ -566,9 +556,6 @@ func (s *Server) handleLinkCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.Cfg.FeatureBrand && c.Brand != nil && !c.Brand.TouchOn {
 		fail(w, http.StatusForbidden, "brand_app_disabled", "this brand has not enabled touch; existing records stay readable")
-		return
-	}
-	if s.denyFrozenWrite(c, false, w) {
 		return
 	}
 	rec, err := s.St.CreateLink(c.Member.TenantID, r.PathValue("id"), c.Member.PrincipalRef)

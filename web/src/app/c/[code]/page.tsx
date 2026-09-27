@@ -27,6 +27,7 @@ interface PublicView {
   ends_at?: string;
   store_notice?: string; // HUI-1674:仅白名单常量 store_unavailable(门店暂不可用标注)
   merchant_name?: string;
+  store_name?: string;
   brand_shell?: { display_name?: string; support_name?: string; support_contact?: string };
 }
 
@@ -186,6 +187,13 @@ function PublicCampaignInner() {
   const state: PublicUiState = entry === "unsupported" ? "entry_unsupported" : uiState;
   const headline = STATE_TEXT[state] ?? "活动不存在";
   const action = STATE_ACTION[state] ?? "";
+  const showActivity =
+    (state === "available" ||
+      state === "tenant_suspended" ||
+      state === "offboarding" ||
+      state === "security_freeze" ||
+      state === "tenant_retired") &&
+    Boolean(view?.title);
 
   return (
     <main style={{ maxWidth: 520, margin: "80px auto", padding: "0 20px", textAlign: "center" }}>
@@ -193,8 +201,11 @@ function PublicCampaignInner() {
         {view?.merchant_name && (
           <p style={{ margin: "0 0 8px", color: "#6b7280", fontSize: 13 }}>商家 {view.merchant_name}</p>
         )}
+        {view?.store_name && (
+          <p style={{ margin: "0 0 8px", color: "#6b7280", fontSize: 13 }}>门店 {view.store_name}</p>
+        )}
         <div style={{ fontSize: 40, marginBottom: 12 }}>{state === "available" ? "🎪" : "🔗"}</div>
-        <h1 style={{ margin: "0 0 8px" }}>{(state === "available" || state === "tenant_suspended" || state === "offboarding" || state === "security_freeze") && view?.title ? view.title : headline}</h1>
+        <h1 style={{ margin: "0 0 8px" }}>{showActivity && view?.title ? view.title : headline}</h1>
         {state !== "available" && (
           <p style={{ color: "#6b7280" }}>{headline}</p>
         )}
@@ -212,7 +223,7 @@ function PublicCampaignInner() {
             <a href={inSiteTarget} style={{ color: "#2563eb", fontSize: 14 }}>返回</a>
           </p>
         )}
-        {state === "available" && (
+        {(state === "available" || showActivity) && (
           <>
             {view?.public_content && <p style={{ fontSize: 16 }}>{view.public_content}</p>}
             {(view?.starts_at || view?.ends_at) && (
@@ -226,7 +237,7 @@ function PublicCampaignInner() {
               </p>
             )}
 
-            {submittedRef ? (
+            {state === "available" && submittedRef ? (
               // 留资成功页:保留引用号与可见的撤销渠道
               <div style={{ marginTop: 20, textAlign: "left", background: "#f9fafb", borderRadius: 8, padding: 16 }}>
                 {revokeDone ? (
@@ -250,7 +261,7 @@ function PublicCampaignInner() {
                   </>
                 )}
               </div>
-            ) : leadForm?.enabled ? (
+            ) : state === "available" && leadForm?.enabled ? (
               // 固定轻表单:最小字段 + 告知 + 营销独立勾选
               <div style={{ marginTop: 20, textAlign: "left" }}>
                 <label style={labelStyle}>

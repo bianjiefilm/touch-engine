@@ -296,18 +296,21 @@ func TestBrandPilotKeepsTenantsApartAndDoesNotInventALiveBridge(t *testing.T) {
 		t.Fatalf("qr url %s", qurl)
 	}
 
-	// Charge hold blocks only billable creates.
-	status, _, _ = do("POST", "/api/v1/tenant-charge-hold", "sess-owner-a", tenA.ID, "brand-a.example", `{"held":true}`)
-	if status != 200 {
-		t.Fatalf("hold %d", status)
+	// Charge hold is a server fact. The merchant cannot clear it, and omitting
+	// a client flag does not create a new campaign.
+	if err := st.SetChargeHold(tenA.ID, true); err != nil {
+		t.Fatal(err)
 	}
-	status, held, _ := do("POST", "/api/v1/campaigns", "sess-owner-a", tenA.ID, "brand-a.example", `{"title":"收费任务","billable":true}`)
+	status, held, _ := do("POST", "/api/v1/campaigns", "sess-owner-a", tenA.ID, "brand-a.example", `{"title":"收费任务"}`)
 	if status != http.StatusConflict || held["error"] != "charge_hold" {
 		t.Fatalf("billable %d %#v", status, held)
 	}
-	status, plain, _ := do("POST", "/api/v1/campaigns", "sess-owner-a", tenA.ID, "brand-a.example", `{"title":"普通活动"}`)
-	if status != http.StatusCreated {
-		t.Fatalf("non-billable %d %#v", status, plain)
+	status, sneak, _ := do("POST", "/api/v1/tenant-charge-hold", "sess-owner-a", tenA.ID, "brand-a.example", `{"held":false}`)
+	if status != http.StatusNotFound {
+		t.Fatalf("merchant cleared hold %d %#v", status, sneak)
+	}
+	if err := st.SetChargeHold(tenA.ID, false); err != nil {
+		t.Fatal(err)
 	}
 
 	// Suspend then restore does not re-enable the disabled staff or the revoked delegation.

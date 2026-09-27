@@ -31,6 +31,7 @@ type publicLinkView struct {
 	// MerchantName is the tenant display name (the store the guest is visiting).
 	// Brand shell is separate and must not replace it.
 	MerchantName string            `json:"merchant_name,omitempty"`
+	StoreName    string            `json:"store_name,omitempty"`
 	BrandShell   *publicBrandShell `json:"brand_shell,omitempty"`
 }
 

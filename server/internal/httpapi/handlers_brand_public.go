@@ -39,16 +39,25 @@ func (s *Server) decidePublicBrand(r *http.Request, res store.ResolvedLink) publ
 		return publicBrandDecision{Apply: true, State: "brand_unavailable", HTTPStatus: http.StatusServiceUnavailable, BlockWrites: true}
 	}
 	read := s.Brand.Read
-	current, _ := read(r.Context(), host, true)
+	current, _ := read(r.Context(), host, false)
+	if current.Kind == brandctx.KindUnavailable || current.Kind == brandctx.KindInvalid {
+		return publicBrandDecision{Apply: true, State: "brand_unavailable", HTTPStatus: http.StatusServiceUnavailable, BlockWrites: true}
+	}
 	if brandIDOf(current) != "" && brandIDOf(current) != pub.BrandID {
 		return publicBrandDecision{Apply: true, State: "domain_mismatch", HTTPStatus: http.StatusNotFound, BlockWrites: true}
 	}
 	if current.Kind == brandctx.KindUnknown && host != pub.Host && host != fallback {
 		return publicBrandDecision{Apply: true, State: "unknown_brand", HTTPStatus: http.StatusNotFound, BlockWrites: true}
 	}
+	if current.Kind == brandctx.KindDomain {
+		return publicBrandDecision{Apply: true, State: "domain_error", HTTPStatus: http.StatusForbidden, BlockWrites: true}
+	}
 	shellRes := current
 	if brandIDOf(shellRes) != pub.BrandID && pub.Host != "" {
-		shellRes, _ = read(r.Context(), pub.Host, true)
+		shellRes, _ = read(r.Context(), pub.Host, false)
+	}
+	if shellRes.Kind == brandctx.KindUnavailable || shellRes.Kind == brandctx.KindInvalid {
+		return publicBrandDecision{Apply: true, State: "brand_unavailable", HTTPStatus: http.StatusServiceUnavailable, BlockWrites: true}
 	}
 	switch shellRes.Kind {
 	case brandctx.KindSuspended:
@@ -56,9 +65,14 @@ func (s *Server) decidePublicBrand(r *http.Request, res store.ResolvedLink) publ
 	case brandctx.KindRetired:
 		return publicBrandDecision{Apply: true, State: "brand_retiring", HTTPStatus: http.StatusForbidden, BlockWrites: true, Shell: shellFrom(shellRes.Manifest)}
 	case brandctx.KindDomain:
+		return publicBrandDecision{Apply: true, State: "domain_error", HTTPStatus: http.StatusForbidden, BlockWrites: true}
+	case brandctx.KindUnknown:
 		if host != pub.Host && host != fallback {
-			return publicBrandDecision{Apply: true, State: "domain_error", HTTPStatus: http.StatusForbidden, BlockWrites: true}
+			return publicBrandDecision{Apply: true, State: "unknown_brand", HTTPStatus: http.StatusNotFound, BlockWrites: true}
 		}
+	}
+	if shellRes.Kind == brandctx.KindReady && (!shellRes.Manifest.AdmitPublic || !shellRes.Manifest.TouchEnabled(s.Cfg.AppID)) {
+		return publicBrandDecision{Apply: true, State: "brand_unavailable", HTTPStatus: http.StatusForbidden, BlockWrites: true, Shell: shellFrom(shellRes.Manifest)}
 	}
 	merchant := ""
 	lifecycle := store.LifecycleActive
@@ -107,12 +121,17 @@ func (s *Server) writeBrandedPublic(w http.ResponseWriter, r *http.Request, code
 		return false
 	}
 	view := publicLinkView{State: d.State, MerchantName: d.MerchantName, BrandShell: d.Shell}
-	if d.IncludeContent && res.Campaign.ID != "" && d.State != "brand_suspended" && d.State != "brand_retiring" && d.State != "domain_mismatch" && d.State != "unknown_brand" && d.State != "domain_error" {
+	if d.IncludeContent && res.Campaign.ID != "" && d.State != "brand_suspended" && d.State != "brand_retiring" && d.State != "domain_mismatch" && d.State != "unknown_brand" && d.State != "domain_error" && d.State != "brand_unavailable" {
 		if res.Outcome == store.OutcomeAvailable || d.State == "tenant_suspended" || d.State == "security_freeze" || d.State == "offboarding" || d.State == "tenant_retired" {
 			view.Title = res.Campaign.Title
 			view.PublicContent = res.Campaign.PublicContent
 			view.StartsAt = res.Campaign.StartsAt
 			view.EndsAt = res.Campaign.EndsAt
+			if res.Campaign.StoreID != "" {
+				if st, err := s.St.GetStore(res.Campaign.StoreID, res.Link.TenantID); err == nil {
+					view.StoreName = st.Name
+				}
+			}
 			if res.StoreUnavailable && (d.State == "available" || strings.HasPrefix(d.State, "tenant_") || d.State == "offboarding" || d.State == "security_freeze") {
 				view.StoreNotice = storeNoticeUnavailable
 			}
