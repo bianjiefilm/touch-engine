@@ -1,0 +1,49 @@
+{
+  "schema_version": "eco-nav/v1",
+  "status": {"state": "degraded", "reasons": ["billing_unavailable", "entitlement_unavailable"]},
+  "brand": {
+    "brand_id": "brand-huigoo",
+    "kind": "first_party",
+    "status": "active",
+    "config_version": "3",
+    "display_name": "数海观澜",
+    "logo": null,
+    "theme": {"token_set_ref": "default", "accent": null},
+    "support": null
+  },
+  "app": {
+    "app_id": "goboost",
+    "display_name": "GoBoost",
+    "icon_ref": "lucide:clapperboard",
+    "home_target_id": "ti-goboost-web"
+  },
+  "visible_apps": [
+    {"app_id": "goboost", "display_name": "GoBoost", "icon_ref": "lucide:clapperboard", "state": "current", "launch_mode": "none", "launch_target_id": null, "unavailable_reason": null},
+    {"app_id": "product-image", "display_name": "产品图", "icon_ref": "lucide:image", "state": "temporarily_unavailable", "launch_mode": "none", "launch_target_id": null, "unavailable_reason": "entitlement_unavailable"}
+  ],
+  "work_context": {
+    "state": "resolved",
+    "current_scope": {"tenant_id": "tnt-brand-client-9", "display_name": null, "source": "delegation"},
+    "switchable_scopes": [],
+    "restored": false
+  },
+  "role": {
+    "label": "maker",
+    "source": "delegation",
+    "delegations": [
+      {"delegation_id": "dlg_01J9ZK3", "type": "maker_service", "expires_at": "2026-10-31T00:00:00Z"}
+    ]
+  },
+  "billing": {
+    "kind": "wallet",
+    "known": false,
+    "reason": "unavailable",
+    "payer_source": "delegation",
+    "viewer_account_role": null,
+    "availability": "unknown",
+    "amount": null,
+    "entry": null
+  },
+  "return_context": null,
+  "capabilities": {"can_switch_app": false, "can_switch_tenant": false, "can_manage_members": false, "can_open_billing": false}
+}

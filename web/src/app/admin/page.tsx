@@ -3,7 +3,10 @@
 // 商家后台(路由区 /admin):全部数据经 BFF(/api/*)转发到 Go 服务,
 // 由服务端做平台会话解析 + 租户成员校验。本页面不持有任何凭证。
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AdminShell } from "@/components/admin/AdminShell";
+import { TaskHandoffActions } from "@/components/admin/TaskHandoffActions";
+import { acceptTenantPayload } from "@/lib/eco-nav/touch-shell";
 
 interface Campaign {
   id: string;
@@ -63,6 +66,7 @@ interface AssetRec {
 const TENANT_KEY = "touch_admin_tenant";
 
 export default function AdminPage() {
+  const [taskNotice, setTaskNotice] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [tenantId, setTenantId] = useState("");
@@ -105,6 +109,9 @@ export default function AdminPage() {
   const [batchLinkIds, setBatchLinkIds] = useState<string[]>([]);
   const [rebind, setRebind] = useState<{ tagId: string; campaign: string; links: LinkRec[]; linkId: string } | null>(null);
   const [uidDraft, setUidDraft] = useState<Record<string, string>>({});
+
+  const tenantRef = useRef(tenantId);
+  tenantRef.current = tenantId;
 
   useEffect(() => {
     setTenantId(localStorage.getItem(TENANT_KEY) ?? "");
@@ -184,6 +191,7 @@ export default function AdminPage() {
 
   const loadTags = useCallback(async () => {
     if (!tenantId) return;
+    const requested = tenantId;
     const qs = new URLSearchParams();
     if (tagFilter.campaign) qs.set("campaign_id", tagFilter.campaign);
     if (tagFilter.group) qs.set("group_id", tagFilter.group);
@@ -192,6 +200,7 @@ export default function AdminPage() {
       api("GET", "nfc/tag-groups"),
       api("GET", "nfc/tags" + (qs.toString() ? "?" + qs.toString() : "")),
     ]);
+    if (tenantRef.current !== requested) return;
     if (grp.ok) setTagGroups((grp.data.items as TagGroup[]) ?? []);
     if (tgs.ok) {
       setTags((tgs.data.items as TagView[]) ?? []);
@@ -203,7 +212,9 @@ export default function AdminPage() {
 
   const refresh = useCallback(async () => {
     if (!tenantId) return;
+    const requested = tenantId;
     const who = await api("GET", "whoami");
+    if (tenantRef.current !== requested) return;
     if (!who.ok) {
       setError(whoStatusText(who.status, who.data));
       return;
@@ -213,10 +224,28 @@ export default function AdminPage() {
     setEmailMasked(String(who.data.email ?? ""));
     setError("");
     const [cmp, sto] = await Promise.all([api("GET", "campaigns"), api("GET", "stores")]);
-    if (cmp.ok) setCampaigns((cmp.data.items as Campaign[]) ?? []);
-    if (sto.ok) setStores((sto.data.items as StoreRec[]) ?? []);
+    if (tenantRef.current !== requested) return;
+    const campaignsPayload = acceptTenantPayload(requested, tenantRef.current, (cmp.data.items as Campaign[]) ?? []);
+    const storesPayload = acceptTenantPayload(requested, tenantRef.current, (sto.data.items as StoreRec[]) ?? []);
+    if (cmp.ok && campaignsPayload) setCampaigns(campaignsPayload);
+    if (sto.ok && storesPayload) setStores(storesPayload);
     await loadTags();
   }, [api, tenantId, loadTags]);
+
+  function switchMerchant(nextTenantId: string) {
+    tenantRef.current = nextTenantId;
+    setCampaigns([]);
+    setStores([]);
+    setQrFor(null);
+    setQrLinks([]);
+    setQrMeta({});
+    setTags([]);
+    setTagGroups([]);
+    setRebind(null);
+    setTaskNotice("");
+    setTenantId(nextTenantId);
+    localStorage.setItem(TENANT_KEY, nextTenantId);
+  }
 
   useEffect(() => {
     void refresh();
@@ -490,6 +519,7 @@ export default function AdminPage() {
   }
 
   return (
+    <AdminShell nickname={email_ || "商家"} sessionRole={role} onLogout={() => void logout()} onTenantChange={switchMerchant}>
     <main style={{ maxWidth: 960, margin: "40px auto", padding: "0 20px" }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
         <h1>碰一碰 · 商家后台</h1>
@@ -578,11 +608,13 @@ export default function AdminPage() {
                   <button onClick={() => void openQrPanel(c.id)} style={{ ...btnStyle, background: "#fff", color: "#2563eb" }}>
                     {qrFor === c.id ? "收起二维码" : "二维码"}
                   </button>
+                  <TaskHandoffActions campaignId={c.id} onPlanned={setTaskNotice} />
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+        {taskNotice ? <p data-testid="task-notice">{taskNotice}</p> : null}
 
         {qrFor && (
           <div style={{ marginTop: 12, border: "1px solid #e5e7eb", borderRadius: 8, padding: 12 }}>
@@ -821,6 +853,7 @@ export default function AdminPage() {
         </p>
       </section>
     </main>
+    </AdminShell>
   );
 }
 

@@ -1,6 +1,10 @@
 # reports / evidence (local only)
 _reports/
 
+# local worktrees and plan scratch (never commit checkout contents)
+.worktrees
+.superpowers
+
 # dependencies / build artifacts
 node_modules/
 .next/

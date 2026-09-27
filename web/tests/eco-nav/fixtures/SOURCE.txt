@@ -1,0 +1,10 @@
+来源：public-ai docs/contracts/eco-nav/v1 @ be6d7d3（PR #62）
+
+下列文件是该 commit 的上游原件，逐字节拷贝，不是本地改写的符合性样例：
+
+- eco-nav.v1.ts
+- eco-nav-model.schema.json
+- ready-first-party.json
+- selection-required.json
+- degraded-delegation-billing-unavailable.json
+- denied-unauthenticated.json
