@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { TaskHandoffActions } from "@/components/admin/TaskHandoffActions";
+import { copyUsability, handoffHasFormalJump } from "@/lib/copy-draft";
 import { acceptTenantPayload } from "@/lib/eco-nav/touch-shell";
 
 interface Campaign {
@@ -94,6 +95,17 @@ export default function AdminPage() {
   const [newStore, setNewStore] = useState({ name: "", address: "" });
   const [newCampaign, setNewCampaign] = useState({ title: "", public_content: "", starts_at: "", ends_at: "", store_id: "", order_ref: "" });
   const [newAsset, setNewAsset] = useState({ campaign: "", asset_id: "", version: "" });
+
+  // HUI-1668 活动文案草稿。未授权模型时服务端留空标题，这里只展示核对结果。
+  const [copyCampaign, setCopyCampaign] = useState("");
+  const [copyPrice, setCopyPrice] = useState({ text: "", status: "expired" });
+  const [copyAddress, setCopyAddress] = useState({ text: "", status: "uncertain" });
+  const [copyHours, setCopyHours] = useState({ text: "", status: "uncertain" });
+  const [copyClaim, setCopyClaim] = useState({ text: "", evidence: "" });
+  const [copyPoi, setCopyPoi] = useState("");
+  const [copyDraft, setCopyDraft] = useState<Record<string, unknown> | null>(null);
+  const [copyVersion, setCopyVersion] = useState<Record<string, unknown> | null>(null);
+  const [copyError, setCopyError] = useState("");
 
   // HUI-1664 二维码面板:活动 → 展开链接的 canonical URL + size 白名单下载
   const [qrFor, setQrFor] = useState<string | null>(null);
@@ -261,6 +273,9 @@ export default function AdminPage() {
     setBatchLinkIds([]);
     setUidDraft({});
     setTaskNotice("");
+    setCopyDraft(null);
+    setCopyVersion(null);
+    setCopyError("");
     setTenantId(nextTenantId);
     localStorage.setItem(TENANT_KEY, nextTenantId);
   }
@@ -715,6 +730,119 @@ export default function AdminPage() {
           <input placeholder="订单引用(可选,不透明)" value={newCampaign.order_ref} onChange={(e) => setNewCampaign({ ...newCampaign, order_ref: e.target.value })} style={inputStyle} />
           <button style={btnStyle}>创建活动(草稿)</button>
         </form>
+
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setCopyError("");
+            setCopyVersion(null);
+            if (!copyCampaign) {
+              setCopyError("请先选择活动");
+              return;
+            }
+            const res = await api("POST", `campaigns/${copyCampaign}/copy-drafts`, {
+              idempotency_key: `ui-${copyCampaign}-${Date.now()}`,
+              price: copyPrice,
+              address: copyAddress,
+              hours: copyHours,
+              claims: copyClaim.text ? [copyClaim] : [],
+              poi_names: copyPoi.split("\n").map((line) => line.trim()).filter(Boolean),
+              channel_mount: true,
+              asset_ids: [],
+            });
+            if (!res.ok) {
+              setCopyDraft(null);
+              setCopyError(whoStatusText(res.status, res.data));
+              return;
+            }
+            setCopyDraft(res.data);
+          }}
+          style={{ ...formStyle, marginTop: 16, borderTop: "1px solid #f3f4f6", paddingTop: 12 }}
+        >
+          <strong>文案草稿（标题 / 简介 / 话题）</strong>
+          <p style={{ color: "#6b7280", fontSize: 13, margin: 0 }}>
+            价格过期、地址或营业时间不确定、营销宣称没有证据时，请先补充。地点名不是 POI 绑定。没有模型授权时，这里不会给出真实可用文案，也不会扣费、发布或发奖励。
+          </p>
+          <select value={copyCampaign} onChange={(e) => setCopyCampaign(e.target.value)} style={inputStyle} required>
+            <option value="">选择活动</option>
+            {campaigns.map((c) => (
+              <option key={c.id} value={c.id}>{c.title}（{c.status}）</option>
+            ))}
+          </select>
+          <input placeholder="价格原文，过期就不要当事实" value={copyPrice.text} onChange={(e) => setCopyPrice({ ...copyPrice, text: e.target.value })} style={inputStyle} />
+          <select value={copyPrice.status} onChange={(e) => setCopyPrice({ ...copyPrice, status: e.target.value })} style={inputStyle}>
+            <option value="expired">价格已过期</option>
+            <option value="confirmed">价格已确认</option>
+            <option value="absent">没有价格</option>
+          </select>
+          <input placeholder="地址（须与门店记录一致才算确认）" value={copyAddress.text} onChange={(e) => setCopyAddress({ ...copyAddress, text: e.target.value })} style={inputStyle} />
+          <select value={copyAddress.status} onChange={(e) => setCopyAddress({ ...copyAddress, status: e.target.value })} style={inputStyle}>
+            <option value="uncertain">地址不确定</option>
+            <option value="confirmed">地址已确认</option>
+            <option value="absent">没有地址</option>
+          </select>
+          <input placeholder="营业时间" value={copyHours.text} onChange={(e) => setCopyHours({ ...copyHours, text: e.target.value })} style={inputStyle} />
+          <select value={copyHours.status} onChange={(e) => setCopyHours({ ...copyHours, status: e.target.value })} style={inputStyle}>
+            <option value="uncertain">营业时间不确定</option>
+            <option value="confirmed">营业时间已确认</option>
+            <option value="absent">没有营业时间</option>
+          </select>
+          <input placeholder="营销宣称" value={copyClaim.text} onChange={(e) => setCopyClaim({ ...copyClaim, text: e.target.value })} style={inputStyle} />
+          <input placeholder="宣称证据（没有就留空）" value={copyClaim.evidence} onChange={(e) => setCopyClaim({ ...copyClaim, evidence: e.target.value })} style={inputStyle} />
+          <textarea placeholder="地点名，一行一个。这不是 POI 绑定。" value={copyPoi} onChange={(e) => setCopyPoi(e.target.value)} style={{ ...inputStyle, minHeight: 64 }} />
+          <button style={btnStyle}>生成文案草稿</button>
+        </form>
+        {copyError && <p style={{ color: "#b91c1c" }}>{copyError}</p>}
+        {copyDraft && (
+          <div style={{ marginTop: 12, border: "1px solid #e5e7eb", borderRadius: 8, padding: 12 }}>
+            <p data-testid="copy-usability">{copyUsability({
+              usable: copyDraft.usable === true,
+              model_status: String(copyDraft.model_status ?? ""),
+              billed: copyDraft.billed === true,
+            }).label}</p>
+            <p>标题：{String(copyDraft.title ?? "") || "（空）"}</p>
+            <p>简介：{String(copyDraft.intro ?? "") || "（空）"}</p>
+            <p>话题：{Array.isArray(copyDraft.topics) && copyDraft.topics.length > 0 ? copyDraft.topics.join(" ") : "（空）"}</p>
+            <ul>
+              {((copyDraft.gaps as { code: string; message: string }[]) ?? []).map((gap) => (
+                <li key={gap.code + gap.message}>{gap.message}</li>
+              ))}
+            </ul>
+            <p>{String((copyDraft.poi as { message?: string } | undefined)?.message ?? "")}</p>
+            <p style={{ color: "#6b7280", fontSize: 13 }}>
+              挂载状态：{(copyDraft.poi as { mounted?: boolean } | undefined)?.mounted ? "可挂载" : "未绑定"}
+            </p>
+            <textarea
+              readOnly
+              value={JSON.stringify(copyDraft.professional_handoff ?? {}, null, 2)}
+              style={{ ...inputStyle, minHeight: 96, width: "100%" }}
+            />
+            {handoffHasFormalJump((copyDraft.professional_handoff as Record<string, unknown>) ?? {}) && (
+              <p style={{ color: "#b91c1c" }}>交接资料含临时地址，已禁止跳转。</p>
+            )}
+            <button
+              type="button"
+              style={btnStyle}
+              onClick={async () => {
+                setCopyError("");
+                const res = await api("POST", `campaigns/${copyCampaign}/copy-drafts/${String(copyDraft.id)}/versions`, {});
+                if (!res.ok) {
+                  setCopyError(whoStatusText(res.status, res.data));
+                  return;
+                }
+                setCopyVersion(res.data);
+                await refresh();
+              }}
+            >
+              选定为文案版本
+            </button>
+            {copyVersion && (
+              <p data-testid="copy-version">
+                已保存版本 {String(copyVersion.version)}。活动仍是「{String(copyVersion.campaign_status)} / {String(copyVersion.campaign_title)}」，没有自动发布，奖励触发：{String(copyVersion.rewards_triggered)}，扣费：{String(copyVersion.billed)}。
+              </p>
+            )}
+          </div>
+        )}
       </section>
 
       <section style={sectionStyle}>
