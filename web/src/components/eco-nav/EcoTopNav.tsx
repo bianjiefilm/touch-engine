@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { agentWorkBanner } from "@/lib/eco-nav/touch-shell";
+import { agentWorkBanner, commitTenantSwitch, payerLabel } from "@/lib/eco-nav/touch-shell";
 import {
   billingBadgeText,
   LAUNCH_UNRESOLVED_RESIDUAL,
@@ -89,6 +89,7 @@ export function EcoTopNav({
   resolveLaunchTarget = noopResolve,
   onTenantChange,
   onLogout,
+  honorScopeMerchant = false,
 }: {
   model: EcoNavModel;
   nickname: string;
@@ -97,6 +98,8 @@ export function EcoTopNav({
   resolveLaunchTarget?: LaunchResolver;
   onTenantChange?: (tenantId: string) => void;
   onLogout?: () => void;
+  /** 仅预览页打开。商家后台不把夹具租户写进会话。 */
+  honorScopeMerchant?: boolean;
 }) {
   const [nav, setNav] = useState(() => pinTouchApp(model));
   const [menuOpen, setMenuOpen] = useState(false);
@@ -124,16 +127,19 @@ export function EcoTopNav({
   const unresolved = [...parts.pinned, ...parts.overflow].some(
     (app) => planManualSwitch(app, canSwitch, resolveLaunchTarget).href === null,
   );
-  const payer = payerText(nav);
+  const scopeTrusted = honorScopeMerchant || nav.provenance === "public_ai_context";
+  const payer = scopeTrusted ? payerText(nav) : payerLabel(nav.provenance, payerText(nav));
   const merchant = nav.scopes.find((item) => item.tenant_id === nav.active_tenant_id)?.display_name ?? null;
-  const banner = agentWorkBanner(sessionRole, merchant);
+  const banner = agentWorkBanner(sessionRole, scopeTrusted ? merchant : null);
 
   function chooseTenant(tenantId: string) {
     setNav((current) => {
       const next = selectTenant(current, tenantId);
-      if (next.active_tenant_id !== current.active_tenant_id && next.active_tenant_id) {
-        onTenantChange?.(next.active_tenant_id);
-      }
+      if (next.active_tenant_id === current.active_tenant_id) return next;
+      const committed = honorScopeMerchant
+        ? next.active_tenant_id
+        : commitTenantSwitch(next.provenance, next.active_tenant_id);
+      if (committed) onTenantChange?.(committed);
       return next;
     });
   }
@@ -241,7 +247,7 @@ export function EcoTopNav({
             {banner}
           </span>
         ) : null}
-        {nav.capabilities.can_switch_tenant && nav.scopes.length > 1
+        {scopeTrusted && nav.capabilities.can_switch_tenant && nav.scopes.length > 1
           ? nav.scopes.map((item) => {
               const name = item.display_name ?? item.tenant_id;
               return (

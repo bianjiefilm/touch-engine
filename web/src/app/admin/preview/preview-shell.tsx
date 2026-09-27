@@ -39,6 +39,7 @@ export function PreviewShell() {
         model={model}
         nickname="代理小林"
         sessionRole="agent"
+        honorScopeMerchant
         onTenantChange={() => {
           setSurface((current) => applyMerchantSwitch(current));
           setNotice("");

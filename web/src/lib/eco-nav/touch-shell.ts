@@ -46,3 +46,15 @@ export function acceptTenantPayload<T>(requestedTenantId: string, currentTenantI
   if (requestedTenantId !== currentTenantId) return null;
   return items;
 }
+
+/** 预览夹具里的租户不能写进商家后台会话。只有公共身份上下文才提交切换。 */
+export function commitTenantSwitch(provenance: string, tenantId: string | null | undefined): string | null {
+  if (provenance !== "public_ai_context") return null;
+  const id = tenantId?.trim() ?? "";
+  return id === "" ? null : id;
+}
+
+export function payerLabel(provenance: string, confirmedLabel: string): string {
+  if (provenance !== "public_ai_context") return "付款主体需确认";
+  return confirmedLabel;
+}

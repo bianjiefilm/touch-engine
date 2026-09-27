@@ -139,17 +139,20 @@ export default function AdminPage() {
         setQrFor(null);
         return;
       }
+      const requested = tenantRef.current;
       setQrFor(campaignId);
       setQrLinks([]);
       setQrMeta({});
       setQrBusy(true);
       const res = await api("GET", `campaigns/${campaignId}/links`);
+      if (tenantRef.current !== requested) return;
       if (!res.ok) {
         setError(whoStatusText(res.status, res.data));
         setQrBusy(false);
         return;
       }
-      const items = (res.data.items as LinkRec[]) ?? [];
+      const items = acceptTenantPayload(requested, tenantRef.current, (res.data.items as LinkRec[]) ?? []);
+      if (!items) return;
       setQrLinks(items);
       // 每个链接的 canonical 载荷(json 元数据)用于展示
       const metas: Record<string, QrMeta> = {};
@@ -159,6 +162,7 @@ export default function AdminPage() {
           if (m.ok) metas[l.id] = m.data as unknown as QrMeta;
         }),
       );
+      if (tenantRef.current !== requested) return;
       setQrMeta(metas);
       setQrBusy(false);
     },
@@ -242,6 +246,11 @@ export default function AdminPage() {
     setTags([]);
     setTagGroups([]);
     setRebind(null);
+    setQrBusy(false);
+    setBatch({ campaign: "", mode: "shared", count: "10", store: "", group: "", prefix: "" });
+    setBatchLinks([]);
+    setBatchLinkIds([]);
+    setUidDraft({});
     setTaskNotice("");
     setTenantId(nextTenantId);
     localStorage.setItem(TENANT_KEY, nextTenantId);
@@ -388,13 +397,16 @@ export default function AdminPage() {
   }
 
   async function loadBatchLinks(campaignId: string) {
+    const requested = tenantRef.current;
     setBatch({ ...batch, campaign: campaignId });
     setBatchLinks([]);
     setBatchLinkIds([]);
     if (!campaignId) return;
     const res = await api("GET", `campaigns/${campaignId}/links`);
+    if (tenantRef.current !== requested) return;
     if (!res.ok) return nfcFail(res);
-    setBatchLinks((res.data.items as LinkRec[]) ?? []);
+    const items = acceptTenantPayload(requested, tenantRef.current, (res.data.items as LinkRec[]) ?? []);
+    if (items) setBatchLinks(items);
   }
 
   async function submitBatch(e: React.FormEvent) {
@@ -443,19 +455,27 @@ export default function AdminPage() {
       setRebind(null);
       return;
     }
+    const requested = tenantRef.current;
     setRebind({ tagId: tag.id, campaign: tag.campaign_id, links: [], linkId: tag.link_id });
     const res = await api("GET", `campaigns/${tag.campaign_id}/links`);
+    if (tenantRef.current !== requested) return;
     if (!res.ok) return nfcFail(res);
-    setRebind({ tagId: tag.id, campaign: tag.campaign_id, links: (res.data.items as LinkRec[]) ?? [], linkId: tag.link_id });
+    const items = acceptTenantPayload(requested, tenantRef.current, (res.data.items as LinkRec[]) ?? []);
+    if (!items) return;
+    setRebind({ tagId: tag.id, campaign: tag.campaign_id, links: items, linkId: tag.link_id });
   }
 
   async function rebindCampaign(campaignId: string) {
     if (!rebind) return;
+    const requested = tenantRef.current;
     setRebind({ ...rebind, campaign: campaignId, links: [], linkId: "" });
     if (!campaignId) return;
     const res = await api("GET", `campaigns/${campaignId}/links`);
+    if (tenantRef.current !== requested) return;
     if (!res.ok) return nfcFail(res);
-    setRebind({ ...rebind, campaign: campaignId, links: (res.data.items as LinkRec[]) ?? [], linkId: "" });
+    const items = acceptTenantPayload(requested, tenantRef.current, (res.data.items as LinkRec[]) ?? []);
+    if (!items) return;
+    setRebind({ ...rebind, campaign: campaignId, links: items, linkId: "" });
   }
 
   async function confirmRebind() {

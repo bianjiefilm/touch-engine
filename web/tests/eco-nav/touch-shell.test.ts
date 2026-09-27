@@ -15,6 +15,8 @@ import {
   acceptTenantPayload,
   agentWorkBanner,
   applyMerchantSwitch,
+  commitTenantSwitch,
+  payerLabel,
   planTaskHandoff,
 } from "@/lib/eco-nav/touch-shell";
 
@@ -139,6 +141,10 @@ describe("品牌应用列表与代运营切换", () => {
     expect(moved.active_tenant_id).toBe("tenant-b");
     expect(billingBadgeText(moved)).toBe("额度需确认");
     expect(billingBadgeText(moved)).not.toContain("88.00");
+    expect(commitTenantSwitch("provisional_fixture", "tenant-a")).toBeNull();
+    expect(commitTenantSwitch("public_ai_context", "tnt_real")).toBe("tnt_real");
+    expect(payerLabel("provisional_fixture", "个人付款")).toBe("付款主体需确认");
+    expect(payerLabel("public_ai_context", "委托付款")).toBe("委托付款");
     expect(acceptTenantPayload("tenant-a", "tenant-b", [{ id: "cmp_a" }])).toBeNull();
     expect(acceptTenantPayload("tenant-b", "tenant-b", [{ id: "cmp_b" }])).toEqual([{ id: "cmp_b" }]);
   });
