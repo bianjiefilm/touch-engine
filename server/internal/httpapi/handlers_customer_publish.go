@@ -178,7 +178,12 @@ func (s *Server) handlePublicPublishRevise(w http.ResponseWriter, r *http.Reques
 	}
 	next := row.DomainAttempt()
 	if body.Copy != nil {
-		next = custpublish.ChangeCopy(next, *body.Copy)
+		revised, err := custpublish.ChangeCopy(next, *body.Copy)
+		if err != nil {
+			writePublishGate(w, err)
+			return
+		}
+		next = revised
 	}
 	if body.AccountLabel != nil {
 		next = custpublish.ChangeAccount(next, *body.AccountLabel)
@@ -236,12 +241,16 @@ func (s *Server) publishAttempt(w http.ResponseWriter, r *http.Request) (store.R
 		return store.ResolvedLink{}, store.CustomerPublishAttempt{}, false
 	}
 	row, err := s.St.GetCustomerPublish(r.PathValue("id"), res.Campaign.TenantID)
-	if errors.Is(err, store.ErrNotFound) || row.CampaignID != res.Campaign.ID {
-		fail(w, http.StatusNotFound, "not_found", "publish preparation not found")
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			fail(w, http.StatusNotFound, "not_found", "publish preparation not found")
+		} else {
+			fail(w, http.StatusInternalServerError, "internal", "publish preparation lookup failed")
+		}
 		return store.ResolvedLink{}, store.CustomerPublishAttempt{}, false
 	}
-	if err != nil {
-		fail(w, http.StatusInternalServerError, "internal", "publish preparation lookup failed")
+	if row.CampaignID != res.Campaign.ID {
+		fail(w, http.StatusNotFound, "not_found", "publish preparation not found")
 		return store.ResolvedLink{}, store.CustomerPublishAttempt{}, false
 	}
 	return res, row, true
@@ -306,7 +315,9 @@ func publishAttemptPayload(row store.CustomerPublishAttempt, pkg *custpublish.Pa
 		"reward_triggered": reward.Trigger, "reward_reason": reward.Reason,
 		"outbound_calls": row.OutboundCalls, "confirmation_current": attempt.ConfirmationCurrent(),
 		"self_reported": row.SelfReported,
-		"engagement":    map[string]any{"completion": unknown(), "likes": unknown(), "poi_exposure": unknown()},
+		"engagement": map[string]any{
+			"completion": unknown(), "likes": unknown(), "plays": unknown(), "poi_exposure": unknown(),
+		},
 	}
 	if pkg != nil {
 		out["package"] = map[string]any{"post_id": pkg.PostID, "caption": pkg.Caption, "steps": pkg.Steps}

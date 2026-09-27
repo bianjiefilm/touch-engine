@@ -68,7 +68,7 @@ func TestCatalogCoversTicketMetrics(t *testing.T) {
 // UNKNOWN 指标:available=false 且值绝不出现(不是 0),必须带 reason 与上游引用。
 func TestUnknownMetricsNeverPretend(t *testing.T) {
 	unknown := map[string]bool{
-		KeyUGCPlays: true, KeyUGCLikes: true,
+		KeyPublishedVideos: true, KeyUGCPlays: true, KeyUGCLikes: true,
 		KeyPOIExposureDelta: true, KeyCouponRedemptions: true,
 	}
 	for _, m := range Catalog() {
@@ -132,8 +132,6 @@ func TestBuildMapsAvailableMetrics(t *testing.T) {
 		CRMReceivedTotal:      1,
 		CRMReceivedByCampaign: []store.DimBucket{{Key: "cmp_1", Value: 1}},
 		CRMReceivedByStore:    []store.DimBucket{{Key: "sto_1", Value: 1}},
-
-		ConfirmedPublishes: 2,
 	}
 	out := Build(testWindow(), Scope{TenantID: "tnt_a"}, facts, store.DashboardDimensions{})
 	byKey := map[string]Metric{}
@@ -171,12 +169,13 @@ func TestBuildMapsAvailableMetrics(t *testing.T) {
 		t.Fatalf("crm_received = %+v", cr)
 	}
 
+	// 本部署写不进官方回执,发布视频数保持未知,不能把空表显示成 0。
 	published := byKey[KeyPublishedVideos]
-	if !published.Available || published.Value == nil || *published.Value != 2 {
-		t.Fatalf("published_videos must count only confirmed facts: %+v", published)
+	if published.Available || published.Value != nil || !strings.Contains(published.Reason, "不展示 0") {
+		t.Fatalf("published_videos must stay unknown: %+v", published)
 	}
 
-	// 完播/点赞/POI/核销拿不到就保持 UNKNOWN,即使已有可核实发布数。
+	// 完播/点赞/POI/核销拿不到就保持 UNKNOWN。
 	for _, key := range []string{KeyUGCPlays, KeyUGCLikes, KeyPOIExposureDelta, KeyCouponRedemptions} {
 		m := byKey[key]
 		if m.Available || m.Value != nil {
@@ -190,7 +189,7 @@ func TestBuildZeroIsTrueZeroForTouchMetrics(t *testing.T) {
 	out := Build(testWindow(), Scope{TenantID: "tnt_a"}, store.DashboardFacts{}, store.DashboardDimensions{})
 	for _, m := range out.Metrics {
 		switch m.Key {
-		case KeyTouchTriggers, KeyLeadPageVisits, KeyLeadSubmissions, KeyCRMReceived, KeyPublishedVideos:
+		case KeyTouchTriggers, KeyLeadPageVisits, KeyLeadSubmissions, KeyCRMReceived:
 			if !m.Available || m.Value == nil || *m.Value != 0 {
 				t.Fatalf("%s with empty facts = %+v, want available true 0 (a true zero)", m.Key, m)
 			}

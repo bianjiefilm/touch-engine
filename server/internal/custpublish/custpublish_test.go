@@ -128,7 +128,10 @@ func TestCopyOrAccountChangeClearsConfirmation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	changed := ChangeCopy(a, "换了一条文案")
+	changed, err := ChangeCopy(a, "换了一条文案")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if changed.ConfirmationCurrent() || changed.Status != StatusPreviewed {
 		t.Fatalf("copy change kept confirmation: %+v", changed)
 	}
@@ -145,6 +148,14 @@ func TestCopyOrAccountChangeClearsConfirmation(t *testing.T) {
 	swapped := ChangeAccount(reconfirmed, "另一个顾客账号")
 	if swapped.ConfirmationCurrent() || swapped.Status != StatusPreviewed {
 		t.Fatalf("account change kept confirmation or the old export: %+v", swapped)
+	}
+}
+
+func TestChangeCopyRejectsEmpty(t *testing.T) {
+	a := mustPreview(t)
+	next, err := ChangeCopy(a, "   ")
+	if err == nil || next.Copy != a.Copy || next.ContentVersion != a.ContentVersion {
+		t.Fatalf("empty copy was stored: %v %+v", err, next)
 	}
 }
 

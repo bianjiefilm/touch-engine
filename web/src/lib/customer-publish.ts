@@ -46,6 +46,21 @@ export function authorizedPublishEnabled(matrix: CapabilityMatrix): boolean {
   return matrix.platforms.some((row) => actionEnabled(row, "authorized_publish"));
 }
 
+export function draftMatchesAttempt(
+  attempt: { copy?: string; account_label?: string } | null,
+  copy: string,
+  account: string,
+): boolean {
+  if (!attempt) return false;
+  return attempt.copy === copy && attempt.account_label === account;
+}
+
+export function closedEvidenceLinks(row: PlatformRow): Array<{ kind: string; url: string }> {
+  return Object.entries(row.capabilities)
+    .filter(([, cell]) => !cell.enabled && Boolean(cell.evidence_url))
+    .map(([kind, cell]) => ({ kind, url: cell.evidence_url as string }));
+}
+
 export function publishSucceeded(body: AttemptView): boolean {
   return body.status === "publish_confirmed" && body.counts_as_published === true && body.publish_success === true;
 }

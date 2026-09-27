@@ -363,12 +363,17 @@ func (a Attempt) ConfirmationCurrent() bool {
 }
 
 // ChangeCopy invalidates consent. The customer must confirm the new copy.
-func ChangeCopy(a Attempt, copy string) Attempt {
-	a.Copy = strings.TrimSpace(copy)
+// An empty copy is rejected and the attempt is left unchanged.
+func ChangeCopy(a Attempt, copy string) (Attempt, error) {
+	copy = strings.TrimSpace(copy)
+	if copy == "" {
+		return a, closed("missing_copy_or_account")
+	}
+	a.Copy = copy
 	a.ContentVersion = fingerprint(a.Copy)
 	a.Status = StatusPreviewed
 	clearConfirmation(&a)
-	return a
+	return a, nil
 }
 
 // ChangeAccount invalidates consent. A different account is a new publish.

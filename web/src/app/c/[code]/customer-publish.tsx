@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   actionEnabled,
   authorizedPublishEnabled,
+  draftMatchesAttempt,
   outcomeMessage,
   platformLabel,
   publishSucceeded,
@@ -90,10 +91,11 @@ export function CustomerPublish({ code, defaultCopy }: { code: string; defaultCo
   };
 
   const confirm = () => {
-    if (!attempt?.attempt_id || !attempt.content_version) return;
+    if (!attempt?.attempt_id || !attempt.content_version || !attempt.account_label) return;
+    if (!draftMatchesAttempt(attempt, copy, account)) return;
     run(`/api/public/links/${encodeURIComponent(code)}/publish-attempts/${attempt.attempt_id}/confirm`, {
       content_version: attempt.content_version,
-      account_label: account,
+      account_label: attempt.account_label,
       publisher: "activity_customer",
       asset_use_accepted: assetOk,
     });
@@ -112,6 +114,7 @@ export function CustomerPublish({ code, defaultCopy }: { code: string; defaultCo
   };
 
   const succeeded = attempt ? publishSucceeded(attempt) : false;
+  const draftMatches = draftMatchesAttempt(attempt, copy, account);
   const publishClosed = !row || !actionEnabled(row, "authorized_publish");
   const editorClosed = !row || !actionEnabled(row, "open_editor");
 
@@ -146,6 +149,12 @@ export function CustomerPublish({ code, defaultCopy }: { code: string; defaultCo
             return (
               <li key={kind}>
                 {title}：{cell?.enabled ? "可用" : "关闭"}。{cell?.reason}
+                {cell && !cell.enabled && cell.evidence_url ? (
+                  <>
+                    {" "}
+                    <a href={cell.evidence_url} target="_blank" rel="noreferrer">官方说明</a>
+                  </>
+                ) : null}
               </li>
             );
           })}
@@ -170,7 +179,7 @@ export function CustomerPublish({ code, defaultCopy }: { code: string; defaultCo
         <button type="button" disabled={busy || !attempt?.attempt_id || !actionEnabled(row, "export")} onClick={exportPack} style={buttonStyle}>
           导出
         </button>
-        <button type="button" disabled={busy || !attempt?.attempt_id || !assetOk} onClick={confirm} style={buttonStyle}>
+        <button type="button" disabled={busy || !attempt?.attempt_id || !assetOk || !draftMatches} onClick={confirm} style={buttonStyle}>
           确认这次内容
         </button>
         <button type="button" disabled={editorClosed || busy} onClick={() => undefined} style={buttonStyle}>
@@ -200,7 +209,10 @@ export function CustomerPublish({ code, defaultCopy }: { code: string; defaultCo
           {notice}
         </p>
       )}
-      {attempt?.confirmation_current && !succeeded && (
+      {attempt?.attempt_id && !draftMatches && (
+        <p style={{ fontSize: 13, color: "#92400e" }}>文案或账号已改，需要先更新，再重新确认。现在的输入还没有确认。</p>
+      )}
+      {attempt?.confirmation_current && draftMatches && !succeeded && (
         <p style={{ fontSize: 13, color: "#6b7280" }}>你已确认这次文案和账号。确认不是发布成功。</p>
       )}
       {attempt?.package?.steps && attempt.package.steps.length > 0 && (

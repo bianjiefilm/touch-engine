@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   actionEnabled,
   authorizedPublishEnabled,
+  closedEvidenceLinks,
+  draftMatchesAttempt,
   outcomeMessage,
   publishSucceeded,
   type PlatformRow,
@@ -56,6 +58,20 @@ describe("登记适配器不会打开授权发布", () => {
     expect(actionEnabled(douyin, "open_editor")).toBe(false);
     expect(actionEnabled(douyin, "authorized_publish")).toBe(false);
     expect(actionEnabled(douyin, "confirm_publish")).toBe(false);
+  });
+
+  it("文案或账号和已保存的准备不一致时不能确认", () => {
+    const saved = { copy: "原文案", account_label: "顾客抖音" };
+    expect(draftMatchesAttempt(saved, "原文案", "顾客抖音")).toBe(true);
+    expect(draftMatchesAttempt(saved, "新文案", "顾客抖音")).toBe(false);
+    expect(draftMatchesAttempt(saved, "原文案", "另一个账号")).toBe(false);
+    expect(draftMatchesAttempt(null, "原文案", "顾客抖音")).toBe(false);
+  });
+
+  it("关闭的能力带上官方文档地址", () => {
+    const links = closedEvidenceLinks(douyin);
+    expect(links.map((item) => item.kind).sort()).toEqual(["authorized_publish", "confirm_publish", "open_editor"]);
+    expect(links.every((item) => item.url.startsWith("https://"))).toBe(true);
   });
 
   it("registered_adapters 非空仍然不能授权发布", () => {

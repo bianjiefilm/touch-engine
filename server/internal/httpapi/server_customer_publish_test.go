@@ -88,7 +88,7 @@ func TestCustomerPublishMatrixPreviewExportAndCounterexamples(t *testing.T) {
 	}
 
 	engagement := reported["engagement"].(map[string]any)
-	for _, key := range []string{"completion", "likes", "poi_exposure"} {
+	for _, key := range []string{"completion", "likes", "plays", "poi_exposure"} {
 		cell := engagement[key].(map[string]any)
 		if cell["available"] != false || cell["value"] != nil {
 			t.Fatalf("%s engagement = %v", key, cell)
