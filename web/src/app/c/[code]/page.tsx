@@ -18,6 +18,7 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { classifyEntry, failureState, STATE_ACTION, STATE_TEXT, storeNoticeText, type PublicUiState } from "@/lib/public-state";
 import { inSiteTargetFromParams } from "@/lib/safe-redirect";
+import { CustomerPublish } from "./customer-publish";
 
 interface PublicView {
   state: string;
@@ -226,6 +227,9 @@ function PublicCampaignInner() {
         {(state === "available" || showActivity) && (
           <>
             {view?.public_content && <p style={{ fontSize: 16 }}>{view.public_content}</p>}
+            {state === "available" && (
+              <CustomerPublish code={code} defaultCopy={view?.public_content ?? ""} />
+            )}
             {(view?.starts_at || view?.ends_at) && (
               <p style={{ color: "#6b7280", fontSize: 14 }}>
                 活动时间:{view?.starts_at || "即日起"} ~ {view?.ends_at || "长期"}

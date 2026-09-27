@@ -169,8 +169,14 @@ func TestBuildMapsAvailableMetrics(t *testing.T) {
 		t.Fatalf("crm_received = %+v", cr)
 	}
 
-	// facts 变化不得让 UNKNOWN 变成 available/0:发布/UGC/POI/核销恒为 UNKNOWN。
-	for _, key := range []string{KeyPublishedVideos, KeyUGCPlays, KeyUGCLikes, KeyPOIExposureDelta, KeyCouponRedemptions} {
+	// 本部署写不进官方回执,发布视频数保持未知,不能把空表显示成 0。
+	published := byKey[KeyPublishedVideos]
+	if published.Available || published.Value != nil || !strings.Contains(published.Reason, "不展示 0") {
+		t.Fatalf("published_videos must stay unknown: %+v", published)
+	}
+
+	// 完播/点赞/POI/核销拿不到就保持 UNKNOWN。
+	for _, key := range []string{KeyUGCPlays, KeyUGCLikes, KeyPOIExposureDelta, KeyCouponRedemptions} {
 		m := byKey[key]
 		if m.Available || m.Value != nil {
 			t.Fatalf("%s must stay UNKNOWN regardless of facts: %+v", key, m)

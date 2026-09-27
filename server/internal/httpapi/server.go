@@ -228,6 +228,17 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/public/links/{code}/lead-revocations", http.HandlerFunc(s.handlePublicLeadRevoke))
 	mux.Handle("POST /api/v1/public/links/{code}/view-events", http.HandlerFunc(s.handlePublicViewEvent))
 
+	// HUI-1670 customer preview / manual publish. No platform outbound.
+	mux.Handle("GET /api/v1/public/links/{code}/publish-capabilities", http.HandlerFunc(s.handlePublicPublishCapabilities))
+	mux.Handle("POST /api/v1/public/links/{code}/publish-attempts", http.HandlerFunc(s.handlePublicPublishPreview))
+	mux.Handle("POST /api/v1/public/links/{code}/publish-attempts/{id}/export", http.HandlerFunc(s.handlePublicPublishExport))
+	mux.Handle("POST /api/v1/public/links/{code}/publish-attempts/{id}/confirm", http.HandlerFunc(s.handlePublicPublishConfirm))
+	mux.Handle("POST /api/v1/public/links/{code}/publish-attempts/{id}/self-report", http.HandlerFunc(s.handlePublicPublishSelfReport))
+	mux.Handle("POST /api/v1/public/links/{code}/publish-attempts/{id}/publish", http.HandlerFunc(s.handlePublicPublishRequest))
+	mux.Handle("POST /api/v1/public/links/{code}/publish-attempts/{id}/open-editor", http.HandlerFunc(s.handlePublicPublishOpenEditor))
+	mux.Handle("PATCH /api/v1/public/links/{code}/publish-attempts/{id}", http.HandlerFunc(s.handlePublicPublishRevise))
+	mux.Handle("POST /api/v1/publish-adapters", s.requireSession(s.handlePublishAdapterNote))
+
 	// admin lead surface (HUI-1747): merchant visibility of their own leads.
 	mux.Handle("POST /api/v1/campaigns/{id}/lead-form", s.requireSession(s.handleLeadFormUpsert))
 	mux.Handle("GET /api/v1/campaigns/{id}/leads", s.requireSession(s.handleLeadList))
