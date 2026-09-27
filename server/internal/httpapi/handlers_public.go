@@ -28,6 +28,16 @@ type publicLinkView struct {
 	// 已停用(公共页标注「门店暂不可用」)。不含任何门店内部字段;仅 available
 	// 态出现,非可用态保持单字段白名单形状。
 	StoreNotice string `json:"store_notice,omitempty"`
+	// MerchantName is the tenant display name (the store the guest is visiting).
+	// Brand shell is separate and must not replace it.
+	MerchantName string            `json:"merchant_name,omitempty"`
+	BrandShell   *publicBrandShell `json:"brand_shell,omitempty"`
+}
+
+type publicBrandShell struct {
+	DisplayName    string `json:"display_name,omitempty"`
+	SupportName    string `json:"support_name,omitempty"`
+	SupportContact string `json:"support_contact,omitempty"`
 }
 
 // storeNoticeUnavailable is the only value store_notice may carry.
@@ -42,6 +52,11 @@ func (s *Server) handlePublicLink(w http.ResponseWriter, r *http.Request) {
 	code := strings.TrimSpace(r.PathValue("code"))
 	res := s.St.ResolveLink(code, time.Now())
 
+	if s.Cfg.FeatureBrand {
+		if done := s.writeBrandedPublic(w, r, code, res); done {
+			return
+		}
+	}
 	view := publicLinkView{State: string(res.Outcome)}
 	if res.Outcome == store.OutcomeAvailable {
 		view.Title = res.Campaign.Title

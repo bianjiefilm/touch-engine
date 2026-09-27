@@ -82,11 +82,12 @@ func cmdProvisionTenant(args []string) {
 	fs := flag.NewFlagSet("provision-tenant", flag.ExitOnError)
 	dbPath := fs.String("db", "", "sqlite db path (required)")
 	name := fs.String("name", "", "tenant name (required)")
+	brand := fs.String("brand", "", "optional brand_id reference (does not create a brand)")
 	_ = fs.Parse(args)
 	if *dbPath == "" || *name == "" {
 		fatalUsage("provision-tenant requires -db and -name")
 	}
-	id, err := provision.Tenant(*dbPath, *name)
+	id, err := provision.Tenant(*dbPath, *name, *brand)
 	must(err)
 	fmt.Println(id)
 }

@@ -69,6 +69,10 @@ export default function AdminPage() {
   const [role, setRole] = useState("");
   const [storeScope, setStoreScope] = useState(""); // HUI-1674:""=总部;非空=仅该门店
   const [email_, setEmailMasked] = useState("");
+  const [workbar, setWorkbar] = useState("");
+  const [tenantName, setTenantName] = useState("");
+  const [brandName, setBrandName] = useState("");
+  const [supportLine, setSupportLine] = useState("");
   const [error, setError] = useState("");
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [stores, setStores] = useState<StoreRec[]>([]);
@@ -211,6 +215,11 @@ export default function AdminPage() {
     setRole(String(who.data.role ?? ""));
     setStoreScope(String(who.data.store_scope ?? ""));
     setEmailMasked(String(who.data.email ?? ""));
+    setWorkbar(typeof who.data.workbar === "string" ? who.data.workbar : "");
+    setTenantName(typeof who.data.tenant_name === "string" ? who.data.tenant_name : "");
+    const brand = who.data.brand as { display_name?: string; support_name?: string; support_contact?: string } | undefined;
+    setBrandName(brand?.display_name ?? "");
+    setSupportLine([brand?.support_name, brand?.support_contact].filter(Boolean).join(" · "));
     setError("");
     const [cmp, sto] = await Promise.all([api("GET", "campaigns"), api("GET", "stores")]);
     if (cmp.ok) setCampaigns((cmp.data.items as Campaign[]) ?? []);
@@ -491,6 +500,29 @@ export default function AdminPage() {
 
   return (
     <main style={{ maxWidth: 960, margin: "40px auto", padding: "0 20px" }}>
+      {workbar && (
+        <div
+          data-testid="brand-workbar"
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 12,
+            margin: "0 0 16px",
+            padding: "10px 14px",
+            borderRadius: 10,
+            background: "#0f172a",
+            color: "#f8fafc",
+          }}
+        >
+          <div>
+            <strong>{brandName || "品牌"}</strong>
+            <span style={{ opacity: 0.7 }}> / </span>
+            <span>{tenantName || tenantId}</span>
+          </div>
+          {supportLine && <span style={{ fontSize: 13, opacity: 0.85 }}>客服 {supportLine}</span>}
+        </div>
+      )}
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
         <h1>碰一碰 · 商家后台</h1>
         <div>

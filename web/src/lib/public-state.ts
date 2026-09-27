@@ -19,7 +19,16 @@ export type PublicUiState =
   | "ended"
   | "not_found"
   | "network_error"
-  | "entry_unsupported";
+  | "entry_unsupported"
+  | "unknown_brand"
+  | "domain_error"
+  | "domain_mismatch"
+  | "brand_suspended"
+  | "brand_retiring"
+  | "tenant_suspended"
+  | "security_freeze"
+  | "offboarding"
+  | "tenant_retired";
 
 // 机器态 → 游客文案(与 Go 侧 publicLinkView.state 对齐)
 export const STATE_TEXT: Record<PublicUiState, string> = {
@@ -34,6 +43,15 @@ export const STATE_TEXT: Record<PublicUiState, string> = {
   not_found: "活动不存在",
   network_error: "网络异常,活动加载失败",
   entry_unsupported: "入口方式不支持",
+  unknown_brand: "无法确认服务品牌",
+  domain_error: "域名未通过验证",
+  domain_mismatch: "这个入口不属于当前域名",
+  brand_suspended: "品牌暂停服务",
+  brand_retiring: "品牌正在退出",
+  tenant_suspended: "商家暂停接待",
+  security_freeze: "商家账户已冻结",
+  offboarding: "商家正在办理退出",
+  tenant_retired: "商家已结束服务",
 };
 
 // 每个非可用态都给出可恢复动作(文案层面)
@@ -49,6 +67,15 @@ export const STATE_ACTION: Record<PublicUiState, string> = {
   not_found: "请核对二维码是否正确,或联系商家",
   network_error: "请检查网络后重试",
   entry_unsupported: "请通过商家提供的最新二维码或碰一碰标签重新进入",
+  unknown_brand: "请使用商家提供的原始链接或二维码",
+  domain_error: "请稍后再试,或联系页面上的客服",
+  domain_mismatch: "请改用该活动自己的链接,不要从其他品牌域名打开",
+  brand_suspended: "品牌暂停不影响你已经提交的信息,请稍后再来",
+  brand_retiring: "请联系商家确认后续安排",
+  tenant_suspended: "商家暂停接待新的参与,已提交的信息仍然保留",
+  security_freeze: "请联系商家或页面客服",
+  offboarding: "商家正在办理退出,不再接受新的参与",
+  tenant_retired: "请联系商家了解是否还有其他活动",
 };
 
 // 入口标记白名单:显式非白名单值 → unsupported;缺省 → web(直接访问)。

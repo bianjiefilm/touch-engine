@@ -21,6 +21,7 @@ describe("五态 + 兜底文案", () => {
     ["not_found", "活动不存在", "请核对二维码是否正确,或联系商家"],
     ["network_error", "网络异常,活动加载失败", "请检查网络后重试"],
     ["entry_unsupported", "入口方式不支持", "请通过商家提供的最新二维码或碰一碰标签重新进入"],
+    ["brand_suspended", "品牌暂停服务", "品牌暂停不影响你已经提交的信息,请稍后再来"],
   ];
   for (const [state, text, action] of cases) {
     it(`${state} 文案分支`, () => {

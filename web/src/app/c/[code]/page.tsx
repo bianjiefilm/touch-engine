@@ -26,6 +26,8 @@ interface PublicView {
   starts_at?: string;
   ends_at?: string;
   store_notice?: string; // HUI-1674:仅白名单常量 store_unavailable(门店暂不可用标注)
+  merchant_name?: string;
+  brand_shell?: { display_name?: string; support_name?: string; support_contact?: string };
 }
 
 interface LeadFormView {
@@ -188,8 +190,11 @@ function PublicCampaignInner() {
   return (
     <main style={{ maxWidth: 520, margin: "80px auto", padding: "0 20px", textAlign: "center" }}>
       <div style={{ background: "#fff", borderRadius: 12, padding: 32, border: "1px solid #e5e7eb" }}>
+        {view?.merchant_name && (
+          <p style={{ margin: "0 0 8px", color: "#6b7280", fontSize: 13 }}>商家 {view.merchant_name}</p>
+        )}
         <div style={{ fontSize: 40, marginBottom: 12 }}>{state === "available" ? "🎪" : "🔗"}</div>
-        <h1 style={{ margin: "0 0 8px" }}>{state === "available" && view?.title ? view.title : headline}</h1>
+        <h1 style={{ margin: "0 0 8px" }}>{(state === "available" || state === "tenant_suspended" || state === "offboarding" || state === "security_freeze") && view?.title ? view.title : headline}</h1>
         {state !== "available" && (
           <p style={{ color: "#6b7280" }}>{headline}</p>
         )}
@@ -281,6 +286,13 @@ function PublicCampaignInner() {
               </div>
             ) : null}
           </>
+        )}
+        {view?.brand_shell?.display_name && (
+          <footer style={{ marginTop: 28, paddingTop: 16, borderTop: "1px solid #e5e7eb", color: "#6b7280", fontSize: 12 }}>
+            技术服务 {view.brand_shell.display_name}
+            {view.brand_shell.support_name ? ` · ${view.brand_shell.support_name}` : ""}
+            {view.brand_shell.support_contact ? ` · ${view.brand_shell.support_contact}` : ""}
+          </footer>
         )}
       </div>
     </main>
