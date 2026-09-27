@@ -15,7 +15,7 @@ export const BILLING_UNCONFIRMED = "额度需确认";
 export const PROVISIONAL_STATUS_SUMMARY = "预览上下文 · 未接公共身份";
 export const REGISTRY_WITHOUT_IDENTITY_SUMMARY = "目录已读取，身份上下文仍为预览";
 export const LAUNCH_UNRESOLVED_RESIDUAL =
-  "启动目标尚未解析：缺少 Registry 允许列表（HUI-2228），不会伪造跳转地址。";
+  "启动目标尚未解析：允许列表里没有可安全跳转的地址，不会伪造跳转地址。";
 
 const BLOCKED_QUERY_KEYS = ["order_id", "handoff_id", "claim_code", "stage_id", "brief_version", "campaign_id"] as const;
 

@@ -8,7 +8,7 @@ import { parseEcoNavDocument, toViewModel, PROVISIONAL_STATUS_SUMMARY, type EcoN
 
 const APP_IDS = [
   ["goboost", "GoBoost", "ti-goboost-web"],
-  ["product-image", "产品图", "ti-product-image"],
+  ["product-image", "产品图", "ti-product-image-web"],
   ["aicut", "AiCut", "ti-aicut-web"],
   ["digital-human", "数海观澜数字人", "ti-digital-human"],
   ["leads", "获客", "ti-leads-web"],

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { EcoTopNav } from "@/components/eco-nav/EcoTopNav";
+import { useLaunchResolver } from "@/components/eco-nav/use-launch-resolver";
 import { provisionalEcoNav } from "@/lib/eco-nav/fixture";
 import type { EcoNavModel } from "@/lib/eco-nav/model";
 import { commitTenantSwitch } from "@/lib/eco-nav/touch-shell";
@@ -20,6 +21,7 @@ export function AdminShell({
   onTenantChange: (tenantId: string) => void;
 }) {
   const [model, setModel] = useState<EcoNavModel | null>(null);
+  const resolveLaunchTarget = useLaunchResolver();
 
   useEffect(() => {
     let alive = true;
@@ -46,6 +48,7 @@ export function AdminShell({
           model={model}
           nickname={nickname}
           sessionRole={sessionRole}
+          resolveLaunchTarget={resolveLaunchTarget}
           onLogout={onLogout}
           onTenantChange={(tenantId) => {
             const committed = commitTenantSwitch(model?.provenance ?? "", tenantId);

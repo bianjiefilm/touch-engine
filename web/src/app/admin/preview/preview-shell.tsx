@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { EcoTopNav } from "@/components/eco-nav/EcoTopNav";
+import { useLaunchResolver } from "@/components/eco-nav/use-launch-resolver";
 import { TaskHandoffActions } from "@/components/admin/TaskHandoffActions";
 import { PROVISIONAL_DOCUMENT, provisionalEcoNav } from "@/lib/eco-nav/fixture";
 import { parseEcoNavDocument, toViewModel, type EcoNavModel } from "@/lib/eco-nav/model";
@@ -29,7 +30,8 @@ function brandModel(displayName: string, appId: string, appName: string, targetI
 }
 
 export function PreviewShell() {
-  const [model, setModel] = useState(() => brandModel("品牌甲", "product-image", "产品图", "ti-product-image"));
+  const [model, setModel] = useState(() => brandModel("品牌甲", "product-image", "产品图", "ti-product-image-web"));
+  const resolveLaunchTarget = useLaunchResolver();
   const [surface, setSurface] = useState({ campaigns: [{ id: "cmp_preview", title: "活动甲" }], selectedCampaignId: "cmp_preview" });
   const [notice, setNotice] = useState("");
 
@@ -40,6 +42,7 @@ export function PreviewShell() {
         nickname="代理小林"
         sessionRole="agent"
         honorScopeMerchant
+        resolveLaunchTarget={resolveLaunchTarget}
         onTenantChange={() => {
           setSurface((current) => applyMerchantSwitch(current));
           setNotice("");
@@ -47,7 +50,7 @@ export function PreviewShell() {
       />
       <p data-testid="preview-note">这是商家后台预览。公共活动页、NFC、二维码和留资页没有这条导航。</p>
       <div style={{ display: "flex", gap: 8, margin: "12px 0" }}>
-        <button type="button" onClick={() => setModel(brandModel("品牌甲", "product-image", "产品图", "ti-product-image"))}>
+        <button type="button" onClick={() => setModel(brandModel("品牌甲", "product-image", "产品图", "ti-product-image-web"))}>
           品牌甲
         </button>
         <button type="button" onClick={() => setModel(brandModel("品牌乙", "leads", "获客", "ti-leads-web"))}>

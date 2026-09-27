@@ -98,7 +98,7 @@ describe("冻结夹具 eco-nav/v1 @ be6d7d3", () => {
     expect(plan.creates_handoff).toBe(false);
     expect(plan.launch_target_id).toBe("ti-orders-web");
     expect(plan.href).toBeNull();
-    expect(plan.residual).toContain("HUI-2228");
+    expect(plan.residual).toContain("不会伪造跳转地址");
   });
 
   it("正式 wallet 用 value_minor 显示分，预览态回到额度需确认", () => {

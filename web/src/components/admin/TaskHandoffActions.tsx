@@ -37,7 +37,27 @@ export function TaskHandoffActions({
             data-campaign-id={plan.campaign_id}
             data-charges-customer="false"
             data-leads-fetch={plan.leads_fetch}
-            onClick={() => onPlanned(NOTICE[kind])}
+            onClick={() => {
+              if (kind !== "make_campaign_image") {
+                onPlanned(NOTICE[kind]);
+                return;
+              }
+              void fetch("/api/eco-nav/campaign-image", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ campaign_id: campaignId }),
+              })
+                .then(async (res) => {
+                  const data = (await res.json()) as { message?: string; resolution?: string; project_id?: string };
+                  if (!res.ok || !data.project_id) {
+                    onPlanned(data.message || "产品图没有创建或恢复工程");
+                    return;
+                  }
+                  const verb = data.resolution === "restored" ? "恢复" : "创建";
+                  onPlanned(`产品图已${verb}工程 ${data.project_id}`);
+                })
+                .catch(() => onPlanned("产品图没有创建或恢复工程"));
+            }}
             style={{ padding: "8px 10px", borderRadius: 6, border: "1px solid #2563eb", background: "#fff", color: "#2563eb", cursor: "pointer" }}
           >
             {LABEL[kind]}
