@@ -67,9 +67,9 @@ func (s *Server) decidePublicBrand(r *http.Request, res store.ResolvedLink) publ
 	case brandctx.KindDomain:
 		return publicBrandDecision{Apply: true, State: "domain_error", HTTPStatus: http.StatusForbidden, BlockWrites: true}
 	case brandctx.KindUnknown:
-		if host != pub.Host && host != fallback {
-			return publicBrandDecision{Apply: true, State: "unknown_brand", HTTPStatus: http.StatusNotFound, BlockWrites: true}
-		}
+		// The code's own brand host is unknown. A fallback request host is not
+		// enough to invent a brand; only a registry-ready published host is.
+		return publicBrandDecision{Apply: true, State: "unknown_brand", HTTPStatus: http.StatusNotFound, BlockWrites: true}
 	}
 	if shellRes.Kind == brandctx.KindReady && (!shellRes.Manifest.AdmitPublic || !shellRes.Manifest.TouchEnabled(s.Cfg.AppID)) {
 		return publicBrandDecision{Apply: true, State: "brand_unavailable", HTTPStatus: http.StatusForbidden, BlockWrites: true, Shell: shellFrom(shellRes.Manifest)}

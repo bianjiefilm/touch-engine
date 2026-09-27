@@ -164,14 +164,20 @@ func (c *Client) Read(ctx context.Context, host string, allowStale bool) (Result
 	}
 	switch res.StatusCode {
 	case http.StatusOK:
-		if strings.TrimSpace(m.BrandID) == "" || m.Status == "" {
-			return Result{Kind: KindUnavailable}, fmt.Errorf("brandctx: ready response missing brand identity")
-		}
-		if m.Status == "retired" {
+		switch m.Status {
+		case "active":
+			if strings.TrimSpace(m.BrandID) == "" {
+				return Result{Kind: KindUnavailable}, fmt.Errorf("brandctx: active response missing brand_id")
+			}
+			c.store(host, m)
+			return Result{Kind: KindReady, Manifest: m}, nil
+		case "retired":
 			return Result{Kind: KindRetired, Manifest: m}, nil
+		case "suspended":
+			return Result{Kind: KindSuspended, Manifest: m}, nil
+		default:
+			return Result{Kind: KindUnavailable}, fmt.Errorf("brandctx: status %q is not an active brand", m.Status)
 		}
-		c.store(host, m)
-		return Result{Kind: KindReady, Manifest: m}, nil
 	case http.StatusNotFound:
 		return Result{Kind: KindUnknown, Manifest: m}, nil
 	case http.StatusForbidden:
