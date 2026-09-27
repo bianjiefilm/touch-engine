@@ -1,0 +1,153 @@
+/* EcoTopNav：56px sticky。颜色只走 --tk-*，深色跟随 tokens.css。 */
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 56px;
+  padding: 0 16px;
+  background: var(--tk-surface);
+  border-bottom: 1px solid var(--tk-border);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  color: var(--tk-ink-main);
+}
+
+.brand,
+.apps,
+.context,
+.right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.brandName,
+.currentApp,
+.ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.brandName {
+  max-width: 140px;
+  color: var(--tk-ink-2);
+}
+
+.currentApp {
+  max-width: 160px;
+  font-weight: 600;
+  box-shadow: inset 0 -2px 0 var(--tk-brand);
+}
+
+.pinned {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.link,
+.button,
+.quiet {
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 6px;
+  color: var(--tk-ink-2);
+  background: transparent;
+  border: 1px solid transparent;
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+}
+
+.button {
+  cursor: pointer;
+  border-color: var(--tk-border);
+  background: var(--tk-surface);
+}
+
+.link:hover,
+.button:hover {
+  background: var(--tk-bg-subtle);
+  color: var(--tk-ink-main);
+}
+
+.link:focus-visible,
+.button:focus-visible {
+  outline: 2px solid var(--tk-brand);
+  outline-offset: 2px;
+}
+
+.quiet {
+  color: var(--tk-ink-sub);
+}
+
+.pressed {
+  color: var(--tk-ink-main);
+  background: var(--tk-bg-subtle);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.badge {
+  color: var(--tk-warning);
+  font-size: 12px;
+  max-width: 220px;
+}
+
+.popover {
+  position: relative;
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 200px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--tk-surface);
+  border: 1px solid var(--tk-border);
+  z-index: 21;
+}
+
+.menuLeft {
+  left: 0;
+  right: auto;
+}
+
+.roleLine {
+  margin: 0;
+  color: var(--tk-ink-sub);
+  font-size: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .link,
+  .button,
+  .menu {
+    transition: none;
+  }
+}

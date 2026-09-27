@@ -1,3 +1,14 @@
+:root {
+  --tk-surface: #fff;
+  --tk-border: #e5e7eb;
+  --tk-ink-main: #1f2329;
+  --tk-ink-2: #374151;
+  --tk-ink-sub: #6b7280;
+  --tk-brand: #2563eb;
+  --tk-bg-subtle: #f3f4f6;
+  --tk-warning: #b45309;
+}
+
 html,
 body {
   margin: 0;

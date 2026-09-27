@@ -1,0 +1,36 @@
+{
+  "schema_version": "eco-nav/v1",
+  "status": {"state": "selection_required", "reasons": ["tenant_selection_required"]},
+  "brand": {
+    "brand_id": "brand-huigoo",
+    "kind": "first_party",
+    "status": "active",
+    "config_version": "3",
+    "display_name": "数海观澜",
+    "logo": null,
+    "theme": {"token_set_ref": "default", "accent": null},
+    "support": null
+  },
+  "app": {
+    "app_id": "goboost",
+    "display_name": "GoBoost",
+    "icon_ref": "lucide:clapperboard",
+    "home_target_id": "ti-goboost-web"
+  },
+  "visible_apps": [
+    {"app_id": "goboost", "display_name": "GoBoost", "icon_ref": "lucide:clapperboard", "state": "current", "launch_mode": "none", "launch_target_id": null, "unavailable_reason": null}
+  ],
+  "work_context": {
+    "state": "selection_required",
+    "current_scope": null,
+    "switchable_scopes": [
+      {"tenant_id": "tnt-studio-a", "display_name": "工作室 A", "source": "membership"},
+      {"tenant_id": "tnt-studio-b", "display_name": "工作室 B", "source": "membership"}
+    ],
+    "restored": false
+  },
+  "role": null,
+  "billing": null,
+  "return_context": null,
+  "capabilities": {"can_switch_app": false, "can_switch_tenant": true, "can_manage_members": false, "can_open_billing": false}
+}

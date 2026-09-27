@@ -1,0 +1,249 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/bianjiefilm/public-ai/docs/contracts/eco-nav/v1/eco-nav-model.schema.json",
+  "title": "EcoNavModel eco-nav/v1 (HUI-2217)",
+  "description": "Structural layer of the EcoTopNav view model. Cross-field rules that JSON Schema cannot express (billing<->status reasons, capability preconditions, brand<->billing semantics, amount visibility) are enforced by internal/econavcontract and listed in README.md section 5; vectors.json marks each rejection as schema or semantic.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "status", "brand", "app", "visible_apps", "work_context", "role", "billing", "return_context", "capabilities"],
+  "properties": {
+    "schema_version": {"const": "eco-nav/v1"},
+    "status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "reasons"],
+      "properties": {
+        "state": {"enum": ["ready", "degraded", "selection_required", "hidden", "denied", "unavailable"]},
+        "reasons": {
+          "type": "array",
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {"enum": ["public_surface", "brand_suspended", "brand_unknown", "unauthenticated", "membership_denied", "authority_unavailable", "tenant_selection_required", "billing_unconfigured", "billing_account_unknown", "billing_unavailable", "entitlement_unavailable"]}
+        }
+      }
+    },
+    "brand": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/brand"}]},
+    "app": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/current_app"}]},
+    "visible_apps": {"type": "array", "maxItems": 32, "items": {"$ref": "#/$defs/visible_app"}},
+    "work_context": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/work_context"}]},
+    "role": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/role"}]},
+    "billing": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/billing"}]},
+    "return_context": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/return_context"}]},
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["can_switch_app", "can_switch_tenant", "can_manage_members", "can_open_billing"],
+      "properties": {
+        "can_switch_app": {"type": "boolean"},
+        "can_switch_tenant": {"type": "boolean"},
+        "can_manage_members": {"type": "boolean"},
+        "can_open_billing": {"type": "boolean"}
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"properties": {"state": {"enum": ["hidden", "denied", "unavailable"]}}}}},
+      "then": {
+        "properties": {
+          "brand": {"type": "null"},
+          "app": {"type": "null"},
+          "visible_apps": {"maxItems": 0},
+          "work_context": {"type": "null"},
+          "role": {"type": "null"},
+          "billing": {"type": "null"},
+          "return_context": {"type": "null"},
+          "capabilities": {"properties": {"can_switch_app": {"const": false}, "can_switch_tenant": {"const": false}, "can_manage_members": {"const": false}, "can_open_billing": {"const": false}}}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"status": {"properties": {"state": {"enum": ["ready", "degraded", "selection_required"]}}}}},
+      "then": {
+        "properties": {
+          "brand": {"type": "object"},
+          "app": {"type": "object"},
+          "visible_apps": {"minItems": 1},
+          "work_context": {"type": "object"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"status": {"properties": {"state": {"enum": ["ready", "degraded"]}}}}},
+      "then": {"properties": {"role": {"type": "object"}, "billing": {"type": "object"}}}
+    },
+    {
+      "if": {"properties": {"status": {"properties": {"state": {"const": "selection_required"}}}}},
+      "then": {"properties": {"role": {"type": "null"}, "billing": {"type": "null"}, "return_context": {"type": "null"}}}
+    },
+    {
+      "if": {"properties": {"status": {"properties": {"state": {"const": "ready"}}}}},
+      "then": {"properties": {"status": {"properties": {"reasons": {"maxItems": 0}}}}},
+      "else": {"properties": {"status": {"properties": {"reasons": {"minItems": 1}}}}}
+    }
+  ],
+  "$defs": {
+    "slug": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$"},
+    "label": {"type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*[^\\s\\u0000-\\u001f\\u007f-\\u009f][^\\u0000-\\u001f\\u007f-\\u009f]*$"},
+    "ref": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^\\s\\u0000-\\u001f\\u007f-\\u009f]+$"},
+    "icon_ref": {"type": ["string", "null"], "pattern": "^[a-z0-9][a-z0-9:._-]{0,63}$"},
+    "https_url": {"type": "string", "maxLength": 2048, "pattern": "^https://[^\\s/?#@]+(/[^\\s?#]*)?(\\?[^\\s#]+)?$"},
+    "rfc3339": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"},
+    "brand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["brand_id", "kind", "status", "config_version", "display_name", "logo", "theme", "support"],
+      "properties": {
+        "brand_id": {"$ref": "#/$defs/slug"},
+        "kind": {"enum": ["first_party", "white_label"]},
+        "status": {"enum": ["active"]},
+        "config_version": {"type": "string", "pattern": "^[A-Za-z0-9._-]{1,64}$"},
+        "display_name": {"$ref": "#/$defs/label"},
+        "logo": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "object", "additionalProperties": false, "required": ["url", "alt"], "properties": {"url": {"$ref": "#/$defs/https_url"}, "alt": {"$ref": "#/$defs/label"}}}
+          ]
+        },
+        "theme": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["token_set_ref", "accent"],
+          "properties": {
+            "token_set_ref": {"$ref": "#/$defs/slug"},
+            "accent": {"type": ["string", "null"], "pattern": "^#[0-9a-f]{6}$"}
+          }
+        },
+        "support": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["label", "url"],
+              "properties": {"label": {"$ref": "#/$defs/label"}, "url": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/https_url"}]}}
+            }
+          ]
+        }
+      }
+    },
+    "current_app": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["app_id", "display_name", "icon_ref", "home_target_id"],
+      "properties": {
+        "app_id": {"$ref": "#/$defs/slug"},
+        "display_name": {"$ref": "#/$defs/label"},
+        "icon_ref": {"$ref": "#/$defs/icon_ref"},
+        "home_target_id": {"$ref": "#/$defs/slug"}
+      }
+    },
+    "visible_app": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["app_id", "display_name", "icon_ref", "state", "launch_mode", "launch_target_id", "unavailable_reason"],
+      "properties": {
+        "app_id": {"$ref": "#/$defs/slug"},
+        "display_name": {"$ref": "#/$defs/label"},
+        "icon_ref": {"$ref": "#/$defs/icon_ref"},
+        "state": {"enum": ["current", "launchable", "entitlement_required", "temporarily_unavailable"]},
+        "launch_mode": {"enum": ["sso_launch", "none"]},
+        "launch_target_id": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/slug"}]},
+        "unavailable_reason": {"enum": [null, "entitlement_missing", "entitlement_unavailable"]}
+      },
+      "oneOf": [
+        {"properties": {"state": {"const": "current"}, "launch_mode": {"const": "none"}, "launch_target_id": {"type": "null"}, "unavailable_reason": {"const": null}}},
+        {"properties": {"state": {"const": "launchable"}, "launch_mode": {"const": "sso_launch"}, "launch_target_id": {"type": "string"}, "unavailable_reason": {"const": null}}},
+        {"properties": {"state": {"const": "entitlement_required"}, "launch_mode": {"const": "none"}, "launch_target_id": {"type": "null"}, "unavailable_reason": {"const": "entitlement_missing"}}},
+        {"properties": {"state": {"const": "temporarily_unavailable"}, "launch_mode": {"const": "none"}, "launch_target_id": {"type": "null"}, "unavailable_reason": {"const": "entitlement_unavailable"}}}
+      ]
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tenant_id", "display_name", "source"],
+      "properties": {
+        "tenant_id": {"$ref": "#/$defs/ref"},
+        "display_name": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/label"}]},
+        "source": {"enum": ["membership", "delegation"]}
+      }
+    },
+    "work_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "current_scope", "switchable_scopes", "restored"],
+      "properties": {
+        "state": {"enum": ["resolved", "selection_required"]},
+        "current_scope": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/scope"}]},
+        "switchable_scopes": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {"allOf": [{"$ref": "#/$defs/scope"}, {"properties": {"source": {"const": "membership"}}}]}
+        },
+        "restored": {"type": "boolean"}
+      }
+    },
+    "role": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "source", "delegations"],
+      "properties": {
+        "label": {"$ref": "#/$defs/label"},
+        "source": {"enum": ["membership", "delegation"]},
+        "delegations": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["delegation_id", "type", "expires_at"],
+            "properties": {
+              "delegation_id": {"$ref": "#/$defs/ref"},
+              "type": {"enum": ["maker_service", "ops_collab"]},
+              "expires_at": {"$ref": "#/$defs/rfc3339"}
+            }
+          }
+        }
+      }
+    },
+    "billing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "known", "reason", "payer_source", "viewer_account_role", "availability", "amount", "entry"],
+      "properties": {
+        "kind": {"enum": ["wallet", "customer_quota"]},
+        "known": {"type": "boolean"},
+        "reason": {"enum": [null, "unconfigured", "account_unknown", "unavailable"]},
+        "payer_source": {"enum": [null, "personal", "delegation"]},
+        "viewer_account_role": {"enum": [null, "owner", "payer", "viewer", "none"]},
+        "availability": {"enum": ["available", "exhausted", "unknown"]},
+        "amount": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["value_minor", "unit"],
+              "properties": {"value_minor": {"type": "integer", "minimum": 0}, "unit": {"enum": ["cny_fen", "quota_credit"]}}
+            }
+          ]
+        },
+        "entry": {"enum": [null, "billing_center", "brand_quota_page"]}
+      },
+      "if": {"properties": {"known": {"const": false}}},
+      "then": {"properties": {"reason": {"type": "string"}, "availability": {"const": "unknown"}, "amount": {"type": "null"}}},
+      "else": {"properties": {"reason": {"type": "null"}, "payer_source": {"type": "string"}, "availability": {"enum": ["available", "exhausted"]}}}
+    },
+    "return_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_app_id", "return_target_id", "label", "source_ref"],
+      "properties": {
+        "source_app_id": {"$ref": "#/$defs/slug"},
+        "return_target_id": {"$ref": "#/$defs/slug"},
+        "label": {"$ref": "#/$defs/label"},
+        "source_ref": {"oneOf": [{"type": "null"}, {"type": "string", "minLength": 1, "maxLength": 256, "pattern": "^[^\\s\\u0000-\\u001f\\u007f-\\u009f]+$"}]}
+      }
+    }
+  }
+}
