@@ -52,6 +52,9 @@ type DashboardFacts struct {
 	CRMReceivedTotal      int64
 	CRMReceivedByCampaign []DimBucket
 	CRMReceivedByStore    []DimBucket
+
+	// 已发布视频:只计可核实的官方回执。预览/导出/自报/unknown 不在这里。
+	ConfirmedPublishes int64
 }
 
 // DashboardDimensions carries the reference rows (来源引用) the breakdown keys
@@ -277,6 +280,19 @@ func (s *Store) DashboardFacts(tenantID, storeScope string, start, end time.Time
 	}
 	if facts.CRMReceivedByStore, err = s.dashBuckets("crm_received_by_store",
 		`SELECT COALESCE(c.store_id,''), COUNT(1)`+crmFrom+` GROUP BY COALESCE(c.store_id,'') ORDER BY 1`, tsArgs(campArgs)); err != nil {
+		return facts, dims, err
+	}
+
+	// 已发布视频只计官方查询回执。表约束使无回执的成功状态写不进去。
+	publishFrom := `
+		FROM customer_publish_attempts a
+		JOIN campaigns c ON c.id=a.campaign_id
+		WHERE ` + campCond + `
+		  AND a.status='publish_confirmed' AND a.receipt_source='official_query'
+		  AND a.platform_post_id<>'' AND a.publisher_subject='activity_customer'
+		  AND datetime(a.updated_at)>=datetime(?) AND datetime(a.updated_at)<=datetime(?)`
+	if facts.ConfirmedPublishes, err = s.dashScalar("confirmed_publishes",
+		`SELECT COUNT(1)`+publishFrom, tsArgs(campArgs)); err != nil {
 		return facts, dims, err
 	}
 

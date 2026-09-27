@@ -137,29 +137,20 @@ var unknownDefs = map[string]struct {
 	reason   string
 	upstream []string
 }{
-	KeyPublishedVideos: {
-		title: "发布视频数",
-		reason: "touch 域尚无可核实的发布事实来源:发布以 HUI-1670(一键预览与发布)的可核实结果为准," +
-			"该上游未接入;导出/预览/唤起编辑器/自报均不视为发布成功。保持 UNKNOWN,不展示 0、不推算。",
-		upstream: []string{"HUI-1670"},
-	},
 	KeyUGCPlays: {
-		title: "UGC 播放",
-		reason: "外部平台播放数据无授权来源:HUI-1670/HUI-1680(多渠道对接)未接入平台侧可核实回执前" +
-			"拿不到播放数。保持 UNKNOWN,不展示 0、不推算曝光。",
+		title:    "UGC 播放",
+		reason:   "HUI-1670 没有获授权的平台数据接口,完播和播放数保持未知,不能记成 0,也不能由发布准备条数推算。",
 		upstream: []string{"HUI-1670", "HUI-1680"},
 	},
 	KeyUGCLikes: {
-		title: "UGC 点赞",
-		reason: "外部平台点赞数据无授权来源:HUI-1670/HUI-1680 未接入平台侧可核实回执前拿不到点赞数。" +
-			"保持 UNKNOWN,不展示 0、不推算。",
+		title:    "UGC 点赞",
+		reason:   "HUI-1670 没有获授权的平台数据接口,点赞数保持未知,不能记成 0。",
 		upstream: []string{"HUI-1670", "HUI-1680"},
 	},
 	KeyPOIExposureDelta: {
-		title: "POI 曝光增量",
-		reason: "POI 曝光是外部平台侧数据,touch 域没有任何该事实的事件源;曝光增量不得由本域数据推算。" +
-			"保持 UNKNOWN。",
-		upstream: []string{"HUI-1680"},
+		title:    "POI 曝光增量",
+		reason:   "POI 曝光没有获授权的平台结果。抖音 POI 挂载也只对企业资质账号开放,本部署拿不到,保持未知。",
+		upstream: []string{"HUI-1670", "HUI-1680"},
 	},
 	KeyCouponRedemptions: {
 		title: "优惠券核销",
@@ -223,6 +214,16 @@ func Catalog() []Metric {
 				WindowNote:  windowNoteSecond,
 			},
 		},
+		{
+			key: KeyPublishedVideos, title: "发布视频数",
+			def: Definition{
+				Source:      "customer_publish_attempts 中 status=publish_confirmed 且 receipt_source=official_query 且 platform_post_id 非空且 publisher_subject=activity_customer",
+				DedupKey:    "一行一次准备;只有官方查询回执计入。预览、导出、唤起编辑器、顾客自报、unknown 都不计入,客户端 post_id 不计入",
+				Denominator: "窗口内可核实的顾客发布条数。商家账号发布不计入。本部署拒绝写入无回执的成功状态,所以没有官方证据时不会增加",
+				EventTime:   "customer_publish_attempts.updated_at(UTC)",
+				WindowNote:  windowNoteSecond,
+			},
+		},
 	}
 	out := make([]Metric, 0, len(touch)+len(unknownDefs))
 	for _, t := range touch {
@@ -230,7 +231,7 @@ func Catalog() []Metric {
 			Key: t.key, Title: t.title, Available: true, Definition: t.def,
 		})
 	}
-	for _, key := range []string{KeyPublishedVideos, KeyUGCPlays, KeyUGCLikes, KeyPOIExposureDelta, KeyCouponRedemptions} {
+	for _, key := range []string{KeyUGCPlays, KeyUGCLikes, KeyPOIExposureDelta, KeyCouponRedemptions} {
 		u := unknownDefs[key]
 		out = append(out, Metric{
 			Key: key, Title: u.title, Available: false, Value: nil,
@@ -288,6 +289,8 @@ func Build(w Window, sc Scope, f store.DashboardFacts, dims store.DashboardDimen
 				"by_campaign": buckets(f.CRMReceivedByCampaign),
 				"by_store":    buckets(f.CRMReceivedByStore),
 			}
+		case KeyPublishedVideos:
+			m.Value = ptr(f.ConfirmedPublishes)
 		}
 		resp.Metrics = append(resp.Metrics, m)
 	}
