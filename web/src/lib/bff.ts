@@ -73,6 +73,9 @@ export async function proxyToServer(
   if (tenant) headers.set("x-tenant-id", tenant);
   headers.set("x-internal-token", env.internalToken);
   headers.set("x-forwarded-for-origin", incoming.origin);
+  // Brand host is the host the browser actually used. A caller-supplied
+  // X-Forwarded-Host or X-Touch-Public-Host cannot retarget the brand.
+  if (incoming.host) headers.set("x-touch-public-host", incoming.host);
 
   const init: RequestInit = {
     method: req.method,

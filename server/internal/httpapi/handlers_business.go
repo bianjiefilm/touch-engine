@@ -286,6 +286,10 @@ func (s *Server) handleCampaignCreate(w http.ResponseWriter, r *http.Request) {
 	if !s.requireScopedAction(c, authz.ActionCreate, authz.RecordScope{TenantID: c.Member.TenantID, StoreID: in.StoreID}, false, w) {
 		return
 	}
+	if s.Cfg.FeatureBrand && c.Brand != nil && !c.Brand.TouchOn {
+		fail(w, http.StatusForbidden, "brand_app_disabled", "this brand has not enabled touch; existing records stay readable")
+		return
+	}
 	rec, err := s.St.CreateCampaign(store.NewCampaign{
 		TenantID: c.Member.TenantID, Title: in.Title, PublicContent: in.PublicContent,
 		StartsAt: in.StartsAt, EndsAt: in.EndsAt, StoreID: in.StoreID,
@@ -550,6 +554,10 @@ func (s *Server) handleLinkCreate(w http.ResponseWriter, r *http.Request) {
 	if _, ok := s.campaignScoped(c, r.PathValue("id"), authz.ActionCreate, w); !ok {
 		return
 	}
+	if s.Cfg.FeatureBrand && c.Brand != nil && !c.Brand.TouchOn {
+		fail(w, http.StatusForbidden, "brand_app_disabled", "this brand has not enabled touch; existing records stay readable")
+		return
+	}
 	rec, err := s.St.CreateLink(c.Member.TenantID, r.PathValue("id"), c.Member.PrincipalRef)
 	if errors.Is(err, store.ErrNotFound) {
 		fail(w, http.StatusNotFound, "not_found", "campaign not found")
@@ -558,6 +566,10 @@ func (s *Server) handleLinkCreate(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		fail(w, http.StatusInternalServerError, "internal", "link create failed")
 		return
+	}
+	if s.Cfg.FeatureBrand && c.Brand != nil && c.Brand.Result.Manifest.Status == "active" {
+		_ = s.St.StampLinkBrand(rec.ID, c.Member.TenantID, c.Brand.Result.Manifest.BrandID, c.Brand.Host)
+		rec, _ = s.St.GetLink(rec.ID, c.Member.TenantID)
 	}
 	writeJSON(w, http.StatusCreated, rec)
 }

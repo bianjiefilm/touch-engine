@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/bianjiefilm/touch-engine/server/internal/authz"
+	"github.com/bianjiefilm/touch-engine/server/internal/brandctx"
+	"github.com/bianjiefilm/touch-engine/server/internal/brandhost"
 	"github.com/bianjiefilm/touch-engine/server/internal/redact"
 )
 
@@ -20,6 +22,17 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "bad_request", "email and password are required")
 		return
 	}
+	if s.Cfg.FeatureBrand {
+		host, herr := brandhost.FromRequest(r)
+		if herr != nil {
+			fail(w, http.StatusBadRequest, "invalid_host", "public host is not a brand identity")
+			return
+		}
+		res, rerr := s.Brand.Read(r.Context(), host, false)
+		if !brandAdmitsLogin(w, res, rerr) {
+			return
+		}
+	}
 	pair, err := s.ID.Login(r.Context(), in.Email, in.Password)
 	if err != nil {
 		// Never distinguish user-facing reasons beyond rejection; never log tokens.
@@ -27,7 +40,35 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.setSessionCookies(w, pair)
+	// Login does not create a tenant membership and does not select a payer.
 	writeJSON(w, http.StatusOK, map[string]any{"authenticated": true})
+}
+
+// brandAdmitsLogin maps registry kinds to distinct login failures.
+// A registry outage is 503, not a fake rejection, and no cookie is set.
+func brandAdmitsLogin(w http.ResponseWriter, res brandctx.Result, err error) bool {
+	if err != nil || res.Kind == brandctx.KindUnavailable || res.Kind == brandctx.KindInvalid {
+		fail(w, http.StatusServiceUnavailable, "brand_unavailable", "brand registry could not be read; no session was created")
+		return false
+	}
+	switch res.Kind {
+	case brandctx.KindReady:
+		if res.Manifest.AdmitLogin {
+			return true
+		}
+		fail(w, http.StatusForbidden, "brand_not_admitted", "brand is not admitting login; no session was created")
+	case brandctx.KindSuspended:
+		fail(w, http.StatusForbidden, "brand_suspended", "brand is suspended; no session was created")
+	case brandctx.KindRetired:
+		fail(w, http.StatusForbidden, "brand_retiring", "brand is retiring; no session was created")
+	case brandctx.KindUnknown:
+		fail(w, http.StatusNotFound, "unknown_brand", "host is not a registered brand; no session was created")
+	case brandctx.KindDomain:
+		fail(w, http.StatusForbidden, "domain_error", "brand domain is not admitted; no session was created")
+	default:
+		fail(w, http.StatusServiceUnavailable, "brand_unavailable", "brand registry could not be read; no session was created")
+	}
+	return false
 }
 
 func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
@@ -71,14 +112,35 @@ func (s *Server) handleWhoami(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusForbidden, "not_member", "principal is not a member of this tenant")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
+	body := map[string]any{
 		"principal_ref": c.Principal.ID,
 		"email":         redact.MaskEmail(c.Principal.Email),
 		"tenant_id":     c.Member.TenantID,
 		"role":          c.Member.Role,
 		"store_scope":   c.Member.StoreScope, // HUI-1674: "" = 总部/全门店;非空 = 仅该门店
 		"enabled":       c.Member.Enabled,
-	})
+	}
+	if s.Cfg.FeatureBrand {
+		t, err := s.St.GetTenant(c.Member.TenantID)
+		if err != nil {
+			fail(w, http.StatusInternalServerError, "internal", "tenant lookup failed")
+			return
+		}
+		body["tenant_name"] = t.Name
+		body["lifecycle"] = t.Lifecycle
+		body["charge_hold"] = t.ChargeHold
+		if g := c.Brand; g != nil {
+			body["brand"] = s.brandShellJSON(g)
+			body["workbar"] = g.Result.Manifest.DisplayName + " / " + t.Name
+			// Only touch itself. Foreign registry apps are not recommended.
+			if g.TouchOn {
+				body["capabilities"] = []string{s.Cfg.AppID}
+			} else {
+				body["capabilities"] = []string{}
+			}
+		}
+	}
+	writeJSON(w, http.StatusOK, body)
 }
 
 // ---- member admin (org_owner only) ----------------------------------------------

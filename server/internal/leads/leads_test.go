@@ -7,6 +7,17 @@ import (
 	"time"
 )
 
+func TestApplyBrandTemplateDoesNotReroute(t *testing.T) {
+	e := BuildSubmitEnvelope("touch-engine", "leads-engine", "tnt_a", "cmp", "", "web", "", "", "sub", "v1", "2026-09-27T00:00:00Z", false, "n", "13800138000", "", 1)
+	e.ApplyBrandTemplate("甲牌", "notif-brand-a")
+	if e.EventProfile.SourceApp != "touch-engine" || e.EventProfile.TargetApp != "leads-engine" || e.EventProfile.TenantScope != "tnt_a" {
+		t.Fatalf("routing changed: %+v", e.EventProfile)
+	}
+	if e.Payload.BrandDisplayName != "甲牌" || e.Payload.NotificationBrandRef != "notif-brand-a" {
+		t.Fatalf("template %+v", e.Payload)
+	}
+}
+
 func TestNormalizePhone(t *testing.T) {
 	cases := []struct {
 		in, want string

@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/bianjiefilm/touch-engine/server/internal/authz"
+	"github.com/bianjiefilm/touch-engine/server/internal/brandctx"
 	"github.com/bianjiefilm/touch-engine/server/internal/config"
 	"github.com/bianjiefilm/touch-engine/server/internal/db"
 	"github.com/bianjiefilm/touch-engine/server/internal/identity"
@@ -45,6 +46,7 @@ type Server struct {
 	St      *store.Store
 	ID      *identity.Client
 	Upload  *upload.Client
+	Brand   *brandctx.Client
 	Log     *log.Logger
 	closeDB func()
 
@@ -78,6 +80,9 @@ func Open(cfg config.Config, logger *log.Logger) (*Server, error) {
 	idc := &identity.Client{BaseURL: cfg.IdentityBaseURL, Token: cfg.IdentityToken, AppID: cfg.AppID}
 	upc := &upload.Client{BaseURL: cfg.UploadBaseURL, Token: cfg.UploadToken, AppID: cfg.AppID}
 	s := New(cfg, d, idc, upc, logger)
+	if cfg.FeatureBrand {
+		s.Brand = &brandctx.Client{BaseURL: cfg.BrandBaseURL, Token: cfg.BrandToken}
+	}
 	s.closeDB = func() { d.Close() }
 	return s, nil
 }
@@ -94,6 +99,21 @@ func (s *Server) Close() {
 type caller struct {
 	Principal identity.Principal
 	Member    *store.Member
+	Brand     *brandGate
+}
+
+type brandCtxKey int
+
+const brandKey brandCtxKey = 2
+
+func brandFrom(r *http.Request) *brandGate {
+	if v, ok := r.Context().Value(brandKey).(*brandGate); ok {
+		return v
+	}
+	if c := callerFrom(r); c != nil {
+		return c.Brand
+	}
+	return nil
 }
 
 type ctxKey int
@@ -298,6 +318,17 @@ func (s *Server) Handler() http.Handler {
 		mux.Handle("GET /api/v1/agency/sub-accounts", s.requireSession(s.handleAgencySubAccountList))
 	}
 
+	// HUI-2053 brand shell + tenant lifecycle/export. Off = routes absent.
+	// These routes do not write the brand registry and do not treat a host
+	// as a tenant or a payer.
+	if s.Cfg.FeatureBrand {
+		mux.Handle("GET /api/v1/public/brand-shell", http.HandlerFunc(s.handlePublicBrandShell))
+		mux.Handle("POST /api/v1/tenant-lifecycle", s.requireSession(s.handleTenantLifecycle))
+		mux.Handle("POST /api/v1/tenant-exports", s.requireSession(s.handleTenantExportCreate))
+		mux.Handle("GET /api/v1/tenant-exports/{id}", s.requireSession(s.handleTenantExportGet))
+		mux.Handle("POST /api/v1/tenant-exports/{id}/revoke", s.requireSession(s.handleTenantExportRevoke))
+	}
+
 	return s.withRequestLog(mux)
 }
 
@@ -389,8 +420,18 @@ func (s *Server) requireSession(next http.HandlerFunc) http.Handler {
 			return
 		}
 
-		c := &caller{Principal: principal, Member: &member}
-		next(w, r.WithContext(context.WithValue(r.Context(), callerKey, c)))
+		mutating := r.Method != http.MethodGet && r.Method != http.MethodHead
+		gate, ok := s.attachBrand(w, r, tenantID, mutating)
+		if !ok {
+			return
+		}
+		c := &caller{Principal: principal, Member: &member, Brand: gate}
+		if mutating && gate != nil && s.blockTenantMutation(w, r, gate.Tenant) {
+			return
+		}
+		ctx := context.WithValue(r.Context(), callerKey, c)
+		ctx = context.WithValue(ctx, brandKey, gate)
+		next(w, r.WithContext(ctx))
 	})
 }
 

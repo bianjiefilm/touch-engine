@@ -33,6 +33,10 @@ const (
 	// off = 代理与子账号全路由不注册(404 不可见)。零额外 Gate 项:代管关系
 	// 与代开留痕是本库既有行,不引入任何外部依赖。
 	EnvFeatureAgency = "FEATURE_AGENCY"
+	// EnvFeatureBrand (HUI-2053 WL-T1): 登记制开关,默认 off。
+	// off = 不解析品牌主机、不改公共页/登录/短码既有行为。
+	// on = 只读消费 public-ai Brand Registry 的展示契约,不在本库自建品牌库。
+	EnvFeatureBrand = "FEATURE_BRAND"
 )
 
 // Config is the resolved server configuration.
@@ -85,6 +89,12 @@ type Config struct {
 	FeatureAssetLib       bool
 	FeatureVideoTemplates bool
 	FeatureAgency         bool
+	FeatureBrand          bool
+
+	// Brand registry read client (HUI-2049). Touch never writes this registry
+	// and never treats a brand host as a tenant or a payer.
+	BrandBaseURL string
+	BrandToken   string
 }
 
 // FromEnv reads configuration from the process environment.
@@ -123,6 +133,9 @@ func Load(get func(string) string) Config {
 		FeatureAssetLib:       isTruthy(get(EnvFeatureAssetLib)),
 		FeatureVideoTemplates: isTruthy(get(EnvFeatureVideoTemplates)),
 		FeatureAgency:         isTruthy(get(EnvFeatureAgency)),
+		FeatureBrand:          isTruthy(get(EnvFeatureBrand)),
+		BrandBaseURL:          strings.TrimSpace(get("PLATFORM_BRAND_BASE_URL")),
+		BrandToken:            get("PLATFORM_BRAND_TOKEN"),
 	}
 }
 
@@ -163,6 +176,14 @@ func (c Config) Gate() []string {
 			problems = append(problems, "PLATFORM_TASK_TOKEN is required when FEATURE_TASK=on")
 		}
 	}
+	if c.FeatureBrand {
+		if strings.TrimSpace(c.BrandBaseURL) == "" {
+			problems = append(problems, "FEATURE_BRAND=on requires PLATFORM_BRAND_BASE_URL (brand registry read URL; touch does not own a brand database)")
+		}
+		if strings.TrimSpace(c.BrandToken) == "" {
+			problems = append(problems, "FEATURE_BRAND=on requires PLATFORM_BRAND_TOKEN (brand-reader service token; never an app token)")
+		}
+	}
 	if c.FeatureLeadsCapture {
 		if strings.TrimSpace(c.NotifyBaseURL) == "" {
 			problems = append(problems, "FEATURE_LEADS_CAPTURE=on requires PLATFORM_NOTIFY_BASE_URL (directed-event delivery)")
@@ -184,7 +205,7 @@ func (c Config) Gate() []string {
 func (c Config) Production() bool { return strings.EqualFold(strings.TrimSpace(c.Env), "production") }
 
 func (c Config) Describe() string {
-	flags := fmt.Sprintf("upload=%v,notify=%v,task=%v,leads=%v,dashboard=%v", c.FeatureUpload, c.FeatureNotify, c.FeatureTask, c.FeatureLeadsCapture, c.FeatureDashboard)
+	flags := fmt.Sprintf("upload=%v,notify=%v,task=%v,leads=%v,dashboard=%v,brand=%v", c.FeatureUpload, c.FeatureNotify, c.FeatureTask, c.FeatureLeadsCapture, c.FeatureDashboard, c.FeatureBrand)
 	return fmt.Sprintf("env=%s app_id=%s addr=%s db=%s features(%s)",
 		c.Env, c.AppID, c.HTTPAddr, c.DBPath, flags)
 }

@@ -35,24 +35,29 @@ func now() string { return time.Now().UTC().Format(time.RFC3339Nano) }
 // ---- tenants / members ------------------------------------------------------
 
 type Tenant struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	CreatedAt string `json:"created_at"`
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	CreatedAt  string `json:"created_at"`
+	BrandID    string `json:"brand_id,omitempty"`
+	Lifecycle  string `json:"lifecycle,omitempty"`
+	ChargeHold bool   `json:"charge_hold,omitempty"`
 }
 
 func (s *Store) CreateTenant(name string) (Tenant, error) {
-	t := Tenant{ID: newID("tnt_"), Name: name, CreatedAt: now()}
+	t := Tenant{ID: newID("tnt_"), Name: name, CreatedAt: now(), Lifecycle: "active"}
 	_, err := s.DB.Exec(`INSERT INTO tenants(id,name,created_at) VALUES(?,?,?)`, t.ID, t.Name, t.CreatedAt)
 	return t, err
 }
 
 func (s *Store) GetTenant(id string) (Tenant, error) {
 	var t Tenant
-	err := s.DB.QueryRow(`SELECT id,name,created_at FROM tenants WHERE id=?`, id).
-		Scan(&t.ID, &t.Name, &t.CreatedAt)
+	var hold int
+	err := s.DB.QueryRow(`SELECT id,name,created_at,brand_id,lifecycle,charge_hold FROM tenants WHERE id=?`, id).
+		Scan(&t.ID, &t.Name, &t.CreatedAt, &t.BrandID, &t.Lifecycle, &hold)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Tenant{}, ErrNotFound
 	}
+	t.ChargeHold = hold == 1
 	return t, err
 }
 

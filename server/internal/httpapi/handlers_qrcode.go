@@ -27,8 +27,9 @@ func (s *Server) handleLinkQRCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// fail-closed:没有对外基地址就无法构造 canonical 载荷,拒绝猜测
-	if strings.TrimSpace(s.Cfg.PublicBaseURL) == "" {
+	// fail-closed:没有对外基地址就无法构造 canonical 载荷,拒绝猜测。
+	// 品牌开关打开时,活跃品牌主机可以代替 PUBLIC_BASE_URL;两者都没有才拒绝。
+	if !s.Cfg.FeatureBrand && strings.TrimSpace(s.Cfg.PublicBaseURL) == "" {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]any{
 			"error":   "qr_not_configured",
 			"message": "PUBLIC_BASE_URL is not configured; the QR payload cannot be built (fail-closed)",
@@ -61,15 +62,42 @@ func (s *Server) handleLinkQRCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payload, err := qrentry.PublicEntryURL(s.Cfg.PublicBaseURL, link.Code)
+	base := s.Cfg.PublicBaseURL
+	originKind := "configured"
+	if s.Cfg.FeatureBrand {
+		pub, _ := s.St.LinkPublication(link.Code)
+		if pub.Host != "" && pub.BrandID != "" {
+			base = "https://" + pub.Host
+			originKind = "brand"
+		} else if c.Brand != nil && c.Brand.Result.Kind == "ready" && c.Brand.Result.Manifest.AdmitPublic {
+			base = "https://" + c.Brand.Host
+			originKind = "brand"
+		} else if strings.TrimSpace(s.Cfg.PublicBaseURL) != "" {
+			base = s.Cfg.PublicBaseURL
+			originKind = "fallback"
+		}
+	}
+	if strings.TrimSpace(base) == "" {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{
+			"error":   "qr_not_configured",
+			"message": "PUBLIC_BASE_URL is not configured; the QR payload cannot be built (fail-closed)",
+		})
+		return
+	}
+	payload, err := qrentry.PublicEntryURL(base, link.Code)
 	if err != nil {
 		fail(w, http.StatusInternalServerError, "internal", "qr payload build failed")
 		return
 	}
 
-	// json 载荷:面板展示 + 载荷断言面;字段闭合 {url, code, size}
+	// json 载荷:面板展示 + 载荷断言面。品牌开启时多一个 origin_kind,
+	// 标明是品牌域名还是受控 fallback。载荷本身仍只有短码 URL。
 	if r.URL.Query().Get("format") == "json" {
-		writeJSON(w, http.StatusOK, map[string]any{"url": payload, "code": link.Code, "size": size})
+		body := map[string]any{"url": payload, "code": link.Code, "size": size}
+		if s.Cfg.FeatureBrand {
+			body["origin_kind"] = originKind
+		}
+		writeJSON(w, http.StatusOK, body)
 		return
 	}
 

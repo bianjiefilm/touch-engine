@@ -19,8 +19,9 @@ func open(path string) (*store.Store, func(), error) {
 	return store.New(d), func() { d.Close() }, nil
 }
 
-// Tenant creates a tenant and prints its id.
-func Tenant(dbPath, name string) (string, error) {
+// Tenant creates a tenant and prints its id. brandID, when set, is only a
+// reference to a brand registry id. This command does not create a brand.
+func Tenant(dbPath, name, brandID string) (string, error) {
 	s, closeFn, err := open(dbPath)
 	if err != nil {
 		return "", err
@@ -29,6 +30,11 @@ func Tenant(dbPath, name string) (string, error) {
 	t, err := s.CreateTenant(name)
 	if err != nil {
 		return "", err
+	}
+	if strings.TrimSpace(brandID) != "" {
+		if err := s.BindTenantBrand(t.ID, strings.TrimSpace(brandID)); err != nil {
+			return "", err
+		}
 	}
 	return t.ID, nil
 }

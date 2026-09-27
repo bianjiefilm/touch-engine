@@ -62,6 +62,9 @@ func (s *Server) handlePublicLeadForm(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if s.blockPublicWrite(w, r, res) {
+		return
+	}
 	notice := leads.CurrentNotice()
 	form, err := s.St.GetLeadFormByCampaign(res.Campaign.ID)
 	if errors.Is(err, store.ErrNotFound) || !form.Enabled {
@@ -92,6 +95,9 @@ func (s *Server) handlePublicLeadSubmit(w http.ResponseWriter, r *http.Request) 
 	}
 	res, ok := s.resolvePublicCampaign(w, r)
 	if !ok {
+		return
+	}
+	if s.blockPublicWrite(w, r, res) {
 		return
 	}
 
@@ -202,6 +208,11 @@ func (s *Server) handlePublicLeadSubmit(w http.ResponseWriter, r *http.Request) 
 		res.Campaign.ID, res.Campaign.StoreID, in.Channel, "", "", // tag/asset left to future surface wiring
 		ref, form.NoticeVersion, now.Format(time.RFC3339), in.MarketingOptin,
 		in.Name, phone, in.Wechat, 1)
+	if s.Cfg.FeatureBrand {
+		if d := s.decidePublicBrand(r, res); d.Shell != nil {
+			envelope.ApplyBrandTemplate(d.Shell.DisplayName, "")
+		}
+	}
 	payload, err := leads.MarshalEnvelope(envelope)
 	if errors.Is(err, leads.ErrPIIDetected) {
 		// structurally impossible today; kept as a hard stop if the payload grows
@@ -233,13 +244,19 @@ func (s *Server) handlePublicLeadSubmit(w http.ResponseWriter, r *http.Request) 
 			`{"notice":"`+form.NoticeVersion+`","marketing":`+boolJSON(in.MarketingOptin)+`}`, "consumer")
 	}
 	// 幂等:同键(活动+手机号+单位时间)返回原 submission_ref;状态语义一致。
-	writeJSON(w, mapStatus(dup), map[string]any{
+	body := map[string]any{
 		"submission_ref": lead.SubmissionRef,
 		"state":          lead.SyncState,
 		"duplicate":      dup,
 		"notice_version": form.NoticeVersion,
 		"revoke":         "POST /api/v1/public/links/" + res.Link.Code + "/lead-revocations",
-	})
+	}
+	if s.Cfg.FeatureBrand {
+		if t, err := s.St.GetTenant(res.Campaign.TenantID); err == nil {
+			body["submitted_to"] = map[string]any{"kind": "merchant_tenant", "name": t.Name}
+		}
+	}
+	writeJSON(w, mapStatus(dup), body)
 }
 
 // POST /api/v1/public/links/{code}/lead-revocations
@@ -249,6 +266,9 @@ func (s *Server) handlePublicLeadRevoke(w http.ResponseWriter, r *http.Request) 
 	}
 	res, ok := s.resolvePublicCampaign(w, r)
 	if !ok {
+		return
+	}
+	if s.blockPublicWrite(w, r, res) {
 		return
 	}
 	var in struct {

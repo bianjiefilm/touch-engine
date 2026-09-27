@@ -199,6 +199,10 @@ type PayloadMetadata struct {
 	ConsentAt      string `json:"consent_at"`
 	MarketingOptin bool   `json:"marketing_optin"`
 	Revoked        bool   `json:"revoked,omitempty"`
+	// Brand display is template copy only. Routing stays on source_app /
+	// target_app / tenant_scope and is never the display name.
+	BrandDisplayName     string `json:"brand_display_name,omitempty"`
+	NotificationBrandRef string `json:"notification_brand_ref,omitempty"`
 }
 
 // RecordRef is the source-private URI the target may resolve under its own
@@ -236,6 +240,16 @@ func BuildSubmitEnvelope(sourceApp, targetApp, tenantScope, campaignID, storeID,
 			MarketingOptin: marketingOptin,
 		},
 	}
+}
+
+// ApplyBrandTemplate attaches user-visible brand copy. It does not change
+// source_app, target_app, or tenant_scope.
+func (e *Envelope) ApplyBrandTemplate(displayName, notificationRef string) {
+	if e == nil {
+		return
+	}
+	e.Payload.BrandDisplayName = displayName
+	e.Payload.NotificationBrandRef = notificationRef
 }
 
 // BuildRevokeEnvelope states the consent withdrawal / stop-marketing fact for a

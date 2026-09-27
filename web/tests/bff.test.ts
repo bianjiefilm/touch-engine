@@ -225,6 +225,19 @@ describe("BFF relay semantics", () => {
     expect(upstreamCalls[0].headers.get("cookie")).toBe("touch_session=sess-owner-a");
   });
 
+  it("sets brand host from the browser URL and ignores a spoofed public host", async () => {
+    await call("GET", "campaigns", {
+      cookie: "touch_session=sess-owner-a",
+      tenant: "tnt_A",
+      extraHeaders: {
+        "x-touch-public-host": "evil.example",
+        "x-forwarded-host": "evil.example",
+      },
+    });
+    expect(upstreamCalls[0].headers.get("x-touch-public-host")).toBe("bff.local");
+    expect(upstreamCalls[0].headers.get("x-forwarded-host")).toBeNull();
+  });
+
   it("overrides any caller-supplied internal token (no escalation)", async () => {
     const res = await call("GET", "campaigns", {
       cookie: "touch_session=sess-owner-a",

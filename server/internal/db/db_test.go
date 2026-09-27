@@ -35,6 +35,7 @@ func TestOpenCreatesSchema(t *testing.T) {
 		"public_view_stats",
 		"schema_migrations",
 		"stores",
+		"tenant_exports",
 		"tenants",
 		"video_template_assignments",
 		"video_template_versions",
