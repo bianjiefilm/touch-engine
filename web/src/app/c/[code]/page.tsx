@@ -23,6 +23,15 @@ import {
   type GuestCapability,
   type PublicSection,
 } from "@/lib/visitor-experience";
+import {
+  activityJumpActions,
+  presentPrivateDomain,
+  privateDomainClick,
+  privateDomainLabel,
+  privateDomainNote,
+  settlePrivateDomainClick,
+  type PrivateDomainGuide,
+} from "@/lib/private-domain";
 import { CustomerPublish } from "./customer-publish";
 
 interface PublicView {
@@ -85,7 +94,13 @@ function PublicCampaignInner() {
   const [submitError, setSubmitError] = useState("");
   const [submitted, setSubmitted] = useState<LeadSubmitResult | null>(null);
   const [actionNote, setActionNote] = useState("");
+  const [privateNote, setPrivateNote] = useState("");
   const [guestActions, setGuestActions] = useState<GuestCapability[]>([]);
+  const [privateDomain, setPrivateDomain] = useState<PrivateDomainGuide>({
+    entries: [],
+    connected: false,
+    redemption: "unknown",
+  });
 
   const [revoking, setRevoking] = useState(false);
   const [revokeDone, setRevokeDone] = useState(false);
@@ -146,10 +161,18 @@ function PublicCampaignInner() {
       .catch(() => {
         if (alive) setGuestActions([]);
       });
+    fetch(`/api/public/links/${encodeURIComponent(code)}/private-domain?channel=${encodeURIComponent(source.channel)}`)
+      .then(async (res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (alive) setPrivateDomain(presentPrivateDomain(data, source.channel));
+      })
+      .catch(() => {
+        if (alive) setPrivateDomain(presentPrivateDomain(null, source.channel));
+      });
     return () => {
       alive = false;
     };
-  }, [code, uiState]);
+  }, [code, source.channel, uiState]);
 
   const retry = useCallback(() => {
     viewSent.current = false;
@@ -217,6 +240,35 @@ function PublicCampaignInner() {
       .finally(() => setRevoking(false));
   }, [code, phone, submitted]);
 
+  const onPrivateDomain = (kind: string, href: string) => {
+    const record = privateDomainClick(kind);
+    const entry = privateDomain.entries.find((item) => item.kind === kind && item.href === href);
+    if (!entry || record.success || record.platformResult !== "unknown" || record.redemption !== "unknown") {
+      setPrivateNote("没有打开。这一下也不是添加成功、进群成功、新增联系人或核销。");
+      return;
+    }
+    setPrivateNote("正在打开。这一下只是点击，还不是添加成功。");
+    const params = new URLSearchParams({ channel: source.channel });
+    fetch(`/api/public/links/${encodeURIComponent(code)}/private-domain/${encodeURIComponent(kind)}/clicks?${params.toString()}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    })
+      .then(async (res) => {
+        const data = await res.json().catch(() => null);
+        const settled = settlePrivateDomainClick(res.ok ? data : null);
+        if (!settled.open || settled.event !== entry.event) {
+          setPrivateNote("平台结果还是未知。没有把它当成添加成功、进群成功、新增联系人或核销。");
+          return;
+        }
+        setPrivateNote(privateDomainNote(privateDomain, settled));
+        window.open(href, "_blank", "noopener,noreferrer");
+      })
+      .catch(() => {
+        setPrivateNote("没有打开。这一下也不是添加成功、进群成功、新增联系人或核销。");
+      });
+  };
+
   const onGuestAction = (kind: string, href: string) => {
     const record = actionClickRecord(kind);
     if (!isOfficialActionUrl(href) || record.success || record.platformResult !== "unknown") {
@@ -248,7 +300,7 @@ function PublicCampaignInner() {
   const headline = STATE_TEXT[state] ?? "活动不存在";
   const action = STATE_ACTION[state] ?? "";
   const showActivity = state === "available" && Boolean(view?.title);
-  const visibleActions = presentGuestActions(guestActions);
+  const visibleActions = activityJumpActions(presentGuestActions(guestActions));
   const merchantLabel = view?.merchant_name || "这家店";
   const outcome = submitted
     ? leadOutcomeCopy({
@@ -294,6 +346,26 @@ function PublicCampaignInner() {
           </div>
         )}
         {actionNote && <p style={noteStyle}>{actionNote}</p>}
+        {privateDomain.entries.length > 0 && (
+          <div data-testid="private-domain" style={{ marginTop: 16 }}>
+            <h2 style={sectionTitle}>加企微或进社群</h2>
+            <p style={noteStyle}>点一下才会打开。拒绝留资也可以继续看活动。这里不会自动加好友，也不会自动进群。</p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {privateDomain.entries.map((item) => (
+                <button
+                  key={item.kind}
+                  type="button"
+                  style={quietButton}
+                  data-testid={`private-domain-${item.kind}`}
+                  onClick={() => onPrivateDomain(item.kind, item.href)}
+                >
+                  {privateDomainLabel(item.kind)}
+                </button>
+              ))}
+            </div>
+            {privateNote && <p style={noteStyle}>{privateNote}</p>}
+          </div>
+        )}
       </section>
     ) : null,
     lead: showActivity && disclosureReady && !submitted ? (
