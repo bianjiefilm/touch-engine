@@ -183,8 +183,8 @@ func Catalog() []Metric {
 			key: KeyTouchTriggers, title: "碰/扫码触发次数",
 			def: Definition{
 				Source: "public_view_stats(匿名浏览 beacon,纯聚合计数)JOIN campaign_links→campaigns(仅本租户自有短码)",
-				DedupKey: "无幂等键:beacon 到达即 +1(H5 每次页面加载发一次);channel 列为 beacon 上报值" +
-					"(现网 web/wecom)。NFC 触碰与扫码共用同一 canonical 短码 URL,物理入口(nfc/qr)未单独记录,不推算拆分",
+				DedupKey: "无幂等键:beacon 到达即 +1(H5 每次页面加载发一次);channel 只接受页面显式上报的 web/wecom/qr/nfc," +
+					"不从 URL 推算入口,也不把曝光、点击、留资、CRM 接收合成同一个转化",
 				Denominator: "本租户(及门店作用域内)自有活动短码上的全部匿名浏览 beacon;按 (短码,日,渠道) 聚合",
 				EventTime:   "public_view_stats.day(beacon 到达日,UTC)",
 				WindowNote:  windowNoteDay,

@@ -297,8 +297,12 @@ func TestForgedParamsStayGuests(t *testing.T) {
 	if err := json.Unmarshal(raw, &view); err != nil || view["state"] != "available" {
 		t.Fatalf("forged public view = %v (%v)", view, err)
 	}
-	if len(view) > 5 {
-		t.Fatalf("forged params derived extra fields: %v", view)
+	for key := range view {
+		switch key {
+		case "state", "title", "public_content", "starts_at", "ends_at", "merchant_name", "store_name", "store_notice":
+		default:
+			t.Fatalf("forged params derived extra field %q: %v", key, view)
+		}
 	}
 
 	// 管理面:staff 带"提权 query"仍是 staff
