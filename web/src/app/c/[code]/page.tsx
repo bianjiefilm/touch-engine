@@ -12,10 +12,14 @@ import {
   actionClickRecord,
   activityBlocks,
   beaconChannel,
+  guestActionLabel,
+  guestActionsFromPayload,
+  isOfficialActionUrl,
   leadDisclosureReady,
   leadOutcomeCopy,
   presentGuestActions,
   publicSectionOrder,
+  settleClick,
   type GuestCapability,
   type PublicSection,
 } from "@/lib/visitor-experience";
@@ -51,8 +55,6 @@ interface LeadSubmitResult {
   submitted_to?: { name?: string };
 }
 
-const guestActions: GuestCapability[] = [];
-
 export default function PublicCampaignPage() {
   return (
     <Suspense fallback={null}>
@@ -83,6 +85,7 @@ function PublicCampaignInner() {
   const [submitError, setSubmitError] = useState("");
   const [submitted, setSubmitted] = useState<LeadSubmitResult | null>(null);
   const [actionNote, setActionNote] = useState("");
+  const [guestActions, setGuestActions] = useState<GuestCapability[]>([]);
 
   const [revoking, setRevoking] = useState(false);
   const [revokeDone, setRevokeDone] = useState(false);
@@ -131,6 +134,22 @@ function PublicCampaignInner() {
       })
       .catch(() => undefined);
   }, [code, source.channel, uiState]);
+
+  useEffect(() => {
+    if (!code || uiState !== "available") return;
+    let alive = true;
+    fetch(`/api/public/links/${encodeURIComponent(code)}/extra-jumps`)
+      .then(async (res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (alive) setGuestActions(guestActionsFromPayload(data));
+      })
+      .catch(() => {
+        if (alive) setGuestActions([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [code, uiState]);
 
   const retry = useCallback(() => {
     viewSent.current = false;
@@ -200,8 +219,29 @@ function PublicCampaignInner() {
 
   const onGuestAction = (kind: string, href: string) => {
     const record = actionClickRecord(kind);
-    setActionNote(record.platformResult === "unknown" ? "已打开链接。这一下还不能当成已经加上或关注成功。" : "");
-    window.open(href, "_blank", "noopener,noreferrer");
+    if (!isOfficialActionUrl(href) || record.success || record.platformResult !== "unknown") {
+      setActionNote("这个动作没有真实地址，没有打开，也没有记成成功。");
+      return;
+    }
+    setActionNote("正在打开。这一下还不是添加成功、关注成功，也不是留资。");
+    fetch(`/api/public/links/${encodeURIComponent(code)}/extra-jumps/${encodeURIComponent(kind)}/clicks`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    })
+      .then(async (res) => {
+        const data = await res.json().catch(() => null);
+        const settled = settleClick(res.ok ? data : null);
+        if (!settled.open) {
+          setActionNote("平台结果还是未知。没有把它当成添加成功、关注成功或留资。");
+          return;
+        }
+        setActionNote("已打开链接。平台还没有确认添加、关注或留资。");
+        window.open(href, "_blank", "noopener,noreferrer");
+      })
+      .catch(() => {
+        setActionNote("没有打开。这一下也不是添加成功、关注成功或留资。");
+      });
   };
 
   const state: PublicUiState = entry === "unsupported" ? "entry_unsupported" : uiState;
@@ -247,8 +287,8 @@ function PublicCampaignInner() {
         {visibleActions.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
             {visibleActions.map((item) => (
-              <button key={item.kind} type="button" style={quietButton} onClick={() => onGuestAction(item.kind, item.href)}>
-                {actionLabel(item.kind)}
+              <button key={item.kind} type="button" style={quietButton} data-testid={`extra-jump-${item.kind}`} onClick={() => onGuestAction(item.kind, item.href)}>
+                {guestActionLabel(item.kind)}
               </button>
             ))}
           </div>
@@ -340,14 +380,6 @@ function PublicCampaignInner() {
       </div>
     </main>
   );
-}
-
-function actionLabel(kind: string): string {
-  if (kind === "wecom") return "添加企微";
-  if (kind === "follow") return "关注";
-  if (kind === "navigate") return "导航";
-  if (kind === "review") return "点评";
-  return kind;
 }
 
 function fieldLabels(fields: string[]): string {

@@ -22,6 +22,8 @@ func TestOpenCreatesSchema(t *testing.T) {
 		"campaign_rules",
 		"campaigns",
 		"customer_publish_attempts",
+		"extra_jump_actions",
+		"extra_jump_clicks",
 		"lead_audit",
 		"lead_forms",
 		"lead_submissions",
