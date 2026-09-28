@@ -75,10 +75,66 @@ export function leadOutcomeCopy(input: {
 }
 
 export interface GuestCapability {
-  kind: "wecom" | "follow" | "navigate" | "review" | string;
+  kind: "wifi" | "navigate" | "review" | "wecom" | "follow" | string;
   available: boolean;
   result: string;
   href?: string;
+}
+
+const guestActionKinds = new Set(["wifi", "navigate", "review", "wecom", "follow"]);
+
+export function guestActionLabel(kind: string): string {
+  if (kind === "wifi") return "门店 WiFi";
+  if (kind === "navigate") return "导航";
+  if (kind === "review") return "写点评";
+  if (kind === "wecom") return "加企微";
+  if (kind === "follow") return "关注账号";
+  return "";
+}
+
+export function guestActionsFromPayload(payload: {
+  actions?: Array<{ kind?: string; available?: boolean; result?: string; href?: string }>;
+} | null): GuestCapability[] {
+  return (payload?.actions ?? []).flatMap((item) => {
+    if (!item?.kind || !guestActionKinds.has(item.kind)) return [];
+    return [{
+      kind: item.kind,
+      available: item.available === true,
+      result: item.result === "ready" ? "ready" : "closed",
+      href: typeof item.href === "string" ? item.href : "",
+    }];
+  });
+}
+
+export function settleClick(server: {
+  recorded_as?: string;
+  success?: boolean;
+  platform_result?: string;
+} | null): {
+  recordedAs: "click";
+  success: false;
+  platformResult: "unknown";
+  added: false;
+  followed: false;
+  leadCreated: false;
+  crmImported: false;
+  rewardTriggered: false;
+  publishSuccess: false;
+  open: boolean;
+} {
+  const honest = server?.recorded_as === "click" && server.success === false && server.platform_result === "unknown";
+  return {
+    recordedAs: "click",
+    success: false,
+    platformResult: "unknown",
+    added: false,
+    followed: false,
+    leadCreated: false,
+    crmImported: false,
+    rewardTriggered: false,
+    publishSuccess: false,
+    open: honest,
+  };
 }
 
 export function isOfficialActionUrl(href: string): boolean {
@@ -99,7 +155,7 @@ export function isOfficialActionUrl(href: string): boolean {
 
 export function presentGuestActions(items: GuestCapability[]): Array<{ kind: string; href: string }> {
   return items
-    .filter((item) => item.available && item.result === "ready" && typeof item.href === "string" && isOfficialActionUrl(item.href))
+    .filter((item) => guestActionKinds.has(item.kind) && item.available && item.result === "ready" && typeof item.href === "string" && isOfficialActionUrl(item.href))
     .map((item) => ({ kind: item.kind, href: item.href as string }));
 }
 

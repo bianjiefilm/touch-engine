@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   actionClickRecord,
   activityBlocks,
+  guestActionLabel,
+  guestActionsFromPayload,
+  settleClick,
   beaconChannel,
   isOfficialActionUrl,
   leadDisclosureReady,
@@ -142,6 +145,59 @@ describe("企微关注导航点评只展示真实地址，点击不是成功", (
       success: false,
       platformResult: "unknown",
     });
+  });
+
+  it("未配置和关闭的动作不会被公共载荷变成按钮", () => {
+    const visible = presentGuestActions(guestActionsFromPayload({
+      actions: [
+        { kind: "wifi", available: true, result: "ready", href: "https://shop.example.com/wifi" },
+        { kind: "wecom", available: true, result: "ready", href: "https://example.invalid/wecom" },
+        { kind: "crm", available: true, result: "ready", href: "https://crm.example.com/import" },
+      ],
+      closed: [
+        { kind: "navigate", shown: false, reason: "not_configured" },
+      ],
+    }));
+    expect(visible).toEqual([{ kind: "wifi", href: "https://shop.example.com/wifi" }]);
+  });
+
+  it("服务端即使声称成功，点击仍然是未知结果", () => {
+    expect(settleClick({
+      recorded_as: "success",
+      success: true,
+      platform_result: "added",
+      added: true,
+      followed: true,
+      lead_created: true,
+      crm_imported: true,
+      reward_triggered: true,
+      publish_success: true,
+    })).toEqual({
+      recordedAs: "click",
+      success: false,
+      platformResult: "unknown",
+      added: false,
+      followed: false,
+      leadCreated: false,
+      crmImported: false,
+      rewardTriggered: false,
+      publishSuccess: false,
+      open: false,
+    });
+    expect(settleClick({
+      recorded_as: "click",
+      success: false,
+      platform_result: "unknown",
+    }).open).toBe(true);
+  });
+
+  it("五个附加动作都有客人能看懂的名字", () => {
+    expect(guestActionLabel("wifi")).toBe("门店 WiFi");
+    expect(guestActionLabel("navigate")).toBe("导航");
+    expect(guestActionLabel("review")).toBe("写点评");
+    expect(guestActionLabel("wecom")).toBe("加企微");
+    expect(guestActionLabel("follow")).toBe("关注账号");
+    expect(guestActionLabel("crm")).toBe("");
   });
 
   it("正式目标拒绝 .invalid 和临时本机地址", () => {

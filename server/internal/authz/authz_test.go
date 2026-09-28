@@ -60,6 +60,10 @@ func TestMatrix(t *testing.T) {
 		{"owner A reviews publish proof", ownerA, ActionReviewPublishReward, tenantA, true, ""},
 		{"staff A cannot review publish proof", staffA, ActionReviewPublishReward, tenantA, false, ReasonForbidden},
 
+		// HUI-1672: 附加跳转地址由总部配置，员工不能改公共跳转目标。
+		{"owner A manages extra jumps", ownerA, ActionManageExtraJumps, tenantA, true, ""},
+		{"staff A cannot manage extra jumps", staffA, ActionManageExtraJumps, tenantA, false, ReasonForbidden},
+
 		// HUI-1666 FEAT-0167: asset-lib management (register/import assets, pool
 		// CRUD, pool membership, candidate marking) is org_owner-only; selection
 		// and drawing follow the existing business roles instead.

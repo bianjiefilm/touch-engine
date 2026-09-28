@@ -246,6 +246,11 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/public/links/{code}/publish-attempts/{id}/reward-claim", http.HandlerFunc(s.handlePublicRewardClaim))
 	mux.Handle("POST /api/v1/public/links/{code}/publish-attempts/{id}/reward-proof", http.HandlerFunc(s.handlePublicRewardProof))
 	mux.Handle("PUT /api/v1/campaigns/{id}/publish-reward", s.requireSession(s.handlePublishRewardPut))
+
+	// HUI-1672 extra jumps. Guests only see configured public https targets.
+	mux.Handle("GET /api/v1/public/links/{code}/extra-jumps", http.HandlerFunc(s.handlePublicExtraJumps))
+	mux.Handle("POST /api/v1/public/links/{code}/extra-jumps/{kind}/clicks", http.HandlerFunc(s.handlePublicExtraJumpClick))
+	mux.Handle("PUT /api/v1/campaigns/{id}/extra-jumps", s.requireSession(s.handleExtraJumpsPut))
 	mux.Handle("POST /api/v1/campaigns/{id}/publish-reward/proofs/{proofId}/review", s.requireSession(s.handlePublishRewardReview))
 
 	// admin lead surface (HUI-1747): merchant visibility of their own leads.

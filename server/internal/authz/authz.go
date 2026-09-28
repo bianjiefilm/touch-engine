@@ -88,6 +88,8 @@ const (
 	// HUI-1671: 发布奖励规则与人工证明复核。默认不放行；staff 不能复核。
 	ActionManagePublishReward Action = "manage_publish_reward"
 	ActionReviewPublishReward Action = "review_publish_reward"
+	// HUI-1672: 活动页附加跳转（WiFi/导航/点评/企微/关注）只由总部配置。
+	ActionManageExtraJumps Action = "manage_extra_jumps"
 	// ActionManageAssetLib (HUI-1666 FEAT-0167 商家素材库): 素材登记/导入、池
 	// 增删改、池内引用增删、候选标记 —— 管理动作限 org_owner。选择/调取不走本
 	// 动作(按既有业务角色:ActionCreate/ActionReadList)。
@@ -164,7 +166,7 @@ func Authorize(member *Member, action Action, rec RecordScope) Decision {
 
 	switch action {
 	case ActionManageMembers, ActionManageStores, ActionExportQR, ActionManageCampaignRules,
-		ActionManagePublishReward, ActionReviewPublishReward,
+		ActionManagePublishReward, ActionReviewPublishReward, ActionManageExtraJumps,
 		ActionManageAssetLib, ActionManageVideoTemplates, ActionManageAgency:
 		// 总部专属治理面。store_manager 对「本店」也无此权(不可建删/改门店);
 		// agent 无建立/解除代管权(建立/解除是 owner 类治理动作)。
