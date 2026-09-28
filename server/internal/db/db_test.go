@@ -35,6 +35,8 @@ func TestOpenCreatesSchema(t *testing.T) {
 		"members",
 		"nfc_tag_groups",
 		"nfc_tags",
+		"private_domain_clicks",
+		"private_domain_entries",
 		"public_view_stats",
 		"publish_adapter_notes",
 		"publish_reward_ledger",

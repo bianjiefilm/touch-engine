@@ -251,6 +251,11 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/public/links/{code}/extra-jumps", http.HandlerFunc(s.handlePublicExtraJumps))
 	mux.Handle("POST /api/v1/public/links/{code}/extra-jumps/{kind}/clicks", http.HandlerFunc(s.handlePublicExtraJumpClick))
 	mux.Handle("PUT /api/v1/campaigns/{id}/extra-jumps", s.requireSession(s.handleExtraJumpsPut))
+
+	// HUI-1673 private domain. WeCom and community links stay clicks until a callback exists.
+	mux.Handle("GET /api/v1/public/links/{code}/private-domain", http.HandlerFunc(s.handlePublicPrivateDomain))
+	mux.Handle("POST /api/v1/public/links/{code}/private-domain/{kind}/clicks", http.HandlerFunc(s.handlePublicPrivateDomainClick))
+	mux.Handle("PUT /api/v1/campaigns/{id}/private-domain", s.requireSession(s.handlePrivateDomainPut))
 	mux.Handle("POST /api/v1/campaigns/{id}/publish-reward/proofs/{proofId}/review", s.requireSession(s.handlePublishRewardReview))
 
 	// admin lead surface (HUI-1747): merchant visibility of their own leads.
