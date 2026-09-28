@@ -241,6 +241,13 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PATCH /api/v1/public/links/{code}/publish-attempts/{id}", http.HandlerFunc(s.handlePublicPublishRevise))
 	mux.Handle("POST /api/v1/publish-adapters", s.requireSession(s.handlePublishAdapterNote))
 
+	// HUI-1671 publish reward. Real coupons and fee charges stay off.
+	mux.Handle("GET /api/v1/public/links/{code}/publish-reward", http.HandlerFunc(s.handlePublicPublishReward))
+	mux.Handle("POST /api/v1/public/links/{code}/publish-attempts/{id}/reward-claim", http.HandlerFunc(s.handlePublicRewardClaim))
+	mux.Handle("POST /api/v1/public/links/{code}/publish-attempts/{id}/reward-proof", http.HandlerFunc(s.handlePublicRewardProof))
+	mux.Handle("PUT /api/v1/campaigns/{id}/publish-reward", s.requireSession(s.handlePublishRewardPut))
+	mux.Handle("POST /api/v1/campaigns/{id}/publish-reward/proofs/{proofId}/review", s.requireSession(s.handlePublishRewardReview))
+
 	// admin lead surface (HUI-1747): merchant visibility of their own leads.
 	mux.Handle("POST /api/v1/campaigns/{id}/lead-form", s.requireSession(s.handleLeadFormUpsert))
 	mux.Handle("GET /api/v1/campaigns/{id}/leads", s.requireSession(s.handleLeadList))
