@@ -11,6 +11,7 @@ import {
   type CapabilityMatrix,
   type PlatformRow,
 } from "@/lib/customer-publish";
+import { proofNotice, publishRewardOpen, rewardNotice, type ProofView, type RewardView } from "@/lib/publish-reward";
 
 interface AttemptResponse {
   attempt_id?: string;
@@ -38,6 +39,21 @@ export function CustomerPublish({ code, defaultCopy }: { code: string; defaultCo
   const [attempt, setAttempt] = useState<AttemptResponse | null>(null);
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [reward, setReward] = useState<RewardView | null>(null);
+  const [proof, setProof] = useState<ProofView | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetch(`/api/public/links/${encodeURIComponent(code)}/publish-reward`)
+      .then(async (res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (alive && data) setReward(data as RewardView);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [code]);
 
   useEffect(() => {
     let alive = true;
@@ -106,6 +122,22 @@ export function CustomerPublish({ code, defaultCopy }: { code: string; defaultCo
     run(`/api/public/links/${encodeURIComponent(code)}/publish-attempts/${attempt.attempt_id}`, next, "PATCH");
   };
 
+  const submitProof = () => {
+    if (!attempt?.attempt_id) return;
+    setBusy(true);
+    fetch(`/api/public/links/${encodeURIComponent(code)}/publish-attempts/${attempt.attempt_id}/reward-proof`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ note: "顾客提交的发布证明", post_id: "" }),
+    })
+      .then(async (res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data) setProof(data as ProofView);
+      })
+      .catch(() => undefined)
+      .finally(() => setBusy(false));
+  };
+
   const selfReport = () => {
     if (!attempt?.attempt_id) return;
     run(`/api/public/links/${encodeURIComponent(code)}/publish-attempts/${attempt.attempt_id}/self-report`, {
@@ -113,6 +145,7 @@ export function CustomerPublish({ code, defaultCopy }: { code: string; defaultCo
     });
   };
 
+  const rewardOpen = publishRewardOpen(reward ?? {});
   const succeeded = attempt ? publishSucceeded(attempt) : false;
   const draftMatches = draftMatchesAttempt(attempt, copy, account);
   const publishClosed = !row || !actionEnabled(row, "authorized_publish");
@@ -121,6 +154,10 @@ export function CustomerPublish({ code, defaultCopy }: { code: string; defaultCo
   return (
     <section style={{ marginTop: 24, textAlign: "left" }} data-testid="customer-publish">
       <h2 style={{ fontSize: 18, margin: "0 0 8px" }}>预览并手动发布</h2>
+      <p data-testid="publish-reward" style={{ color: rewardOpen ? "#065f46" : "#92400e", fontSize: 14 }}>
+        {rewardNotice(reward ?? {})}
+        {rewardOpen ? "" : " 预览、导出、唤起编辑器或点击「我已发布」都不能领券。"}
+      </p>
       <p style={{ color: "#6b7280", fontSize: 13, marginTop: 0 }}>
         发布账号是你自己的。商家账号不能代替你发，再算成你的作品。
         {matrix && !authorizedPublishEnabled(matrix) ? " 当前没有平台授权我们代你发布。" : ""}
@@ -191,6 +228,9 @@ export function CustomerPublish({ code, defaultCopy }: { code: string; defaultCo
         <button type="button" disabled={busy || !attempt?.attempt_id} onClick={selfReport} style={buttonStyle}>
           我已发布
         </button>
+        <button type="button" disabled={busy || !attempt?.attempt_id || rewardOpen} onClick={submitProof} style={buttonStyle}>
+          提交发布证明
+        </button>
       </div>
       {attempt?.attempt_id && (
         <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
@@ -224,6 +264,11 @@ export function CustomerPublish({ code, defaultCopy }: { code: string; defaultCo
       )}
       {attempt && attempt.platform_post_id === "" && attempt.self_reported && (
         <p style={{ fontSize: 13 }}>没有平台回执，不计入已发布视频，也不发奖励。</p>
+      )}
+      {proof && (
+        <p data-testid="reward-proof" style={{ fontSize: 14 }}>
+          {proofNotice(proof)}
+        </p>
       )}
     </section>
   );

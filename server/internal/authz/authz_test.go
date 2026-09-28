@@ -54,6 +54,12 @@ func TestMatrix(t *testing.T) {
 		{"staff A cannot manage campaign rules", staffA, ActionManageCampaignRules, tenantA, false, ReasonForbidden},
 		{"owner B manage A rules refused", ownerB, ActionManageCampaignRules, tenantA, false, ReasonCrossTenant},
 
+		// HUI-1671: 发布奖励设置与证明复核只给总部，不默认放行。
+		{"owner A manages publish reward", ownerA, ActionManagePublishReward, tenantA, true, ""},
+		{"staff A cannot manage publish reward", staffA, ActionManagePublishReward, tenantA, false, ReasonForbidden},
+		{"owner A reviews publish proof", ownerA, ActionReviewPublishReward, tenantA, true, ""},
+		{"staff A cannot review publish proof", staffA, ActionReviewPublishReward, tenantA, false, ReasonForbidden},
+
 		// HUI-1666 FEAT-0167: asset-lib management (register/import assets, pool
 		// CRUD, pool membership, candidate marking) is org_owner-only; selection
 		// and drawing follow the existing business roles instead.
