@@ -163,6 +163,9 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /healthz", s.handleHealthz)
+	// Authorized submission fetch for leads ingest. Contact fields stay off
+	// the notify event; the registered source pulls them with the internal token.
+	mux.Handle("GET /internal/v1/lead-records/{submissionRef}", s.requireInternal(s.handleLeadRecord))
 
 	// auth (internal token required; no session yet for login/refresh)
 	mux.Handle("POST /api/v1/auth/login", s.requireInternal(s.handleLogin))

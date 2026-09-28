@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -229,7 +230,7 @@ func TestWorkbenchStoreManagerDoesNotSeeAnotherStore(t *testing.T) {
 		t.Fatal(err)
 	}
 	manager := &caller{Member: &store.Member{TenantID: f.tenA, PrincipalRef: "usr_mgr", Role: "store_manager", StoreScope: own.ID, Enabled: true}}
-	facts, err := f.s.workbenchFacts(manager)
+	facts, err := f.s.workbenchFacts(context.Background(), manager)
 	if err != nil {
 		t.Fatal(err)
 	}

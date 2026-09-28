@@ -158,6 +158,32 @@ func TestUnknownFollowUpOmitsZero(t *testing.T) {
 	}
 }
 
+func TestConnectedFollowUpUsesTheLeadsSummary(t *testing.T) {
+	n := 1
+	view := Assemble(Facts{
+		LeadsCapture: true,
+		Campaigns:    []CampaignFact{{ID: "cmp_a", Title: "店庆", Status: "active"}},
+		Leads:        []LeadCount{{CampaignID: "cmp_a", SyncState: "accepted", Count: 1}},
+		FollowUps: map[string]FollowUpFact{
+			"cmp_a": {Known: true, Count: n, LeadIDs: []string{"lead_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}},
+		},
+	})
+	card := customerCard(t, view, "cmp_a")
+	if !card.FollowUp.Available || card.FollowUp.Value == nil || *card.FollowUp.Value != 1 {
+		t.Fatalf("follow-up = %+v", card.FollowUp)
+	}
+	if card.FollowUp.Reason != "leads_follow_up_summary" {
+		t.Fatalf("reason = %q", card.FollowUp.Reason)
+	}
+	if len(card.OpenLeadIDs) != 1 || card.OpenLeadIDs[0] != "lead_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
+		t.Fatalf("lead ids = %#v", card.OpenLeadIDs)
+	}
+	raw := mustJSON(t, card)
+	if strings.Contains(raw, "138") || strings.Contains(raw, "phone") {
+		t.Fatalf("summary card leaked a contact: %s", raw)
+	}
+}
+
 func TestLeadsOffKeepsTheActivityAndDoesNotZeroTheSummary(t *testing.T) {
 	view := Assemble(Facts{
 		LeadsCapture: false,

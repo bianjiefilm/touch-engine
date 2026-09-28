@@ -17,11 +17,21 @@ type Facts struct {
 	ReturnToCampaignProven bool
 	FollowUpKnown          bool
 	FollowUpCount          int
+	// FollowUps is a per-campaign summary fetched from leads. A missing key
+	// stays unknown. A present fact is a real read, including a known zero.
+	FollowUps map[string]FollowUpFact
 	BillingKnown           bool
 	BillingAvailability    string
 	Seat                   Seat
 	Benefits               []BenefitFact
 	SubscriptionStatus     string
+}
+
+// FollowUpFact is a restricted leads summary. Lead IDs are not contact data.
+type FollowUpFact struct {
+	Known   bool
+	Count   int
+	LeadIDs []string
 }
 
 // BenefitFact is an activity-domain marketing fact. It is not a wallet line.
@@ -140,8 +150,9 @@ type CustomerCard struct {
 	Title         string `json:"title"`
 	Authorized    *int   `json:"authorized,omitempty"`
 	SalesReceived Metric `json:"sales_received"`
-	PendingSync   int    `json:"pending_sync"`
-	FollowUp      Metric `json:"follow_up"`
+	PendingSync   int      `json:"pending_sync"`
+	FollowUp      Metric   `json:"follow_up"`
+	OpenLeadIDs   []string `json:"open_lead_ids,omitempty"`
 }
 
 type Metric struct {

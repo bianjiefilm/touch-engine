@@ -8,6 +8,7 @@ import { planTaskHandoff } from "@/lib/eco-nav/touch-shell";
 import {
   assembleTodos,
   enterLeadsPlan,
+  leadLink,
   offerContentTools,
   resolveWorkingFor,
   salesReceptionLine,
@@ -75,6 +76,7 @@ interface CustomerCard {
   pending_sync?: number;
   sales_received?: { available?: boolean; value?: number };
   follow_up?: { available?: boolean; value?: number; reason?: string };
+  open_lead_ids?: string[];
 }
 
 export interface WorkbenchCampaign {
@@ -293,6 +295,18 @@ export function MerchantWorkbench({
                   <p style={{ margin: "4px 0" }} data-testid={`follow-up-${card.campaign_id}`}>
                     {card.follow_up?.available ? `待跟进 ${card.follow_up.value}` : "待跟进数量未知，未把本地提交记成销售已收到"}
                   </p>
+                  {(card.open_lead_ids ?? []).map((id) => {
+                    const href = leadLink(process.env.NEXT_PUBLIC_LEADS_ORIGIN ?? "", id);
+                    return href ? (
+                      <a key={id} href={href} data-testid={`open-lead-${id}`}>
+                        打开获客线索 {id}
+                      </a>
+                    ) : (
+                      <p key={id} data-testid={`open-lead-${id}`}>
+                        获客线索 {id}
+                      </p>
+                    );
+                  })}
                   {enter.available ? (
                     <button
                       type="button"

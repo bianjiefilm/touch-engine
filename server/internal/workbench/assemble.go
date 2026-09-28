@@ -255,13 +255,21 @@ func customerSection(f Facts, campaigns map[string]CampaignFact) CustomerSection
 			}
 		}
 		authorizedN := authorized
+		cardFollow := follow
+		var openLeads []string
+		if fact, ok := f.FollowUps[campaign.ID]; ok && fact.Known {
+			n := fact.Count
+			cardFollow = Metric{Available: true, Value: &n, Reason: "leads_follow_up_summary"}
+			openLeads = append([]string{}, fact.LeadIDs...)
+		}
 		cards = append(cards, CustomerCard{
 			CampaignID:    campaign.ID,
 			Title:         campaign.Title,
 			Authorized:    &authorizedN,
 			SalesReceived: salesReceipt(sawReceipt, sales, pending),
 			PendingSync:   pending,
-			FollowUp:      follow,
+			FollowUp:      cardFollow,
+			OpenLeadIDs:   openLeads,
 		})
 	}
 	return CustomerSection{Available: true, Cards: cards}
