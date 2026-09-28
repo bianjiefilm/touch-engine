@@ -7,9 +7,9 @@
 //   - 上限字段为空(nil)= 不限;非负整数才是合法值;
 //   - 服务端单点判定:评估器是纯函数,HTTP/BFF 层零业务判断;
 //   - 独立接线状态:per_contact_daily_submission_cap 已真实接线到公共留资
-//     提交入口(HUI-1747 surface);daily_publish_limit / reward_threshold /
-//     duplicate_publish_window_hours 的上游发布/奖励链路未建(HUI-1670/1671),
-//     评估器先行交付并全测,链路落地即接入(deferred,如实声明)。
+//     提交入口(HUI-1747 surface)。daily_publish_limit / reward_threshold /
+//     duplicate_publish_window_hours 仍未接入发布事实:HUI-1670 的预览、导出、
+//     确认和自报都不占发布额度,也不触发 HUI-1671 奖励。
 //
 // 原因码表(机器可读,写入拒绝响应的 error 字段):
 //

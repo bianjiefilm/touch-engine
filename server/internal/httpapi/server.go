@@ -171,6 +171,7 @@ func (s *Server) Handler() http.Handler {
 
 	// authenticated admin surface (商家后台)
 	mux.Handle("GET /api/v1/whoami", s.requireSession(s.handleWhoami))
+	mux.Handle("GET /api/v1/workbench", s.requireSession(s.handleWorkbench))
 
 	mux.Handle("GET /api/v1/stores", s.requireSession(s.handleStoreList))
 	mux.Handle("POST /api/v1/stores", s.requireSession(s.handleStoreCreate))
@@ -224,16 +225,50 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/admin/members", s.requireSession(s.handleMemberCreate))
 	mux.Handle("PATCH /api/v1/admin/members/{id}", s.requireSession(s.handleMemberPatch))
 
-	// public guest surface (公共活动页): GET-only, no session, whitelist fields.
-	// Any other method on the public path is answered 405 before anything else.
+	// public guest surface (公共活动页): no session. Reads stay on the whitelist.
+	// A benefit claim records an activity fact only. It does not create a platform
+	// user, show an enterprise balance, or debit a wallet.
 	mux.Handle("GET /api/v1/public/links/{code}", http.HandlerFunc(s.handlePublicLink))
+	mux.Handle("POST /api/v1/public/links/{code}/benefit-claims", http.HandlerFunc(s.handlePublicBenefitClaim))
+	mux.Handle("GET /api/v1/account-separation", s.requireSession(s.handleAccountSeparation))
+	mux.Handle("POST /api/v1/account-separation/charges", s.requireSession(s.handleAccountCharge))
+	mux.Handle("POST /api/v1/account-separation/recharge", s.requireSession(s.handleAccountRecharge))
 
 	// public lead-capture surface (HUI-1747): the ONLY guest-write surface.
 	// Gated by FEATURE_LEADS_CAPTURE (off -> uniform 404, surface invisible).
 	mux.Handle("GET /api/v1/public/links/{code}/lead-form", http.HandlerFunc(s.handlePublicLeadForm))
 	mux.Handle("POST /api/v1/public/links/{code}/lead-submissions", http.HandlerFunc(s.handlePublicLeadSubmit))
+	mux.Handle("POST /api/v1/public/links/{code}/lead-status", http.HandlerFunc(s.handlePublicLeadStatus))
 	mux.Handle("POST /api/v1/public/links/{code}/lead-revocations", http.HandlerFunc(s.handlePublicLeadRevoke))
 	mux.Handle("POST /api/v1/public/links/{code}/view-events", http.HandlerFunc(s.handlePublicViewEvent))
+
+	// HUI-1670 customer preview / manual publish. No platform outbound.
+	mux.Handle("GET /api/v1/public/links/{code}/publish-capabilities", http.HandlerFunc(s.handlePublicPublishCapabilities))
+	mux.Handle("POST /api/v1/public/links/{code}/publish-attempts", http.HandlerFunc(s.handlePublicPublishPreview))
+	mux.Handle("POST /api/v1/public/links/{code}/publish-attempts/{id}/export", http.HandlerFunc(s.handlePublicPublishExport))
+	mux.Handle("POST /api/v1/public/links/{code}/publish-attempts/{id}/confirm", http.HandlerFunc(s.handlePublicPublishConfirm))
+	mux.Handle("POST /api/v1/public/links/{code}/publish-attempts/{id}/self-report", http.HandlerFunc(s.handlePublicPublishSelfReport))
+	mux.Handle("POST /api/v1/public/links/{code}/publish-attempts/{id}/publish", http.HandlerFunc(s.handlePublicPublishRequest))
+	mux.Handle("POST /api/v1/public/links/{code}/publish-attempts/{id}/open-editor", http.HandlerFunc(s.handlePublicPublishOpenEditor))
+	mux.Handle("PATCH /api/v1/public/links/{code}/publish-attempts/{id}", http.HandlerFunc(s.handlePublicPublishRevise))
+	mux.Handle("POST /api/v1/publish-adapters", s.requireSession(s.handlePublishAdapterNote))
+
+	// HUI-1671 publish reward. Real coupons and fee charges stay off.
+	mux.Handle("GET /api/v1/public/links/{code}/publish-reward", http.HandlerFunc(s.handlePublicPublishReward))
+	mux.Handle("POST /api/v1/public/links/{code}/publish-attempts/{id}/reward-claim", http.HandlerFunc(s.handlePublicRewardClaim))
+	mux.Handle("POST /api/v1/public/links/{code}/publish-attempts/{id}/reward-proof", http.HandlerFunc(s.handlePublicRewardProof))
+	mux.Handle("PUT /api/v1/campaigns/{id}/publish-reward", s.requireSession(s.handlePublishRewardPut))
+
+	// HUI-1672 extra jumps. Guests only see configured public https targets.
+	mux.Handle("GET /api/v1/public/links/{code}/extra-jumps", http.HandlerFunc(s.handlePublicExtraJumps))
+	mux.Handle("POST /api/v1/public/links/{code}/extra-jumps/{kind}/clicks", http.HandlerFunc(s.handlePublicExtraJumpClick))
+	mux.Handle("PUT /api/v1/campaigns/{id}/extra-jumps", s.requireSession(s.handleExtraJumpsPut))
+
+	// HUI-1673 private domain. WeCom and community links stay clicks until a callback exists.
+	mux.Handle("GET /api/v1/public/links/{code}/private-domain", http.HandlerFunc(s.handlePublicPrivateDomain))
+	mux.Handle("POST /api/v1/public/links/{code}/private-domain/{kind}/clicks", http.HandlerFunc(s.handlePublicPrivateDomainClick))
+	mux.Handle("PUT /api/v1/campaigns/{id}/private-domain", s.requireSession(s.handlePrivateDomainPut))
+	mux.Handle("POST /api/v1/campaigns/{id}/publish-reward/proofs/{proofId}/review", s.requireSession(s.handlePublishRewardReview))
 
 	// admin lead surface (HUI-1747): merchant visibility of their own leads.
 	mux.Handle("POST /api/v1/campaigns/{id}/lead-form", s.requireSession(s.handleLeadFormUpsert))

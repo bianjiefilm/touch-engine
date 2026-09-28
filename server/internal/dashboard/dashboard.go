@@ -139,27 +139,24 @@ var unknownDefs = map[string]struct {
 }{
 	KeyPublishedVideos: {
 		title: "发布视频数",
-		reason: "touch 域尚无可核实的发布事实来源:发布以 HUI-1670(一键预览与发布)的可核实结果为准," +
-			"该上游未接入;导出/预览/唤起编辑器/自报均不视为发布成功。保持 UNKNOWN,不展示 0、不推算。",
+		reason: "HUI-1670 只把官方查询回执当成已发布。本部署的表拒绝写入 publish_confirmed 和非空 post_id," +
+			"预览、导出、确认和自报都不能计入。还没有可观察的发布视频数,保持未知,不展示 0。",
 		upstream: []string{"HUI-1670"},
 	},
 	KeyUGCPlays: {
-		title: "UGC 播放",
-		reason: "外部平台播放数据无授权来源:HUI-1670/HUI-1680(多渠道对接)未接入平台侧可核实回执前" +
-			"拿不到播放数。保持 UNKNOWN,不展示 0、不推算曝光。",
+		title:    "UGC 播放",
+		reason:   "HUI-1670 没有获授权的平台数据接口,完播和播放数保持未知,不能记成 0,也不能由发布准备条数推算。",
 		upstream: []string{"HUI-1670", "HUI-1680"},
 	},
 	KeyUGCLikes: {
-		title: "UGC 点赞",
-		reason: "外部平台点赞数据无授权来源:HUI-1670/HUI-1680 未接入平台侧可核实回执前拿不到点赞数。" +
-			"保持 UNKNOWN,不展示 0、不推算。",
+		title:    "UGC 点赞",
+		reason:   "HUI-1670 没有获授权的平台数据接口,点赞数保持未知,不能记成 0。",
 		upstream: []string{"HUI-1670", "HUI-1680"},
 	},
 	KeyPOIExposureDelta: {
-		title: "POI 曝光增量",
-		reason: "POI 曝光是外部平台侧数据,touch 域没有任何该事实的事件源;曝光增量不得由本域数据推算。" +
-			"保持 UNKNOWN。",
-		upstream: []string{"HUI-1680"},
+		title:    "POI 曝光增量",
+		reason:   "POI 曝光没有获授权的平台结果。抖音 POI 挂载也只对企业资质账号开放,本部署拿不到,保持未知。",
+		upstream: []string{"HUI-1670", "HUI-1680"},
 	},
 	KeyCouponRedemptions: {
 		title: "优惠券核销",
@@ -186,8 +183,8 @@ func Catalog() []Metric {
 			key: KeyTouchTriggers, title: "碰/扫码触发次数",
 			def: Definition{
 				Source: "public_view_stats(匿名浏览 beacon,纯聚合计数)JOIN campaign_links→campaigns(仅本租户自有短码)",
-				DedupKey: "无幂等键:beacon 到达即 +1(H5 每次页面加载发一次);channel 列为 beacon 上报值" +
-					"(现网 web/wecom)。NFC 触碰与扫码共用同一 canonical 短码 URL,物理入口(nfc/qr)未单独记录,不推算拆分",
+				DedupKey: "无幂等键:beacon 到达即 +1(H5 每次页面加载发一次);channel 只接受页面显式上报的 web/wecom/qr/nfc," +
+					"不从 URL 推算入口,也不把曝光、点击、留资、CRM 接收合成同一个转化",
 				Denominator: "本租户(及门店作用域内)自有活动短码上的全部匿名浏览 beacon;按 (短码,日,渠道) 聚合",
 				EventTime:   "public_view_stats.day(beacon 到达日,UTC)",
 				WindowNote:  windowNoteDay,

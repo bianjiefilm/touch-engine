@@ -14,6 +14,7 @@ func TestOpenCreatesSchema(t *testing.T) {
 	defer d.Close()
 
 	want := []string{
+		"activity_benefit_facts",
 		"agency_relations",
 		"agency_subaccount_trail",
 		"campaign_assets",
@@ -23,6 +24,9 @@ func TestOpenCreatesSchema(t *testing.T) {
 		"campaigns",
 		"copy_drafts",
 		"copy_versions",
+		"customer_publish_attempts",
+		"extra_jump_actions",
+		"extra_jump_clicks",
 		"lead_audit",
 		"lead_forms",
 		"lead_submissions",
@@ -34,7 +38,14 @@ func TestOpenCreatesSchema(t *testing.T) {
 		"members",
 		"nfc_tag_groups",
 		"nfc_tags",
+		"private_domain_clicks",
+		"private_domain_entries",
 		"public_view_stats",
+		"publish_adapter_notes",
+		"publish_reward_ledger",
+		"publish_reward_proofs",
+		"publish_reward_rules",
+		"publish_reward_subjects",
 		"schema_migrations",
 		"stores",
 		"tenant_exports",

@@ -506,7 +506,8 @@ func TestDashboardKnownEventSetMatchesSQLRecompute(t *testing.T) {
 		}
 	}
 
-	// UNKNOWN 指标:available=false,值绝不出现(不是 0),原因+上游引用非空
+	// UNKNOWN 指标:available=false,值绝不出现(不是 0),原因+上游引用非空。
+	// 发布视频数也在其中:本部署存不下官方回执,空计数不能显示成 0。
 	for _, key := range []string{"published_videos", "ugc_plays", "ugc_likes", "poi_exposure_delta", "coupon_redemptions"} {
 		m := dashMetric(t, body, key)
 		if m["available"] != false {

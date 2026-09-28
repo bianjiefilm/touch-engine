@@ -196,11 +196,15 @@ describe("selectTenant", () => {
     expect(next.return_context).toBeNull();
     expect(billingBadgeText(next)).toBe(BILLING_UNCONFIRMED);
     expect(next.apps.map((item) => item.app_id)).toEqual(view.apps.map((item) => item.app_id));
+    expect(next.delegations).toEqual([]);
+    expect(next.seat_source).toBeNull();
 
     const back = selectTenant(next, "tnt-studio-a");
     expect(payerText(back)).toBe("个人付款");
     expect(billingBadgeText(back)).toBe("钱包 CNY 128.00");
     expect(back.return_context).toBeNull();
+    expect(back.seat_source).toBe("membership");
+    expect(back.delegations).toEqual([]);
   });
 
   it("无权或未知租户时不改变当前 scope", () => {
