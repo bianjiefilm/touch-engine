@@ -95,6 +95,11 @@ type Config struct {
 	// and never treats a brand host as a tenant or a payer.
 	BrandBaseURL string
 	BrandToken   string
+
+	// SubscriptionStatus is the Touch package fact used to restrict new
+	// premium capabilities. It is not a wallet balance. Empty means unconfirmed.
+	// HUI-1992: this process does not start a production recharge.
+	SubscriptionStatus string
 }
 
 // FromEnv reads configuration from the process environment.
@@ -136,6 +141,7 @@ func Load(get func(string) string) Config {
 		FeatureBrand:          isTruthy(get(EnvFeatureBrand)),
 		BrandBaseURL:          strings.TrimSpace(get("PLATFORM_BRAND_BASE_URL")),
 		BrandToken:            get("PLATFORM_BRAND_TOKEN"),
+		SubscriptionStatus:    firstNonEmpty(get("TOUCH_SUBSCRIPTION_STATUS"), "unconfirmed"),
 	}
 }
 

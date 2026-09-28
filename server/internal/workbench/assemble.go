@@ -1,6 +1,10 @@
 package workbench
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/bianjiefilm/touch-engine/server/internal/activityspend"
+)
 
 // Assemble builds the merchant workbench from touch-domain facts and explicit
 // capability inputs. It does not read another app's database, invent a zero
@@ -25,6 +29,7 @@ func Assemble(f Facts) View {
 			PerToolBalances: []string{},
 			CouponsMerged:   false,
 		},
+		AccountSeparation: accountSeparation(f),
 	}
 	view.MyTasks = append(view.MyTasks, campaignTasks(f.Campaigns)...)
 	if f.LeadsCapture {
@@ -34,6 +39,23 @@ func Assemble(f Facts) View {
 		view.MyTasks = append(view.MyTasks, contentTasks(f.ContentTasks, byID)...)
 	}
 	return view
+}
+
+func accountSeparation(f Facts) activityspend.SeparationView {
+	book := activityspend.Ledger{}
+	for _, campaign := range f.Campaigns {
+		book.CampaignIDs = append(book.CampaignIDs, campaign.ID)
+	}
+	for _, benefit := range f.Benefits {
+		book.Benefits = append(book.Benefits, activityspend.BenefitFact{
+			ID:         benefit.ID,
+			CampaignID: benefit.CampaignID,
+			Ledger:     activityspend.LedgerActivity,
+			Kind:       benefit.Kind,
+			FaceMinor:  benefit.FaceMinor,
+		})
+	}
+	return activityspend.Separation(book, activityspend.Subscription{Status: f.SubscriptionStatus}, activityspend.ChargeDecision{})
 }
 
 func workingFor(seat Seat) string {

@@ -33,6 +33,7 @@ import {
   type PrivateDomainGuide,
 } from "@/lib/private-domain";
 import { CustomerPublish } from "./customer-publish";
+import { publicVisitorCopy } from "@/lib/account-separation";
 
 interface PublicView {
   state: string;
@@ -422,6 +423,8 @@ function PublicCampaignInner() {
     ) : null,
   };
 
+  const visitorNote = publicVisitorCopy({ action: submitted ? "lead" : "browse" });
+
   return (
     <main data-testid="public-activity" style={pageStyle}>
       <div style={cardStyle}>
@@ -440,6 +443,9 @@ function PublicCampaignInner() {
               </p>
             )}
           </div>
+        )}
+        {state === "available" && (
+          <p data-testid="visitor-no-balance" style={noteStyle}>{visitorNote.text}</p>
         )}
         {state === "available" && publicSectionOrder().map((section) => sectionNodes[section])}
         {view?.brand_shell?.display_name && (

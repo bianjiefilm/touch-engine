@@ -54,6 +54,8 @@ func (s *Server) workbenchFacts(c *caller) (workbench.Facts, error) {
 	}
 	facts := workbench.Facts{
 		Seat:                   s.workbenchSeat(c),
+		SubscriptionStatus:     s.Cfg.SubscriptionStatus,
+		Benefits:               []workbench.BenefitFact{},
 		LeadsCapture:           s.Cfg.FeatureLeadsCapture,
 		LibraryEnabled:         s.Cfg.FeatureAssetLib,
 		UploadEnabled:          s.Cfg.FeatureUpload,
@@ -77,6 +79,22 @@ func (s *Server) workbenchFacts(c *caller) (workbench.Facts, error) {
 				CampaignID: asset.CampaignID, AssetID: asset.AssetID, Version: asset.Version, CreatedAt: asset.CreatedAt,
 			})
 		}
+	}
+	benefits, err := s.St.ListActivityBenefits(c.Member.TenantID)
+	if err != nil {
+		return workbench.Facts{}, err
+	}
+	allowed := map[string]bool{}
+	for _, campaign := range facts.Campaigns {
+		allowed[campaign.ID] = true
+	}
+	for _, fact := range benefits {
+		if !allowed[fact.CampaignID] {
+			continue
+		}
+		facts.Benefits = append(facts.Benefits, workbench.BenefitFact{
+			ID: fact.ID, CampaignID: fact.CampaignID, Kind: fact.Kind, FaceMinor: fact.FaceMinor,
+		})
 	}
 	if s.Cfg.FeatureAssetLib {
 		items, err := s.St.ListLibAssets(c.Member.TenantID)
