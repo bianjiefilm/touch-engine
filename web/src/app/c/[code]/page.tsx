@@ -1,23 +1,24 @@
 "use client";
 
-// 公共活动页(路由区 /c/[code]):游客只读 + HUI-1747 授权留资(唯一游客写面)
-// + HUI-1664 二维码兜底入口语义。
-// 数据仅来自公共白名单 API;本页无会话、无后台信息、不暴露内部 id。
-// 纪律:
-//   - 与 NFC 共用 T0 五态解析(store.ResolveLink);不建第二套活动模型;
-//   - 非有效态(停用/未开始/过期/暂停/不存在)分别给出明确文案与可恢复动作;
-//     网络失败给「重试」;入口参数非白名单给「入口不支持」指引;
-//   - 任何 next/redirect/return 参数只放行站内相对路径(safe-redirect 守卫),
-//     非法一律忽略,默认落地本活动页;URL 参数绝不派生任何后台能力;
-//   - 留资表单 = 固定最小集(姓名/手机号/可选微信号)+ 告知确认 + 后续营销
-//     **独立勾选**;成功页保留 submission_ref 与撤销渠道文案;
-//   - 加载即发匿名浏览事件(纯聚合计数,与线索池隔离);
-//   - 联系方式只经 POST body 进入表单 API,绝不进 URL/日志。
+// 公共活动页(路由区 /c/[code]):游客看到的是这家店的活动，不是平台后台。
+// 顺序:门店 → 能得到什么 → 可做的动作 → 单独的留资同意 → 提交后的下一步。
+// 碰一下、扫码、看视频不会变成留资。留资必须勾选本次告知;营销许可可拒绝。
 
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { classifyEntry, failureState, STATE_ACTION, STATE_TEXT, storeNoticeText, type PublicUiState } from "@/lib/public-state";
 import { inSiteTargetFromParams } from "@/lib/safe-redirect";
+import {
+  actionClickRecord,
+  activityBlocks,
+  beaconChannel,
+  leadDisclosureReady,
+  leadOutcomeCopy,
+  presentGuestActions,
+  publicSectionOrder,
+  type GuestCapability,
+  type PublicSection,
+} from "@/lib/visitor-experience";
 import { CustomerPublish } from "./customer-publish";
 
 interface PublicView {
@@ -26,7 +27,7 @@ interface PublicView {
   public_content?: string;
   starts_at?: string;
   ends_at?: string;
-  store_notice?: string; // HUI-1674:仅白名单常量 store_unavailable(门店暂不可用标注)
+  store_notice?: string;
   merchant_name?: string;
   store_name?: string;
   brand_shell?: { display_name?: string; support_name?: string; support_contact?: string };
@@ -34,13 +35,25 @@ interface PublicView {
 
 interface LeadFormView {
   enabled: boolean;
-  fields?: string[];
+  required_fields?: string[];
+  purpose?: string;
+  recipient?: { name?: string };
   notice?: { version: string; text: string };
   marketing_optin_enabled?: boolean;
+  marketing_blocks_browse?: boolean;
 }
 
+interface LeadSubmitResult {
+  submission_ref?: string;
+  state?: string;
+  duplicate?: boolean;
+  crm_received?: boolean;
+  submitted_to?: { name?: string };
+}
+
+const guestActions: GuestCapability[] = [];
+
 export default function PublicCampaignPage() {
-  // Next 15:useSearchParams 需在 Suspense 边界内预渲染
   return (
     <Suspense fallback={null}>
       <PublicCampaignInner />
@@ -52,10 +65,8 @@ function PublicCampaignInner() {
   const params = useParams<{ code: string }>();
   const code = params?.code ?? "";
   const searchParams = useSearchParams();
-
-  // 入口标记(可选元数据):显式非白名单值 → 入口不支持(不发请求)
   const entry = classifyEntry(searchParams.get("entry"));
-  // 受控跳转:仅站内相对路径;非法(null)→ 默认落地本活动页,不渲染任何跳转
+  const source = beaconChannel(entry, searchParams.get("tenant_id") ?? searchParams.get("tenant"));
   const inSiteTarget = inSiteTargetFromParams((k) => searchParams.get(k));
 
   const [view, setView] = useState<PublicView | null>(null);
@@ -63,7 +74,6 @@ function PublicCampaignInner() {
   const [uiState, setUiState] = useState<PublicUiState>("loading");
   const [reloadTick, setReloadTick] = useState(0);
 
-  // 留资表单状态
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [wechat, setWechat] = useState("");
@@ -71,14 +81,12 @@ function PublicCampaignInner() {
   const [marketing, setMarketing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
-  const [submittedRef, setSubmittedRef] = useState("");
+  const [submitted, setSubmitted] = useState<LeadSubmitResult | null>(null);
+  const [actionNote, setActionNote] = useState("");
 
-  // 撤销状态
   const [revoking, setRevoking] = useState(false);
   const [revokeDone, setRevokeDone] = useState(false);
   const [revokeError, setRevokeError] = useState("");
-
-  // 匿名浏览事件:一次加载只发一次,纯聚合计数
   const viewSent = useRef(false);
 
   useEffect(() => {
@@ -87,7 +95,6 @@ function PublicCampaignInner() {
     fetch(`/api/public/links/${encodeURIComponent(code)}`)
       .then(async (res) => {
         if (!alive) return;
-        // BFF/上游不可达:网络失败兜底(重试动作),不冒充 not_found
         if (res.status === 502 || res.status === 503 || res.status === 504) {
           setUiState(failureState(res.status));
           return;
@@ -108,14 +115,13 @@ function PublicCampaignInner() {
     };
   }, [code, entry, reloadTick]);
 
-  // 浏览埋点 + 留资表单描述(仅 available 态;feature off 时端点 404,静默跳过)
   useEffect(() => {
     if (!code || uiState !== "available" || viewSent.current) return;
     viewSent.current = true;
     fetch(`/api/public/links/${encodeURIComponent(code)}/view-events`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ channel: "web" }),
+      body: JSON.stringify({ channel: source.channel }),
     }).catch(() => undefined);
     fetch(`/api/public/links/${encodeURIComponent(code)}/lead-form`)
       .then(async (res) => {
@@ -124,18 +130,28 @@ function PublicCampaignInner() {
         if (data && data.enabled) setLeadForm(data as LeadFormView);
       })
       .catch(() => undefined);
-  }, [code, uiState]);
+  }, [code, source.channel, uiState]);
 
   const retry = useCallback(() => {
+    viewSent.current = false;
     setUiState("loading");
     setReloadTick((t) => t + 1);
   }, []);
 
+  const disclosure = {
+    merchant: leadForm?.recipient?.name || view?.merchant_name || "",
+    purpose: leadForm?.purpose || "",
+    requiredFields: leadForm?.required_fields ?? [],
+    noticeVersion: leadForm?.notice?.version || "",
+  };
+  const disclosureReady = Boolean(leadForm?.enabled) && leadDisclosureReady(disclosure);
+  const leadBlocked = activityBlocks({ marketingOptIn: marketing, consent: consent }).includes("lead");
+
   const submitLead = useCallback(() => {
-    if (!code || !leadForm?.notice) return;
+    if (!code || !disclosureReady || !leadForm?.notice) return;
     setSubmitError("");
-    if (!consent) {
-      setSubmitError("请先阅读并同意告知内容");
+    if (leadBlocked) {
+      setSubmitError("请先阅读并同意告知内容。拒绝营销通知不会挡住看活动。");
       return;
     }
     setSubmitting(true);
@@ -149,161 +165,173 @@ function PublicCampaignInner() {
         consent: true,
         consent_version: leadForm.notice.version,
         marketing_optin: marketing,
-        channel: "web",
+        channel: source.channel === "web" ? "web" : source.channel,
       }),
     })
       .then(async (res) => {
-        const data = await res.json().catch(() => null);
+        const data = (await res.json().catch(() => null)) as LeadSubmitResult | null;
         if (res.ok && data?.submission_ref) {
-          setSubmittedRef(data.submission_ref as string);
+          setSubmitted(data);
         } else {
           setSubmitError(errorMessage(data) ?? "提交失败,请稍后再试");
         }
       })
       .catch(() => setSubmitError("网络异常,请稍后再试"))
       .finally(() => setSubmitting(false));
-  }, [code, consent, leadForm, marketing, name, phone, wechat]);
+  }, [code, disclosureReady, leadBlocked, leadForm, marketing, name, phone, source.channel, wechat]);
 
   const revokeLead = useCallback(() => {
-    if (!code || !submittedRef) return;
+    if (!code || !submitted?.submission_ref) return;
     setRevokeError("");
     setRevoking(true);
     fetch(`/api/public/links/${encodeURIComponent(code)}/lead-revocations`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ submission_ref: submittedRef, phone }),
+      body: JSON.stringify({ submission_ref: submitted.submission_ref, phone }),
     })
       .then(async (res) => {
         const data = await res.json().catch(() => null);
-        if (res.ok && data?.state === "revoked") {
-          setRevokeDone(true);
-        } else {
-          setRevokeError(errorMessage(data) ?? "撤销失败,请核对手机号后重试");
-        }
+        if (res.ok && data?.state === "revoked") setRevokeDone(true);
+        else setRevokeError(errorMessage(data) ?? "撤销失败,请核对手机号后重试");
       })
       .catch(() => setRevokeError("网络异常,请稍后再试"))
       .finally(() => setRevoking(false));
-  }, [code, phone, submittedRef]);
+  }, [code, phone, submitted]);
+
+  const onGuestAction = (kind: string, href: string) => {
+    const record = actionClickRecord(kind);
+    setActionNote(record.platformResult === "unknown" ? "已打开链接。这一下还不能当成已经加上或关注成功。" : "");
+    window.open(href, "_blank", "noopener,noreferrer");
+  };
 
   const state: PublicUiState = entry === "unsupported" ? "entry_unsupported" : uiState;
   const headline = STATE_TEXT[state] ?? "活动不存在";
   const action = STATE_ACTION[state] ?? "";
-  const showActivity =
-    (state === "available" ||
-      state === "tenant_suspended" ||
-      state === "offboarding" ||
-      state === "security_freeze" ||
-      state === "tenant_retired") &&
-    Boolean(view?.title);
+  const showActivity = state === "available" && Boolean(view?.title);
+  const visibleActions = presentGuestActions(guestActions);
+  const merchantLabel = view?.merchant_name || "这家店";
+  const outcome = submitted
+    ? leadOutcomeCopy({
+        merchant: submitted.submitted_to?.name || disclosure.merchant || merchantLabel,
+        state: submitted.duplicate ? "duplicate" : submitted.state || "accepted",
+        duplicate: submitted.duplicate,
+        crmReceived: submitted.crm_received,
+      })
+    : "";
 
-  return (
-    <main style={{ maxWidth: 520, margin: "80px auto", padding: "0 20px", textAlign: "center" }}>
-      <div style={{ background: "#fff", borderRadius: 12, padding: 32, border: "1px solid #e5e7eb" }}>
-        {view?.merchant_name && (
-          <p style={{ margin: "0 0 8px", color: "#6b7280", fontSize: 13 }}>商家 {view.merchant_name}</p>
-        )}
-        {view?.store_name && (
-          <p style={{ margin: "0 0 8px", color: "#6b7280", fontSize: 13 }}>门店 {view.store_name}</p>
-        )}
-        <div style={{ fontSize: 40, marginBottom: 12 }}>{state === "available" ? "🎪" : "🔗"}</div>
-        <h1 style={{ margin: "0 0 8px" }}>{showActivity && view?.title ? view.title : headline}</h1>
-        {state !== "available" && (
-          <p style={{ color: "#6b7280" }}>{headline}</p>
-        )}
-        {state !== "available" && action && <p style={{ color: "#6b7280", fontSize: 14 }}>{action}</p>}
-        {state === "network_error" && (
-          <button
-            onClick={retry}
-            style={{ marginTop: 12, padding: "8px 22px", borderRadius: 6, border: "1px solid #2563eb", background: "#fff", color: "#2563eb", cursor: "pointer" }}
-          >
-            重试
-          </button>
-        )}
-        {inSiteTarget && state !== "available" && (
-          <p style={{ marginTop: 12 }}>
-            <a href={inSiteTarget} style={{ color: "#2563eb", fontSize: 14 }}>返回</a>
+  const sectionNodes: Record<PublicSection, ReactElement | null> = {
+    store: (
+      <header key="store" data-testid="store-identity">
+        <p style={eyebrow}>{merchantLabel}</p>
+        {view?.store_name && <p style={storeLine}>{view.store_name}</p>}
+        <h1 style={titleStyle}>{showActivity && view?.title ? view.title : headline}</h1>
+      </header>
+    ),
+    value: showActivity ? (
+      <section key="value" data-testid="store-value">
+        <p style={valueStyle}>{view?.public_content || "请按门店现场说明参与这次活动。"}</p>
+        <p style={noteStyle}>碰一下、扫码或看视频只是打开这个活动，不会自动留下联系方式。</p>
+        {(view?.starts_at || view?.ends_at) && (
+          <p style={noteStyle}>
+            活动时间:{view?.starts_at || "即日起"} ~ {view?.ends_at || "长期"}
           </p>
         )}
-        {(state === "available" || showActivity) && (
+        {storeNoticeText(view?.store_notice) && (
+          <p style={warnStyle}>{storeNoticeText(view?.store_notice)}</p>
+        )}
+      </section>
+    ) : null,
+    actions: showActivity ? (
+      <section key="actions" data-testid="activity-actions">
+        <CustomerPublish code={code} defaultCopy={view?.public_content ?? ""} />
+        {visibleActions.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+            {visibleActions.map((item) => (
+              <button key={item.kind} type="button" style={quietButton} onClick={() => onGuestAction(item.kind, item.href)}>
+                {actionLabel(item.kind)}
+              </button>
+            ))}
+          </div>
+        )}
+        {actionNote && <p style={noteStyle}>{actionNote}</p>}
+      </section>
+    ) : null,
+    lead: showActivity && disclosureReady && !submitted ? (
+      <section key="lead" data-testid="lead-disclosure" style={{ marginTop: 8 }}>
+        <h2 style={sectionTitle}>把联系方式交给{disclosure.merchant}</h2>
+        <p style={noteStyle}>{disclosure.purpose}</p>
+        <p style={noteStyle}>
+          接收方:{disclosure.merchant}。必填:{fieldLabels(disclosure.requiredFields)}。告知版本 {disclosure.noticeVersion}。
+        </p>
+        <p style={noteStyle}>{leadForm?.notice?.text}</p>
+        <label style={labelStyle}>
+          姓名
+          <input style={inputStyle} value={name} onChange={(e) => setName(e.target.value)} placeholder="怎么称呼你" />
+        </label>
+        <label style={labelStyle}>
+          手机号
+          <input style={inputStyle} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="商家用来联系你" inputMode="numeric" />
+        </label>
+        <label style={labelStyle}>
+          微信号(选填)
+          <input style={inputStyle} value={wechat} onChange={(e) => setWechat(e.target.value)} placeholder="可选" />
+        </label>
+        <label style={checkStyle}>
+          <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} data-testid="consent" />
+          我同意把上面的联系方式交给{disclosure.merchant}，用于这次告知里的用途
+        </label>
+        {leadForm?.marketing_optin_enabled && (
+          <label style={checkStyle}>
+            <input type="checkbox" checked={marketing} onChange={(e) => setMarketing(e.target.checked)} data-testid="marketing-optin" />
+            另外同意以后接收活动通知。不勾选也可以继续看活动，也可以只提交这次联系方式
+          </label>
+        )}
+        {submitError && <p style={{ color: "#b91c1c", fontSize: 13 }}>{submitError}</p>}
+        <button type="button" onClick={submitLead} disabled={submitting || leadBlocked} data-testid="lead-submit" style={primaryButton}>
+          {submitting ? "提交中…" : "提交给这家店"}
+        </button>
+      </section>
+    ) : null,
+    next: submitted ? (
+      <section key="next" data-testid="lead-outcome" style={outcomeBox}>
+        {revokeDone ? (
+          <p style={{ margin: 0, color: "#065f46" }}>已撤销。未同步的数据会停在这里，不再继续交给商家的客户系统。</p>
+        ) : (
           <>
-            {view?.public_content && <p style={{ fontSize: 16 }}>{view.public_content}</p>}
-            {state === "available" && (
-              <CustomerPublish code={code} defaultCopy={view?.public_content ?? ""} />
-            )}
-            {(view?.starts_at || view?.ends_at) && (
-              <p style={{ color: "#6b7280", fontSize: 14 }}>
-                活动时间:{view?.starts_at || "即日起"} ~ {view?.ends_at || "长期"}
-              </p>
-            )}
-            {storeNoticeText(view?.store_notice) && (
-              <p style={{ color: "#b45309", fontSize: 14, background: "#fef3c7", borderRadius: 8, padding: "8px 12px", marginTop: 10 }}>
-                {storeNoticeText(view?.store_notice)}
-              </p>
-            )}
-
-            {state === "available" && submittedRef ? (
-              // 留资成功页:保留引用号与可见的撤销渠道
-              <div style={{ marginTop: 20, textAlign: "left", background: "#f9fafb", borderRadius: 8, padding: 16 }}>
-                {revokeDone ? (
-                  <p style={{ margin: 0, color: "#065f46" }}>
-                    已撤销:商家将停止把你作为营销线索使用,未同步的数据已阻止同步。
-                  </p>
-                ) : (
-                  <>
-                    <p style={{ margin: "0 0 6px" }}>提交成功。你的留资编号:<code style={{ fontSize: 13 }}>{submittedRef}</code></p>
-                    <p style={{ margin: "0 0 6px", color: "#6b7280", fontSize: 13 }}>
-                      如需撤销授权,可随时在本页操作;已同步给商家的信息,我们将向商家发送停止营销通知。
-                    </p>
-                    {revokeError && <p style={{ margin: "0 0 6px", color: "#b91c1c", fontSize: 13 }}>{revokeError}</p>}
-                    <button
-                      onClick={revokeLead}
-                      disabled={revoking}
-                      style={{ padding: "8px 14px", borderRadius: 6, border: "1px solid #d1d5db", background: "#fff", cursor: "pointer" }}
-                    >
-                      {revoking ? "撤销中…" : "撤销我的授权"}
-                    </button>
-                  </>
-                )}
-              </div>
-            ) : state === "available" && leadForm?.enabled ? (
-              // 固定轻表单:最小字段 + 告知 + 营销独立勾选
-              <div style={{ marginTop: 20, textAlign: "left" }}>
-                <label style={labelStyle}>
-                  姓名
-                  <input style={inputStyle} value={name} onChange={(e) => setName(e.target.value)} placeholder="怎么称呼你" />
-                </label>
-                <label style={labelStyle}>
-                  手机号
-                  <input style={inputStyle} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="用于商家联系你" inputMode="numeric" />
-                </label>
-                <label style={labelStyle}>
-                  微信号(选填)
-                  <input style={inputStyle} value={wechat} onChange={(e) => setWechat(e.target.value)} placeholder="可选" />
-                </label>
-                <p style={{ color: "#6b7280", fontSize: 13, margin: "10px 0" }}>{leadForm.notice?.text}</p>
-                <label style={{ display: "block", fontSize: 14, marginBottom: 8 }}>
-                  <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} /> 我已阅读并同意上述内容
-                </label>
-                {leadForm.marketing_optin_enabled && (
-                  <label style={{ display: "block", fontSize: 14, marginBottom: 12 }}>
-                    <input type="checkbox" checked={marketing} onChange={(e) => setMarketing(e.target.checked)} />{" "}
-                    同意商家后续向我发送营销信息(可单独撤销,不影响本次服务)
-                  </label>
-                )}
-                {submitError && <p style={{ color: "#b91c1c", fontSize: 13 }}>{submitError}</p>}
-                <button
-                  onClick={submitLead}
-                  disabled={submitting}
-                  style={{ width: "100%", padding: "10px 0", borderRadius: 8, border: "none", background: "#2563eb", color: "#fff", fontSize: 16, cursor: "pointer" }}
-                >
-                  {submitting ? "提交中…" : "提交"}
-                </button>
-              </div>
-            ) : null}
+            <p style={{ margin: "0 0 8px" }}>{outcome}</p>
+            <p style={noteStyle}>留资编号 {submitted.submission_ref}。可以在本页撤销。</p>
+            {revokeError && <p style={{ margin: "0 0 6px", color: "#b91c1c", fontSize: 13 }}>{revokeError}</p>}
+            <button type="button" onClick={revokeLead} disabled={revoking} style={quietButton}>
+              {revoking ? "撤销中…" : "撤销我的授权"}
+            </button>
           </>
         )}
+      </section>
+    ) : null,
+  };
+
+  return (
+    <main data-testid="public-activity" style={pageStyle}>
+      <div style={cardStyle}>
+        {state !== "available" && (
+          <div data-testid="degraded-state">
+            <h1 style={titleStyle}>{headline}</h1>
+            {action && <p style={noteStyle}>{action}</p>}
+            {state === "network_error" && (
+              <button type="button" onClick={retry} style={quietButton}>
+                重试
+              </button>
+            )}
+            {inSiteTarget && (
+              <p style={{ marginTop: 12 }}>
+                <a href={inSiteTarget}>返回</a>
+              </p>
+            )}
+          </div>
+        )}
+        {state === "available" && publicSectionOrder().map((section) => sectionNodes[section])}
         {view?.brand_shell?.display_name && (
-          <footer style={{ marginTop: 28, paddingTop: 16, borderTop: "1px solid #e5e7eb", color: "#6b7280", fontSize: 12 }}>
+          <footer style={footerStyle}>
             技术服务 {view.brand_shell.display_name}
             {view.brand_shell.support_name ? ` · ${view.brand_shell.support_name}` : ""}
             {view.brand_shell.support_contact ? ` · ${view.brand_shell.support_contact}` : ""}
@@ -314,22 +342,66 @@ function PublicCampaignInner() {
   );
 }
 
+function actionLabel(kind: string): string {
+  if (kind === "wecom") return "添加企微";
+  if (kind === "follow") return "关注";
+  if (kind === "navigate") return "导航";
+  if (kind === "review") return "点评";
+  return kind;
+}
+
+function fieldLabels(fields: string[]): string {
+  return fields
+    .map((field) => (field === "name" ? "姓名" : field === "phone" ? "手机号" : field))
+    .join("、");
+}
+
+function errorMessage(data: unknown): string | null {
+  if (data && typeof data === "object" && "message" in (data as Record<string, unknown>)) {
+    const message = (data as Record<string, unknown>).message;
+    if (typeof message === "string") return message;
+  }
+  return null;
+}
+
+const pageStyle = { maxWidth: 480, margin: "0 auto", padding: "16px 16px 40px" } as const;
+const cardStyle = { background: "#fff", borderRadius: 12, padding: 20, border: "1px solid #e5e7eb" } as const;
+const eyebrow = { margin: "0 0 4px", color: "#6b7280", fontSize: 13 } as const;
+const storeLine = { margin: "0 0 8px", fontSize: 15, fontWeight: 600 } as const;
+const titleStyle = { margin: "0 0 8px", fontSize: 28, lineHeight: 1.25 } as const;
+const valueStyle = { fontSize: 18, lineHeight: 1.5, margin: "12px 0 8px" } as const;
+const noteStyle = { color: "#6b7280", fontSize: 14, lineHeight: 1.5, margin: "8px 0" } as const;
+const warnStyle = { color: "#b45309", fontSize: 14, background: "#fef3c7", borderRadius: 8, padding: "8px 12px", marginTop: 10 } as const;
+const sectionTitle = { fontSize: 18, margin: "20px 0 8px" } as const;
 const labelStyle = { display: "block", fontSize: 14, marginBottom: 10 } as const;
+const checkStyle = { display: "flex", gap: 8, alignItems: "flex-start", fontSize: 14, margin: "10px 0" } as const;
 const inputStyle = {
   display: "block",
   width: "100%",
   marginTop: 4,
-  padding: "8px 10px",
-  borderRadius: 6,
+  padding: "10px 12px",
+  borderRadius: 8,
   border: "1px solid #d1d5db",
-  fontSize: 15,
+  fontSize: 16,
   boxSizing: "border-box",
 } as const;
-
-function errorMessage(data: unknown): string | null {
-  if (data && typeof data === "object" && "message" in (data as Record<string, unknown>)) {
-    const m = (data as Record<string, unknown>).message;
-    if (typeof m === "string") return m;
-  }
-  return null;
-}
+const primaryButton = {
+  width: "100%",
+  marginTop: 8,
+  padding: "12px 0",
+  borderRadius: 8,
+  border: "none",
+  background: "#111827",
+  color: "#fff",
+  fontSize: 16,
+  cursor: "pointer",
+} as const;
+const quietButton = {
+  padding: "8px 14px",
+  borderRadius: 8,
+  border: "1px solid #d1d5db",
+  background: "#fff",
+  cursor: "pointer",
+} as const;
+const outcomeBox = { marginTop: 16, textAlign: "left" as const, background: "#f9fafb", borderRadius: 8, padding: 16 };
+const footerStyle = { marginTop: 28, paddingTop: 16, borderTop: "1px solid #e5e7eb", color: "#6b7280", fontSize: 12 } as const;

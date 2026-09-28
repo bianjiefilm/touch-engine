@@ -80,11 +80,19 @@ func (s *Server) handlePublicLeadForm(w http.ResponseWriter, r *http.Request) {
 	if form.NoticeVersion != notice.Version {
 		notice.Version = form.NoticeVersion // form pins the version it was configured with
 	}
+	merchant := ""
+	if t, err := s.St.GetTenant(res.Campaign.TenantID); err == nil {
+		merchant = t.Name
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"enabled":                 true,
 		"fields":                  []string{"name", "phone", "wechat(optional)"},
+		"required_fields":         []string{"name", "phone"},
+		"purpose":                 "本次活动的服务与咨询。不留下联系方式也可以继续看活动。",
+		"recipient":               map[string]any{"name": merchant},
 		"notice":                  notice,
 		"marketing_optin_enabled": marketing,
+		"marketing_blocks_browse": false,
 	})
 }
 
@@ -244,19 +252,71 @@ func (s *Server) handlePublicLeadSubmit(w http.ResponseWriter, r *http.Request) 
 			`{"notice":"`+form.NoticeVersion+`","marketing":`+boolJSON(in.MarketingOptin)+`}`, "consumer")
 	}
 	// 幂等:同键(活动+手机号+单位时间)返回原 submission_ref;状态语义一致。
-	body := map[string]any{
-		"submission_ref": lead.SubmissionRef,
-		"state":          lead.SyncState,
-		"duplicate":      dup,
-		"notice_version": form.NoticeVersion,
-		"revoke":         "POST /api/v1/public/links/" + res.Link.Code + "/lead-revocations",
-	}
-	if s.Cfg.FeatureBrand {
-		if t, err := s.St.GetTenant(res.Campaign.TenantID); err == nil {
-			body["submitted_to"] = map[string]any{"kind": "merchant_tenant", "name": t.Name}
-		}
+	// 本地接受、CRM 接收、负责人跟进是三件不同的事。这里只报告本地事实。
+	body := publicLeadProgress(lead)
+	body["duplicate"] = dup
+	body["notice_version"] = form.NoticeVersion
+	body["revoke"] = "POST /api/v1/public/links/" + res.Link.Code + "/lead-revocations"
+	if t, err := s.St.GetTenant(res.Campaign.TenantID); err == nil {
+		body["submitted_to"] = map[string]any{"kind": "merchant_tenant", "name": t.Name}
 	}
 	writeJSON(w, mapStatus(dup), body)
+}
+
+// POST /api/v1/public/links/{code}/lead-status
+// Verified read of the real sync projection. Phone mismatch is a uniform 404.
+func (s *Server) handlePublicLeadStatus(w http.ResponseWriter, r *http.Request) {
+	if !s.leadsGate(w) {
+		return
+	}
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", "POST")
+		fail(w, http.StatusMethodNotAllowed, "method_not_allowed", "lead status is a verified read")
+		return
+	}
+	res, ok := s.resolvePublicCampaign(w, r)
+	if !ok {
+		return
+	}
+	if s.blockPublicWrite(w, r, res) {
+		return
+	}
+	var in struct {
+		SubmissionRef string `json:"submission_ref"`
+		Phone         string `json:"phone"`
+	}
+	dec := json.NewDecoder(ioLimit(r))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&in); err != nil {
+		fail(w, http.StatusBadRequest, "bad_request", "invalid body")
+		return
+	}
+	phone, err := leads.NormalizePhone(in.Phone)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, revocationNotFound())
+		return
+	}
+	lead, err := s.St.GetLeadSubmissionByRef(strings.TrimSpace(in.SubmissionRef))
+	if err != nil || lead.CampaignID != res.Campaign.ID || lead.Phone != phone {
+		writeJSON(w, http.StatusNotFound, revocationNotFound())
+		return
+	}
+	writeJSON(w, http.StatusOK, publicLeadProgress(lead))
+}
+
+func publicLeadProgress(lead store.LeadSubmission) map[string]any {
+	state := lead.SyncState
+	if lead.SyncState == leads.StateRejected && strings.Contains(lead.SyncError, "subscription_disabled") {
+		state = "crm_paused"
+	}
+	return map[string]any{
+		"submission_ref":           lead.SubmissionRef,
+		"state":                    state,
+		"crm_received":             lead.SyncState == leads.StateCRMReceived,
+		"sales_received":           false,
+		"owner_followed_up":        false,
+		"creates_platform_account": false,
+	}
 }
 
 // POST /api/v1/public/links/{code}/lead-revocations
@@ -336,12 +396,18 @@ func (s *Server) handlePublicViewEvent(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Channel string `json:"channel"`
 	}
-	// body optional; unknown fields refused for symmetry
+	// body optional; unknown fields (tenant, principal, ...) are refused and
+	// do not count as a view. An explicit qr/nfc tag is only a stat bucket.
 	dec := json.NewDecoder(ioLimit(r))
 	dec.DisallowUnknownFields()
-	_ = dec.Decode(&in) // empty body is fine (EOF) — anonymous beacon
+	if err := dec.Decode(&in); err != nil && !errors.Is(err, io.EOF) {
+		fail(w, http.StatusBadRequest, "bad_request", "invalid or disallowed field in body")
+		return
+	}
 	channel := in.Channel
-	if channel != "wecom" && channel != "web" {
+	switch channel {
+	case "web", "wecom", "qr", "nfc":
+	default:
 		channel = "web"
 	}
 	day := time.Now().UTC().Format("2006-01-02")

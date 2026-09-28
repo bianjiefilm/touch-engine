@@ -44,6 +44,25 @@ type publicBrandShell struct {
 // storeNoticeUnavailable is the only value store_notice may carry.
 const storeNoticeUnavailable = "store_unavailable"
 
+// attachPublicNames adds the store the guest is visiting. Names only:
+// tenant id, store id, address, and agency fields stay off this payload.
+func (s *Server) attachPublicNames(view *publicLinkView, res store.ResolvedLink) {
+	tenantID := res.Link.TenantID
+	if tenantID == "" {
+		tenantID = res.Campaign.TenantID
+	}
+	if tenantID != "" {
+		if t, err := s.St.GetTenant(tenantID); err == nil {
+			view.MerchantName = t.Name
+		}
+	}
+	if res.Campaign.StoreID != "" && tenantID != "" {
+		if st, err := s.St.GetStore(res.Campaign.StoreID, tenantID); err == nil {
+			view.StoreName = st.Name
+		}
+	}
+}
+
 func (s *Server) handlePublicLink(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", "GET")
@@ -64,6 +83,7 @@ func (s *Server) handlePublicLink(w http.ResponseWriter, r *http.Request) {
 		view.PublicContent = res.Campaign.PublicContent
 		view.StartsAt = res.Campaign.StartsAt
 		view.EndsAt = res.Campaign.EndsAt
+		s.attachPublicNames(&view, res)
 		if res.StoreUnavailable {
 			view.StoreNotice = storeNoticeUnavailable
 		}

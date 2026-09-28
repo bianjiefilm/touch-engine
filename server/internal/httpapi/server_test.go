@@ -469,7 +469,7 @@ func TestPublicRouteFiveStates(t *testing.T) {
 	mustEqual(t, status, 200)
 	for key := range valid {
 		switch key {
-		case "state", "title", "public_content", "starts_at", "ends_at":
+		case "state", "title", "public_content", "starts_at", "ends_at", "merchant_name", "store_name", "store_notice":
 		default:
 			t.Fatalf("public payload has non-whitelist key %q: %v", key, valid)
 		}
