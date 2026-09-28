@@ -14,6 +14,7 @@ func TestOpenCreatesSchema(t *testing.T) {
 	defer d.Close()
 
 	want := []string{
+		"activity_benefit_facts",
 		"agency_relations",
 		"agency_subaccount_trail",
 		"campaign_assets",

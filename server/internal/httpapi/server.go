@@ -218,9 +218,14 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/admin/members", s.requireSession(s.handleMemberCreate))
 	mux.Handle("PATCH /api/v1/admin/members/{id}", s.requireSession(s.handleMemberPatch))
 
-	// public guest surface (公共活动页): GET-only, no session, whitelist fields.
-	// Any other method on the public path is answered 405 before anything else.
+	// public guest surface (公共活动页): no session. Reads stay on the whitelist.
+	// A benefit claim records an activity fact only. It does not create a platform
+	// user, show an enterprise balance, or debit a wallet.
 	mux.Handle("GET /api/v1/public/links/{code}", http.HandlerFunc(s.handlePublicLink))
+	mux.Handle("POST /api/v1/public/links/{code}/benefit-claims", http.HandlerFunc(s.handlePublicBenefitClaim))
+	mux.Handle("GET /api/v1/account-separation", s.requireSession(s.handleAccountSeparation))
+	mux.Handle("POST /api/v1/account-separation/charges", s.requireSession(s.handleAccountCharge))
+	mux.Handle("POST /api/v1/account-separation/recharge", s.requireSession(s.handleAccountRecharge))
 
 	// public lead-capture surface (HUI-1747): the ONLY guest-write surface.
 	// Gated by FEATURE_LEADS_CAPTURE (off -> uniform 404, surface invisible).

@@ -1,5 +1,7 @@
 package workbench
 
+import "github.com/bianjiefilm/touch-engine/server/internal/activityspend"
+
 type Facts struct {
 	Campaigns              []CampaignFact
 	Leads                  []LeadCount
@@ -18,6 +20,14 @@ type Facts struct {
 	BillingKnown           bool
 	BillingAvailability    string
 	Seat                   Seat
+	Benefits               []BenefitFact
+	SubscriptionStatus     string
+}
+
+// BenefitFact is an activity-domain marketing fact. It is not a wallet line.
+type BenefitFact struct {
+	ID, CampaignID, Kind string
+	FaceMinor            int64
 }
 
 type CampaignFact struct {
@@ -60,13 +70,14 @@ type Seat struct {
 }
 
 type View struct {
-	WorkingFor string          `json:"working_for,omitempty"`
-	Seat       Seat            `json:"seat"`
-	MyTasks    []Task          `json:"my_tasks"`
-	Content    ContentSection  `json:"content"`
-	Activities ActivitySection `json:"activities"`
-	Customers  CustomerSection `json:"customers"`
-	Billing    BillingView     `json:"billing"`
+	WorkingFor        string                       `json:"working_for,omitempty"`
+	Seat              Seat                         `json:"seat"`
+	MyTasks           []Task                       `json:"my_tasks"`
+	Content           ContentSection               `json:"content"`
+	Activities        ActivitySection              `json:"activities"`
+	Customers         CustomerSection              `json:"customers"`
+	Billing           BillingView                  `json:"billing"`
+	AccountSeparation activityspend.SeparationView `json:"account_separation"`
 }
 
 type Task struct {

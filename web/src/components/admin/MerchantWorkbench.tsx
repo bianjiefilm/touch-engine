@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { AccountSeparation } from "@/components/admin/AccountSeparation";
+import type { SeparationView } from "@/lib/account-separation";
 import type { EcoNavModel } from "@/lib/eco-nav/model";
 import { planTaskHandoff } from "@/lib/eco-nav/touch-shell";
 import {
@@ -55,6 +57,7 @@ interface WorkbenchPayload {
     reason?: string;
     cards?: CustomerCard[];
   };
+  account_separation?: SeparationView;
 }
 
 interface ActivityCard {
@@ -197,6 +200,7 @@ export function MerchantWorkbench({
           费用 {billing.label}
         </p>
       </div>
+      {payload.account_separation ? <AccountSeparation view={payload.account_separation} /> : null}
       <div style={{ display: "grid", gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, gap: 12 }}>
         {sections.includes("my_tasks") ? (
           <article style={cardStyle} data-testid="section-my-tasks">
