@@ -195,6 +195,13 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/campaigns/{id}/links", s.requireSession(s.handleLinkCreate))
 	mux.Handle("POST /api/v1/campaigns/{id}/links/{linkId}/enabled", s.requireSession(s.handleLinkEnabled))
 
+	// HUI-1668 copy drafts stay on the merchant surface. There is no public
+	// route: a guest tap cannot start generation or billing. Without a model
+	// authorization the handler keeps the draft structure and usable=false.
+	mux.Handle("POST /api/v1/campaigns/{id}/copy-drafts", s.requireSession(s.handleCopyDraftCreate))
+	mux.Handle("GET /api/v1/campaigns/{id}/copy-drafts/{draftId}", s.requireSession(s.handleCopyDraftGet))
+	mux.Handle("POST /api/v1/campaigns/{id}/copy-drafts/{draftId}/versions", s.requireSession(s.handleCopyVersionAccept))
+
 	// QR fallback entry (HUI-1664 FEAT-0165): owner-only export of the
 	// canonical short-code URL as a server-rendered PNG (or json payload).
 	mux.Handle("GET /api/v1/campaigns/{id}/links/{linkId}/qrcode", s.requireSession(s.handleLinkQRCode))
