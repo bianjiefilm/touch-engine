@@ -73,6 +73,10 @@ type Config struct {
 	// dedicated, fail-closed configuration — never derived from request input.
 	LeadsTargetApp   string // LEADS_TARGET_APP_ID (e.g. the CRM/acquisition app id)
 	LeadsPhonePepper string // LEADS_PHONE_PEPPER (server-side HMAC pepper for phone fingerprints)
+	// LeadsFollowUpBaseURL is the leads-engine origin for the restricted
+	// follow-up summary. Empty means the workbench keeps the count unknown.
+	LeadsFollowUpBaseURL string
+	LeadsFollowUpToken   string
 
 	// PublicBaseURL is the H5 origin guests reach (QR payload base, HUI-1664),
 	// e.g. https://h5.example.com. Used ONLY to build the canonical short-code
@@ -128,6 +132,8 @@ func Load(get func(string) string) Config {
 		TaskToken:             get("PLATFORM_TASK_TOKEN"),
 		LeadsTargetApp:        get("LEADS_TARGET_APP_ID"),
 		LeadsPhonePepper:      get("LEADS_PHONE_PEPPER"),
+		LeadsFollowUpBaseURL:  strings.TrimRight(strings.TrimSpace(get("LEADS_FOLLOW_UP_BASE_URL")), "/"),
+		LeadsFollowUpToken:    get("LEADS_FOLLOW_UP_TOKEN"),
 		PublicBaseURL:         strings.TrimSpace(get("PUBLIC_BASE_URL")),
 		FeatureUpload:         isTruthy(get(EnvFeatureUpload)),
 		FeatureNotify:         isTruthy(get(EnvFeatureNotify)),

@@ -106,6 +106,12 @@ export function workbenchBilling(model: EcoNavModel | null): {
   return { label, per_tool_balances: [], promotions_folded: false };
 }
 
+export function leadLink(origin: string, id: string): string | null {
+  const base = origin.trim().replace(/\/$/, "");
+  if (!base || !/^lead_[0-9a-f]{32}$/.test(id)) return null;
+  return `${base}/leads/${id}`;
+}
+
 export function enterLeadsPlan(input: { app: VisibleApp | null; campaignId: string }): {
   available: boolean;
   locks_campaign: boolean;

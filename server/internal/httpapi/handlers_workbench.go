@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/bianjiefilm/touch-engine/server/internal/authz"
@@ -16,7 +17,7 @@ func (s *Server) handleWorkbench(w http.ResponseWriter, r *http.Request) {
 	if !s.allowScopedList(c, w) {
 		return
 	}
-	facts, err := s.workbenchFacts(c)
+	facts, err := s.workbenchFacts(r.Context(), c)
 	if err != nil {
 		fail(w, http.StatusInternalServerError, "internal", "workbench failed")
 		return
@@ -41,7 +42,7 @@ func (s *Server) workbenchSeat(c *caller) workbench.Seat {
 	return seat
 }
 
-func (s *Server) workbenchFacts(c *caller) (workbench.Facts, error) {
+func (s *Server) workbenchFacts(ctx context.Context, c *caller) (workbench.Facts, error) {
 	var campaigns []store.Campaign
 	var err error
 	if callerIsStoreManager(c) {
@@ -120,6 +121,13 @@ func (s *Server) workbenchFacts(c *caller) (workbench.Facts, error) {
 			facts.Leads = append(facts.Leads, workbench.LeadCount{
 				CampaignID: row.CampaignID, SyncState: row.SyncState, Count: row.Count,
 			})
+		}
+		ids := make([]string, 0, len(facts.Campaigns))
+		for _, campaign := range facts.Campaigns {
+			ids = append(ids, campaign.ID)
+		}
+		if summaries, ok := s.followUpSummaries(ctx, c.Member.TenantID, ids); ok {
+			facts.FollowUps = summaries
 		}
 	}
 	return facts, nil

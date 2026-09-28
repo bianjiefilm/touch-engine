@@ -9,6 +9,7 @@ import {
   visibleSections,
   workbenchBilling,
   workbenchColumns,
+  leadLink,
 } from "@/lib/workbench/compose";
 import type { EcoNavModel } from "@/lib/eco-nav/model";
 
@@ -237,5 +238,13 @@ describe("工作台信息架构", () => {
   it("窄屏只排一列工作卡", () => {
     expect(workbenchColumns(390)).toBe(1);
     expect(workbenchColumns(960)).toBe(2);
+  });
+
+  it("获客线索链接只接受获客签发的线索 id", () => {
+    const id = "lead_" + "a".repeat(32);
+    expect(leadLink("http://127.0.0.1:18384/", id)).toBe(`http://127.0.0.1:18384/leads/${id}`);
+    expect(leadLink("", id)).toBeNull();
+    expect(leadLink("http://127.0.0.1:18384", "sub_secret")).toBeNull();
+    expect(leadLink("http://127.0.0.1:18384", "lead_13800138000")).toBeNull();
   });
 });
