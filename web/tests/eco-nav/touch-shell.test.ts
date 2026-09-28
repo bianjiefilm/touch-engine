@@ -156,7 +156,7 @@ describe("公共页不挂生态顶栏", () => {
   it("首页、根布局和公共活动页不引用 EcoTopNav", () => {
     for (const file of publicFiles) {
       const source = readFileSync(path.resolve(process.cwd(), file), "utf8");
-      expect(source, file).not.toMatch(/EcoTopNav|AdminShell/);
+      expect(source, file).not.toMatch(/EcoTopNav|AdminShell|MerchantWorkbench|\/api\/workbench/);
     }
   });
 

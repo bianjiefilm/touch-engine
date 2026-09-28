@@ -283,6 +283,33 @@ func (s *Store) ListLeadSubmissions(tenantID, campaignID string) ([]LeadSubmissi
 	return out, rows.Err()
 }
 
+// LeadStateCount is a tenant summary bucket. It deliberately has no contact
+// columns: the workbench must not load names or phones to draw a card.
+type LeadStateCount struct {
+	CampaignID string
+	SyncState  string
+	Count      int
+}
+
+func (s *Store) CountLeadStates(tenantID string) ([]LeadStateCount, error) {
+	rows, err := s.DB.Query(
+		`SELECT campaign_id, sync_state, COUNT(1) FROM lead_submissions WHERE tenant_id=? GROUP BY campaign_id, sync_state`,
+		tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]LeadStateCount, 0)
+	for rows.Next() {
+		var row LeadStateCount
+		if err := rows.Scan(&row.CampaignID, &row.SyncState, &row.Count); err != nil {
+			return nil, err
+		}
+		out = append(out, row)
+	}
+	return out, rows.Err()
+}
+
 // transitionLead is the compare-and-set core of the sync state machine.
 // no-op when the row already sits in the target state (idempotent), conflict
 // when it sits anywhere else.

@@ -230,6 +230,10 @@ export interface EcoNavModel {
   apps: VisibleApp[];
   role_label: string;
   source_role_label: string;
+  seat_source: "membership" | "delegation" | null;
+  source_seat_source: "membership" | "delegation" | null;
+  delegations: Delegation[];
+  source_delegations: Delegation[];
   payer_source: PayerSource | null;
   source_payer_source: PayerSource | null;
   billing: Billing | null;
@@ -693,6 +697,10 @@ export function toViewModel(document: EcoNavDocument, options: ViewModelOptions)
       apps: [],
       role_label: "",
       source_role_label: "",
+      seat_source: null,
+      source_seat_source: null,
+      delegations: [],
+      source_delegations: [],
       payer_source: null,
       source_payer_source: null,
       billing: null,
@@ -709,6 +717,8 @@ export function toViewModel(document: EcoNavDocument, options: ViewModelOptions)
   const follows = current !== null && billing !== null;
   const payer = follows ? billing.payer_source : null;
   const roleLabel = document.role?.label ?? "";
+  const seatSource = document.work_context.current_scope?.source ?? null;
+  const delegations = document.role?.delegations ?? [];
   return {
     schema_version: ECO_NAV_SCHEMA_VERSION,
     provenance: options.provenance,
@@ -727,6 +737,10 @@ export function toViewModel(document: EcoNavDocument, options: ViewModelOptions)
     apps: document.visible_apps,
     role_label: roleLabel,
     source_role_label: roleLabel,
+    seat_source: seatSource,
+    source_seat_source: seatSource,
+    delegations,
+    source_delegations: delegations,
     payer_source: payer,
     source_payer_source: payer,
     billing,
@@ -756,6 +770,8 @@ export function selectTenant(model: EcoNavModel, tenantId: string): EcoNavModel 
     active_tenant_id: next.tenant_id,
     payer_source: back ? model.source_payer_source : null,
     role_label: back ? model.source_role_label : "",
+    seat_source: back ? model.source_seat_source : null,
+    delegations: back ? model.source_delegations : [],
     billing_follows_document: back ? model.source_billing_follows : false,
     return_context: null,
   };

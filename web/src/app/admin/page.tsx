@@ -5,6 +5,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AdminShell } from "@/components/admin/AdminShell";
+import { MerchantWorkbench } from "@/components/admin/MerchantWorkbench";
 import { TaskHandoffActions } from "@/components/admin/TaskHandoffActions";
 import { acceptTenantPayload } from "@/lib/eco-nav/touch-shell";
 
@@ -591,6 +592,21 @@ export default function AdminPage() {
       </header>
       {error && <p style={{ color: "#b91c1c" }}>{error}</p>}
 
+      <MerchantWorkbench
+        tenantId={tenantId}
+        campaigns={campaigns.map((item) => ({ id: item.id, title: item.title, public_content: item.public_content }))}
+        onSaveCopy={async (id, title, copy) => {
+          const res = await api("PATCH", `campaigns/${id}`, { title, public_content: copy });
+          if (!res.ok) {
+            setError(whoStatusText(res.status, res.data));
+            return;
+          }
+          setError("");
+          await refresh();
+        }}
+      />
+
+      <h2 style={{ marginTop: 28, color: "#6b7280", fontSize: 16 }}>门店、标签和设置</h2>
       <section style={sectionStyle}>
         <h2>门店</h2>
         {storeError && <p style={{ color: isStoreManager ? undefined : "#b45309" }}>{storeError}</p>}
@@ -646,7 +662,7 @@ export default function AdminPage() {
           </thead>
           <tbody>
             {campaigns.map((c) => (
-              <tr key={c.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+              <tr key={c.id} id={`campaign-${c.id}`} style={{ borderBottom: "1px solid #f3f4f6" }}>
                 <td>{c.title}</td>
                 <td>{c.status}</td>
                 <td>{c.starts_at || "∞"} ~ {c.ends_at || "∞"}</td>
@@ -701,7 +717,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        <form onSubmit={createCampaign} style={{ ...formStyle, marginTop: 12 }}>
+        <form id="create-campaign" onSubmit={createCampaign} style={{ ...formStyle, marginTop: 12 }}>
           <input placeholder="活动标题" value={newCampaign.title} onChange={(e) => setNewCampaign({ ...newCampaign, title: e.target.value })} style={inputStyle} required />
           <input placeholder="公开内容(游客可见)" value={newCampaign.public_content} onChange={(e) => setNewCampaign({ ...newCampaign, public_content: e.target.value })} style={inputStyle} />
           <input placeholder="开始时间 RFC3339(可空)" value={newCampaign.starts_at} onChange={(e) => setNewCampaign({ ...newCampaign, starts_at: e.target.value })} style={inputStyle} />

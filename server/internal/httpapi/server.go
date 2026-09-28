@@ -171,6 +171,7 @@ func (s *Server) Handler() http.Handler {
 
 	// authenticated admin surface (商家后台)
 	mux.Handle("GET /api/v1/whoami", s.requireSession(s.handleWhoami))
+	mux.Handle("GET /api/v1/workbench", s.requireSession(s.handleWorkbench))
 
 	mux.Handle("GET /api/v1/stores", s.requireSession(s.handleStoreList))
 	mux.Handle("POST /api/v1/stores", s.requireSession(s.handleStoreCreate))
