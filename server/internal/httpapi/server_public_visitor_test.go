@@ -77,7 +77,7 @@ func TestSubmitSaysAcceptedNotSalesReceived(t *testing.T) {
 	if status != 201 {
 		t.Fatalf("submit = %d %v", status, out)
 	}
-	if out["state"] != "accepted" || out["duplicate"] != false || out["sales_received"] != false || out["crm_received"] != false || out["owner_followed_up"] != false || out["creates_platform_account"] != false {
+	if out["state"] != "accepted" || out["duplicate"] != false || out["sales_received"] != "unknown" || out["crm_received"] != false || out["owner_followed_up"] != "unknown" || out["creates_platform_account"] != false {
 		t.Fatalf("submit honesty = %v", out)
 	}
 	submitted, _ := out["submitted_to"].(map[string]any)
@@ -93,7 +93,7 @@ func TestSubmitSaysAcceptedNotSalesReceived(t *testing.T) {
 	}
 
 	againStatus, again := f.submitLead(t, f.code, body)
-	if againStatus != 200 || again["duplicate"] != true || again["submission_ref"] != out["submission_ref"] || again["sales_received"] != false {
+	if againStatus != 200 || again["duplicate"] != true || again["submission_ref"] != out["submission_ref"] || again["sales_received"] != "unknown" {
 		t.Fatalf("duplicate = %d %v", againStatus, again)
 	}
 	rows, _ = f.s.St.ListLeadSubmissions(f.tenA, f.campaignID)
@@ -137,13 +137,103 @@ func TestLeadStatusProjectsCRMPausedWithoutClaimingSales(t *testing.T) {
 	}
 	status, _, body := f.guest(t, "POST", "/api/v1/public/links/"+f.code+"/lead-status",
 		`{"submission_ref":"`+ref+`","phone":"13800138000"}`)
-	if status != 200 || body["state"] != "crm_paused" || body["sales_received"] != false || body["crm_received"] != false || body["owner_followed_up"] != false {
+	if status != 200 || body["state"] != "crm_paused" || body["sales_received"] != "unknown" || body["crm_received"] != false || body["owner_followed_up"] != "unknown" {
 		t.Fatalf("crm paused status = %d %v", status, body)
 	}
 	status, _, hidden := f.guest(t, "POST", "/api/v1/public/links/"+f.code+"/lead-status",
 		`{"submission_ref":"`+ref+`","phone":"13900139000"}`)
 	if status != 404 {
 		t.Fatalf("wrong phone status = %d %v", status, hidden)
+	}
+}
+
+func TestVisitorCloseKeepsUnknownAndOneLead(t *testing.T) {
+	f := newLeadsFixture(t)
+	beforeLeads := countRows(t, f, "lead_submissions")
+	beforeMembers := countRows(t, f, "members")
+	var tenB string
+	if err := f.s.St.DB.QueryRow(`SELECT id FROM tenants WHERE name=?`, "商家B").Scan(&tenB); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tc := range []struct {
+		name   string
+		status string
+		want   string
+	}{
+		{"暂停", "paused", "paused"},
+		{"结束", "ended", "ended"},
+	} {
+		_, _, cmp := f.admin(t, "POST", "/api/v1/campaigns",
+			`{"title":"`+tc.name+`活动","public_content":"不能留资","starts_at":"2026-01-01T00:00:00Z","ends_at":"2030-01-01T00:00:00Z"}`)
+		id := cmp["id"].(string)
+		if status, _, _ := f.admin(t, "POST", "/api/v1/campaigns/"+id+"/status", `{"status":"active"}`); status != 200 {
+			t.Fatalf("%s activate = %d", tc.name, status)
+		}
+		if tc.status == "paused" {
+			if status, _, _ := f.admin(t, "POST", "/api/v1/campaigns/"+id+"/status", `{"status":"paused"}`); status != 200 {
+				t.Fatalf("pause = %d", status)
+			}
+		} else if status, _, _ := f.admin(t, "POST", "/api/v1/campaigns/"+id+"/status", `{"status":"ended"}`); status != 200 {
+			t.Fatalf("end = %d", status)
+		}
+		_, _, link := f.admin(t, "POST", "/api/v1/campaigns/"+id+"/links", ``)
+		code := link["code"].(string)
+		status, _, body := f.guest(t, "POST", "/api/v1/public/links/"+code+"/lead-submissions", validLeadBody)
+		if status == http.StatusCreated || body["state"] != tc.want {
+			t.Fatalf("%s lead = %d %v", tc.name, status, body)
+		}
+	}
+	status, _, missing := f.guest(t, "POST", "/api/v1/public/links/NO_SUCH_CODE/lead-submissions", validLeadBody)
+	if status == http.StatusCreated || missing["state"] != "not_found" {
+		t.Fatalf("missing lead = %d %v", status, missing)
+	}
+	if countRows(t, f, "lead_submissions") != beforeLeads {
+		t.Fatalf("closed campaigns stored a lead")
+	}
+
+	body := `{"name":"李四","phone":"13800138000","consent_version":"v1","consent":true,"marketing_optin":false,"channel":"nfc"}`
+	status, out := f.submitLead(t, f.code, body)
+	if status != http.StatusCreated {
+		t.Fatalf("submit = %d %v", status, out)
+	}
+	if out["sales_received"] != "unknown" || out["owner_followed_up"] != "unknown" || out["crm_received"] != false || out["creates_platform_account"] != false {
+		t.Fatalf("progress = %v", out)
+	}
+	if _, ok := out["order"]; ok {
+		t.Fatalf("visitor submit named an order: %v", out)
+	}
+	if _, ok := out["order_ref"]; ok {
+		t.Fatalf("visitor submit named an order ref: %v", out)
+	}
+	rows, _ := f.s.St.ListLeadSubmissions(f.tenA, f.campaignID)
+	if len(rows) != 1 || rows[0].MarketingOptin {
+		t.Fatalf("stored = %+v", rows)
+	}
+	if countRows(t, f, "leads_outbox") != 1 {
+		t.Fatalf("outbox = %d", countRows(t, f, "leads_outbox"))
+	}
+
+	again := `{"name":"李四","phone":"13800138000","consent_version":"v1","consent":true,"marketing_optin":true,"channel":"nfc","tenant_id":"` + tenB + `"}`
+	forgedStatus, _, forged := f.guest(t, "POST", "/api/v1/public/links/"+f.code+"/lead-submissions", again)
+	if forgedStatus == http.StatusCreated {
+		t.Fatalf("forged tenant created a lead: %v", forged)
+	}
+	replay := `{"name":"李四","phone":"13800138000","consent_version":"v1","consent":true,"marketing_optin":true,"channel":"nfc"}`
+	replayStatus, replayBody := f.submitLead(t, f.code, replay)
+	if replayStatus != http.StatusOK || replayBody["duplicate"] != true || replayBody["submission_ref"] != out["submission_ref"] || replayBody["sales_received"] != "unknown" {
+		t.Fatalf("replay = %d %v", replayStatus, replayBody)
+	}
+	rows, _ = f.s.St.ListLeadSubmissions(f.tenA, f.campaignID)
+	if len(rows) != 1 || rows[0].MarketingOptin {
+		t.Fatalf("replay stored = %+v", rows)
+	}
+	if countRows(t, f, "leads_outbox") != 1 || countRows(t, f, "members") != beforeMembers {
+		t.Fatalf("replay wrote another fact or member")
+	}
+	var other int
+	if err := f.s.St.DB.QueryRow(`SELECT COUNT(1) FROM lead_submissions WHERE tenant_id=?`, tenB).Scan(&other); err != nil || other != 0 {
+		t.Fatalf("other merchant leads = %d %v", other, err)
 	}
 }
 

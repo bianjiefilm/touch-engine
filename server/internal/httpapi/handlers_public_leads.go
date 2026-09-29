@@ -309,12 +309,13 @@ func publicLeadProgress(lead store.LeadSubmission) map[string]any {
 	if lead.SyncState == leads.StateRejected && strings.Contains(lead.SyncError, "subscription_disabled") {
 		state = "crm_paused"
 	}
+	// 销售是否收到、负责人是否跟进，这个公共面观察不到。写成 false 会变成否定结论。
 	return map[string]any{
 		"submission_ref":           lead.SubmissionRef,
 		"state":                    state,
 		"crm_received":             lead.SyncState == leads.StateCRMReceived,
-		"sales_received":           false,
-		"owner_followed_up":        false,
+		"sales_received":           "unknown",
+		"owner_followed_up":        "unknown",
 		"creates_platform_account": false,
 	}
 }

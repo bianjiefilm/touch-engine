@@ -57,13 +57,18 @@ export function leadOutcomeCopy(input: {
   state: string;
   duplicate?: boolean;
   crmReceived?: boolean;
+  salesReceived?: boolean | "unknown";
+  ownerFollowedUp?: boolean | "unknown";
 }): string {
+  // 调用方即使传来 true，这里也不把它写成销售已收到或负责人已跟进。
+  void input.salesReceived;
+  void input.ownerFollowedUp;
   const merchant = input.merchant.trim() || "这家店";
   if (input.duplicate || input.state === "duplicate") {
     return `你已经把联系方式交给${merchant}。这次没有再记一条。`;
   }
   if (input.state === "crm_received" || input.crmReceived) {
-    return `已提交给${merchant}，对方客户系统已接收。这还不是负责人跟进。`;
+    return `已提交给${merchant}，对方客户系统已接收。负责人是否已经跟进，这里还不知道。`;
   }
   if (input.state === "crm_paused") {
     return `${merchant}的客户系统暂停接收。记录还在本页，对方还没确认收到。`;

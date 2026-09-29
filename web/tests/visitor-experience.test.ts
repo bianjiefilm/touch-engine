@@ -113,10 +113,18 @@ describe("提交文案不把本地接受说成销售已收到", () => {
   });
 
   it("CRM 已接收仍然不是负责人已跟进", () => {
-    const text = leadOutcomeCopy({ merchant, state: "crm_received", crmReceived: true });
+    const text = leadOutcomeCopy({
+      merchant,
+      state: "crm_received",
+      crmReceived: true,
+      salesReceived: true,
+      ownerFollowedUp: true,
+    });
     expect(text).toContain("客户系统已接收");
+    expect(text).toContain("还不知道");
     expect(text).not.toContain("销售已收到");
     expect(text).not.toContain("负责人已跟进");
+    expect(text).not.toContain("这还不是负责人跟进");
   });
 
   it("CRM 暂停保持暂停，不改口成已收到", () => {
