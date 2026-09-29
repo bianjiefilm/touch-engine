@@ -19,6 +19,7 @@ import {
   leadOutcomeCopy,
   presentGuestActions,
   publicSectionOrder,
+  publicVisitorColumns,
   settleClick,
   type GuestCapability,
   type PublicSection,
@@ -120,6 +121,8 @@ function PublicCampaignInner() {
   const [revokeDone, setRevokeDone] = useState(false);
   const [revokeError, setRevokeError] = useState("");
   const viewSent = useRef(false);
+  const width = usePageWidth();
+  const columns = publicVisitorColumns(width);
 
   useEffect(() => {
     if (!code || entry === "unsupported") return;
@@ -347,6 +350,7 @@ function PublicCampaignInner() {
   const showActivity = state === "available" && Boolean(view?.title);
   const visibleActions = activityJumpActions(presentGuestActions(guestActions));
   const merchantLabel = view?.merchant_name || "这家店";
+  // 不传确认接收数。客户系统未确认时，文案保持待同步。
   const outcome = submitted
     ? leadOutcomeCopy({
         merchant: submitted.submitted_to?.name || disclosure.merchant || merchantLabel,
@@ -496,7 +500,7 @@ function PublicCampaignInner() {
   const visitorNote = publicVisitorCopy({ action: submitted ? "lead" : "browse" });
 
   return (
-    <main data-testid="public-activity" style={pageStyle}>
+    <main data-testid="public-activity" data-columns={columns} data-viewport={width} style={pageStyle}>
       <div style={cardStyle}>
         {state !== "available" && (
           <div data-testid="degraded-state">
@@ -528,6 +532,17 @@ function PublicCampaignInner() {
       </div>
     </main>
   );
+}
+
+function usePageWidth(): number {
+  const [width, setWidth] = useState(390);
+  useEffect(() => {
+    const apply = () => setWidth(window.innerWidth || 390);
+    apply();
+    window.addEventListener("resize", apply);
+    return () => window.removeEventListener("resize", apply);
+  }, []);
+  return width;
 }
 
 function fieldLabels(fields: string[]): string {
