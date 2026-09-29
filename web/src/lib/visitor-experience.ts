@@ -52,6 +52,11 @@ export function leadDisclosureReady(input: {
   );
 }
 
+export function positiveReceiptCount(count: number | undefined): number {
+  if (typeof count !== "number" || !Number.isInteger(count) || count <= 0) return 0;
+  return count;
+}
+
 export function leadOutcomeCopy(input: {
   merchant: string;
   state: string;
@@ -59,11 +64,17 @@ export function leadOutcomeCopy(input: {
   crmReceived?: boolean;
   salesReceived?: boolean | "unknown";
   ownerFollowedUp?: boolean | "unknown";
+  // 公共页不传。只有测试注入大于 0 的确认数才可以写出销售已收到。
+  confirmedReceiptCount?: number;
 }): string {
   // 调用方即使传来 true，这里也不把它写成销售已收到或负责人已跟进。
   void input.salesReceived;
   void input.ownerFollowedUp;
   const merchant = input.merchant.trim() || "这家店";
+  const confirmed = positiveReceiptCount(input.confirmedReceiptCount);
+  if (confirmed > 0) {
+    return `销售已收到 ${confirmed}`;
+  }
   if (input.duplicate || input.state === "duplicate") {
     return `你已经把联系方式交给${merchant}。这次没有再记一条。`;
   }
@@ -73,10 +84,99 @@ export function leadOutcomeCopy(input: {
   if (input.state === "crm_paused") {
     return `${merchant}的客户系统暂停接收。记录还在本页，对方还没确认收到。`;
   }
-  if (input.state === "pending_sync") {
-    return `已提交给${merchant}。正在同步到对方客户系统，对方还没确认收到。`;
-  }
-  return `已提交给${merchant}。对方客户系统还没确认收到。你可以在本页撤销授权。`;
+  return `已提交给${merchant}。待同步。对方客户系统还没确认收到。你可以在本页撤销授权。`;
+}
+
+export function publicVisitorColumns(_width: number): 1 {
+  return 1;
+}
+
+export interface ActivityCounts {
+  exposure: number;
+  click: number;
+  leadSubmit: number;
+  crmReceived: number;
+}
+
+export function separateActivityCounts(input: ActivityCounts): ActivityCounts & { conversion: null } {
+  return {
+    exposure: input.exposure,
+    click: input.click,
+    leadSubmit: input.leadSubmit,
+    crmReceived: input.crmReceived,
+    conversion: null,
+  };
+}
+
+export interface AnonymousJourney {
+  width: number;
+  columns: 1;
+  anonymous: true;
+  channel: "qr" | "nfc" | "web";
+  tenantOverride: null;
+  sections: PublicSection[];
+  understood: string[];
+  consentShown: true;
+  marketingRefused: boolean;
+  browseBlocked: false;
+  submitBlocked: boolean;
+  outcome: string;
+  returnShown: boolean;
+  ecoNav: false;
+  platformAccount: false;
+  order: false;
+}
+
+export function anonymousJourney(input: {
+  width: number;
+  entry: string | null;
+  tenantFromQuery?: string | null;
+  merchant: string;
+  store: string;
+  title: string;
+  value: string;
+  consent: boolean;
+  marketingOptIn: boolean;
+  submitted: boolean;
+  duplicate?: boolean;
+  crmReceived?: boolean;
+  state?: string;
+  confirmedReceiptCount?: number;
+  returnHref?: string;
+}): AnonymousJourney {
+  const source = beaconChannel(input.entry, input.tenantFromQuery ?? null);
+  const blocks = activityBlocks({ marketingOptIn: input.marketingOptIn, consent: input.consent });
+  const state = input.duplicate ? "duplicate" : input.state || (input.crmReceived ? "crm_received" : "accepted");
+  const outcome = input.submitted
+    ? leadOutcomeCopy({
+        merchant: input.merchant,
+        state,
+        duplicate: input.duplicate,
+        crmReceived: input.crmReceived,
+        salesReceived: "unknown",
+        ownerFollowedUp: "unknown",
+        confirmedReceiptCount: input.confirmedReceiptCount,
+      })
+    : "";
+  const returnHref = input.returnHref ?? "";
+  return {
+    width: input.width,
+    columns: publicVisitorColumns(input.width),
+    anonymous: true,
+    channel: source.channel,
+    tenantOverride: null,
+    sections: publicSectionOrder(),
+    understood: [input.merchant, input.store, input.title, input.value].filter((part) => part.trim() !== ""),
+    consentShown: true,
+    marketingRefused: input.marketingOptIn === false,
+    browseBlocked: false,
+    submitBlocked: !input.submitted && blocks.includes("lead"),
+    outcome,
+    returnShown: returnHref.startsWith("/") || returnHref.startsWith("https://"),
+    ecoNav: false,
+    platformAccount: false,
+    order: false,
+  };
 }
 
 export interface GuestCapability {

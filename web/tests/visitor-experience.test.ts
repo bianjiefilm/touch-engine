@@ -1,7 +1,10 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { STATE_ACTION, STATE_TEXT } from "../src/lib/public-state";
 import {
   actionClickRecord,
   activityBlocks,
+  anonymousJourney,
   guestActionLabel,
   guestActionsFromPayload,
   settleClick,
@@ -13,6 +16,8 @@ import {
   participationEffects,
   presentGuestActions,
   publicSectionOrder,
+  publicVisitorColumns,
+  separateActivityCounts,
 } from "../src/lib/visitor-experience";
 
 describe("公共页先讲门店价值，留资靠后", () => {
@@ -103,13 +108,31 @@ describe("留资前必须说清接收方、用途、必要字段和告知版本"
 describe("提交文案不把本地接受说成销售已收到", () => {
   const merchant = "商家A";
 
-  it("刚接受、待同步、重复提交都不说销售已收到或负责人已跟进", () => {
-    for (const state of ["accepted", "pending_sync", "duplicate"]) {
-      const text = leadOutcomeCopy({ merchant, state, duplicate: state === "duplicate" });
-      expect(text).toContain("商家A");
+  it("刚接受和待同步写待同步，不说销售已收到或负责人已跟进", () => {
+    for (const state of ["accepted", "pending_sync"]) {
+      const text = leadOutcomeCopy({ merchant, state });
+      expect(text).toContain("已提交给商家A");
+      expect(text).toContain("待同步");
       expect(text).not.toContain("销售已收到");
       expect(text).not.toContain("负责人已跟进");
     }
+  });
+
+  it("重复提交仍是重复，不说销售已收到", () => {
+    const text = leadOutcomeCopy({ merchant, state: "duplicate", duplicate: true });
+    expect(text).toContain("商家A");
+    expect(text).toContain("没有再记一条");
+    expect(text).not.toContain("销售已收到");
+    expect(text).not.toContain("负责人已跟进");
+  });
+
+  it("只有测试注入的确认接收数大于 0 才写销售已收到，页面默认不传这个数", () => {
+    expect(leadOutcomeCopy({ merchant, state: "accepted", confirmedReceiptCount: 0 })).toContain("待同步");
+    expect(leadOutcomeCopy({ merchant, state: "accepted" })).not.toContain("销售已收到");
+    expect(leadOutcomeCopy({ merchant, state: "accepted", confirmedReceiptCount: 2 })).toBe("销售已收到 2");
+    const source = readFileSync(new URL("../src/app/c/[code]/page.tsx", import.meta.url), "utf8");
+    expect(source).not.toMatch(/confirmedReceiptCount/);
+    expect(source).not.toContain("销售已收到");
   });
 
   it("CRM 已接收仍然不是负责人已跟进", () => {
@@ -232,6 +255,108 @@ describe("只测了链接不能宣称全部机型都能碰", () => {
     expect(nfcCoverageClaim({ testedUrls: true, devices: [] })).toEqual({
       allModels: false,
       devices: [],
+    });
+  });
+});
+
+describe("390 宽的匿名活动路径", () => {
+  const base = {
+    width: 390,
+    entry: "nfc",
+    tenantFromQuery: "tnt_evil",
+    merchant: "湖滨咖啡",
+    store: "湖滨店",
+    title: "到店送一杯",
+    value: "到店可领一杯",
+    consent: false,
+    marketingOptIn: false,
+    submitted: false,
+    returnHref: "/c/back",
+  };
+
+  it("公共页保持一列，不是后台", () => {
+    expect(publicVisitorColumns(390)).toBe(1);
+    expect(publicVisitorColumns(1280)).toBe(1);
+  });
+
+  it("匿名进入后能看懂活动，拒绝营销仍可浏览，同意后提交是待同步，并且可以返回", () => {
+    const entered = anonymousJourney(base);
+    expect(entered).toMatchObject({
+      width: 390,
+      columns: 1,
+      anonymous: true,
+      channel: "nfc",
+      tenantOverride: null,
+      sections: ["store", "value", "actions", "lead", "next"],
+      understood: ["湖滨咖啡", "湖滨店", "到店送一杯", "到店可领一杯"],
+      consentShown: true,
+      marketingRefused: true,
+      browseBlocked: false,
+      submitBlocked: true,
+      outcome: "",
+      returnShown: true,
+      ecoNav: false,
+      platformAccount: false,
+      order: false,
+    });
+
+    const submitted = anonymousJourney({ ...base, entry: "qr", consent: true, submitted: true });
+    expect(submitted.channel).toBe("qr");
+    expect(submitted.submitBlocked).toBe(false);
+    expect(submitted.marketingRefused).toBe(true);
+    expect(submitted.browseBlocked).toBe(false);
+    expect(submitted.outcome).toContain("已提交给湖滨咖啡");
+    expect(submitted.outcome).toContain("待同步");
+    expect(submitted.outcome).not.toContain("销售已收到");
+    expect(submitted.platformAccount).toBe(false);
+    expect(submitted.returnShown).toBe(true);
+
+    const injected = anonymousJourney({ ...base, consent: true, submitted: true, confirmedReceiptCount: 3 });
+    expect(injected.outcome).toBe("销售已收到 3");
+    expect(submitted.outcome).not.toBe(injected.outcome);
+  });
+});
+
+describe("降级状态各自可见", () => {
+  it("弱网、暂停、结束、不存在、重复提交都不写成销售已收到", () => {
+    const duplicate = leadOutcomeCopy({ merchant: "商家A", state: "duplicate", duplicate: true });
+    const visible = [
+      STATE_TEXT.network_error,
+      STATE_ACTION.network_error,
+      STATE_TEXT.paused,
+      STATE_ACTION.paused,
+      STATE_TEXT.ended,
+      STATE_ACTION.ended,
+      STATE_TEXT.not_found,
+      STATE_ACTION.not_found,
+      duplicate,
+    ];
+    expect(new Set(visible).size).toBe(visible.length);
+    expect(STATE_TEXT.network_error).toContain("网络");
+    expect(STATE_ACTION.network_error).toContain("重试");
+    expect(STATE_TEXT.paused).toContain("暂停");
+    expect(STATE_TEXT.ended).toContain("结束");
+    expect(STATE_TEXT.not_found).toContain("不存在");
+    expect(duplicate).toContain("没有再记一条");
+    for (const text of visible) {
+      expect(text).not.toContain("销售已收到");
+    }
+  });
+});
+
+describe("四个计数不合成一个转化", () => {
+  it("曝光、点击、留资提交、CRM 接收保持原数", () => {
+    expect(separateActivityCounts({
+      exposure: 4,
+      click: 3,
+      leadSubmit: 2,
+      crmReceived: 1,
+    })).toEqual({
+      exposure: 4,
+      click: 3,
+      leadSubmit: 2,
+      crmReceived: 1,
+      conversion: null,
     });
   });
 });

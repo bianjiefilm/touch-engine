@@ -237,6 +237,88 @@ func TestVisitorCloseKeepsUnknownAndOneLead(t *testing.T) {
 	}
 }
 
+func TestPublicVisitorR3KeepsSeparateCounts(t *testing.T) {
+	f := newLeadsFixture(t)
+	beforeMembers := countRows(t, f, "members")
+	var tenB string
+	if err := f.s.St.DB.QueryRow(`SELECT id FROM tenants WHERE name=?`, "商家B").Scan(&tenB); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, query := range []string{"", "?entry=nfc", "?entry=qr", "?entry=nfc&tenant_id=" + tenB} {
+		status, _, view := f.guest(t, "GET", "/api/v1/public/links/"+f.code+query, "")
+		if status != http.StatusOK || view["title"] != "周末市集" || view["merchant_name"] != "商家A" {
+			t.Fatalf("same activity %s = %d %v", query, status, view)
+		}
+		raw, _ := json.Marshal(view)
+		for _, forbidden := range []string{"conversion", "tenant_id", "org", "agent", "asset_grant", "channel_balance", "platform_account", "crm_status", "sales_received"} {
+			if _, ok := view[forbidden]; ok || strings.Contains(string(raw), "销售已收到") {
+				t.Fatalf("public activity leaked %s: %s", forbidden, raw)
+			}
+		}
+		if strings.Contains(string(raw), tenB) {
+			t.Fatalf("query tenant leaked into %s", query)
+		}
+	}
+
+	status, _, _ := f.guest(t, "POST", "/api/v1/public/links/"+f.code+"/view-events", `{"channel":"nfc"}`)
+	if status != http.StatusNoContent {
+		t.Fatalf("exposure = %d", status)
+	}
+	body := `{"actions":[{"kind":"wifi","enabled":true,"href":"https://shop.example.com/wifi"}],"return":{"enabled":true,"href":"/c/back"}}`
+	status, _, saved := f.admin(t, "PUT", "/api/v1/campaigns/"+f.campaignID+"/extra-jumps", body)
+	if status != http.StatusOK {
+		t.Fatalf("jumps = %d %v", status, saved)
+	}
+	status, _, click := f.guest(t, "POST", "/api/v1/public/links/"+f.code+"/extra-jumps/wifi/clicks", `{}`)
+	if status != http.StatusOK || click["success"] != false || click["platform_result"] != "unknown" || click["lead_created"] != false {
+		t.Fatalf("click = %d %v", status, click)
+	}
+	status, _, back := f.guest(t, "POST", "/api/v1/public/links/"+f.code+"/returns/clicks", `{}`)
+	if status != http.StatusOK || back["success"] != false || back["platform_result"] != "unknown" || back["href"] != "/c/back" {
+		t.Fatalf("return = %d %v", status, back)
+	}
+
+	submitBody := `{"name":"李四","phone":"13800138000","consent_version":"v1","consent":true,"marketing_optin":false,"channel":"nfc"}`
+	status, out := f.submitLead(t, f.code, submitBody)
+	if status != http.StatusCreated {
+		t.Fatalf("submit = %d %v", status, out)
+	}
+	raw, _ := json.Marshal(out)
+	if out["state"] != "accepted" || out["duplicate"] != false || out["crm_received"] != false || out["sales_received"] != "unknown" || out["creates_platform_account"] != false {
+		t.Fatalf("submit honesty = %v", out)
+	}
+	if _, ok := out["conversion"]; ok || strings.Contains(string(raw), "销售已收到") {
+		t.Fatalf("submit collapsed or claimed sales: %s", raw)
+	}
+	submitted, _ := out["submitted_to"].(map[string]any)
+	if submitted["name"] != "商家A" {
+		t.Fatalf("submitted_to = %v", out["submitted_to"])
+	}
+
+	exposure, err := f.s.St.GetViewStat(f.code, todayUTC(), "nfc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var crm int
+	if err := f.s.St.DB.QueryRow(`SELECT COUNT(1) FROM lead_submissions WHERE sync_state=?`, "crm_received").Scan(&crm); err != nil {
+		t.Fatal(err)
+	}
+	clicks := countRows(t, f, "extra_jump_clicks")
+	returns := countRows(t, f, "authorized_return_clicks")
+	leads := countRows(t, f, "lead_submissions")
+	if exposure != 1 || clicks != 1 || returns != 1 || leads != 1 || crm != 0 {
+		t.Fatalf("counts exposure=%d click=%d return=%d lead=%d crm=%d", exposure, clicks, returns, leads, crm)
+	}
+	if countRows(t, f, "members") != beforeMembers {
+		t.Fatal("visitor submit created a platform member")
+	}
+	rows, _ := f.s.St.ListLeadSubmissions(f.tenA, f.campaignID)
+	if len(rows) != 1 || rows[0].MarketingOptin || rows[0].TenantID != f.tenA {
+		t.Fatalf("stored lead = %+v", rows)
+	}
+}
+
 func countRows(t *testing.T, f *leadsFixture, table string) int {
 	t.Helper()
 	var n int
