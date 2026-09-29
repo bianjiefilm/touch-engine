@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { VisibleApp } from "@/lib/eco-nav/model";
+import { presentAccountSeparation } from "@/lib/account-separation";
 import {
+  activityGroupLabel,
   assembleTodos,
+  contentGap,
+  contentHonestyLine,
+  customerCountLine,
   enterLeadsPlan,
   offerContentTools,
   resolveWorkingFor,
@@ -187,6 +192,33 @@ describe("账单与获客降级", () => {
     expect(strip.label).toBe("钱包 CNY 88.00");
     expect(strip.per_tool_balances).toEqual([]);
     expect(strip.promotions_folded).toBe(false);
+    const rewards = presentAccountSeparation({
+      package: { kind: "touch_subscription", status: "active", restricts_new_premium: false, locks_existing: false },
+      ai_fees: {
+        kind: "ai_tool_fee",
+        quote_created: false,
+        usage_created: false,
+        includes_marketing_face: false,
+        balance_mutated: false,
+        personal_wallet_debited: false,
+      },
+      rewards: {
+        kind: "marketing_reward",
+        ledger: "activity",
+        appears_in_platform_wallet: false,
+        face_as_cash_expense: false,
+        items: [
+          { kind: "coupon", face_minor: 2000 },
+          { kind: "points", face_minor: 500 },
+        ],
+      },
+    });
+    expect(rewards.rewardText).toMatch(/优惠券/);
+    expect(rewards.rewardText).toMatch(/积分/);
+    expect(rewards.rewardText).toMatch(/不是平台现金/);
+    expect(rewards.showsEnterpriseBalance).toBe(false);
+    expect(strip.label).not.toContain("20.00");
+    expect(strip.label).not.toContain("113");
   });
 
   it("获客未开通时不锁活动主线", () => {
@@ -238,6 +270,29 @@ describe("工作台信息架构", () => {
   it("窄屏只排一列工作卡", () => {
     expect(workbenchColumns(390)).toBe(1);
     expect(workbenchColumns(960)).toBe(2);
+  });
+
+  it("窄屏不把没有回执的销售数字写成已收到", () => {
+    expect(workbenchColumns(390)).toBe(1);
+    const line = salesReceptionLine({ pending_sync: 0, sales_received: { available: true, value: 0, reason: "crm_received" } });
+    expect(line).toBe("销售接收未知");
+    expect(line).not.toMatch(/销售已收到|crm_received/);
+    expect(salesReceptionLine({ sales_received: { available: false, reason: "sales_receipt_unknown" } })).toBe("销售接收未知");
+    expect(customerCountLine("授权线索", undefined)).toBe("授权线索未知");
+    expect(customerCountLine("待同步", null)).toBe("待同步未知");
+    expect(customerCountLine("授权线索", 0)).toBe("授权线索 0");
+    expect(contentGap(undefined)).toBe("unknown");
+    expect(contentGap("needs_material")).toBe("needs_material");
+    expect(contentHonestyLine({ gap: "unknown" })).toMatch(/未知/);
+    expect(contentHonestyLine({ gap: "unknown" })).not.toMatch(/销售已收到|crm_received|needs_material/);
+    expect(activityGroupLabel("unclassified")).toBe("状态未归类");
+    expect(activityGroupLabel("unclassified")).not.toMatch(/crm_received/);
+    expect(offerContentTools({
+      gap: "unknown",
+      intent: "operate",
+      apps: [launchable("product-image")],
+      returnProven: false,
+    })).toEqual([]);
   });
 
   it("获客线索链接只接受获客签发的线索 id", () => {
