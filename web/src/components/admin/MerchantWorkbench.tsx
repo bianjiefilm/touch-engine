@@ -6,8 +6,13 @@ import type { SeparationView } from "@/lib/account-separation";
 import type { EcoNavModel } from "@/lib/eco-nav/model";
 import { planTaskHandoff } from "@/lib/eco-nav/touch-shell";
 import {
+  activityGroupLabel,
   assembleTodos,
+  contentGap,
+  contentHonestyLine,
+  customerCountLine,
   enterLeadsPlan,
+  followUpLine,
   leadLink,
   offerContentTools,
   resolveWorkingFor,
@@ -43,6 +48,8 @@ interface WorkbenchPayload {
     next_step?: string;
     upgrade_note?: string;
     locks_existing?: boolean;
+    materials_known?: boolean;
+    tasks_known?: boolean;
     materials?: { id: string; media_type?: string; purpose?: string }[];
     selections?: { campaign_id: string; asset_id: string }[];
     actions?: { id: string; mode: string; shown: boolean }[];
@@ -51,6 +58,7 @@ interface WorkbenchPayload {
     draft?: ActivityCard[];
     in_progress?: ActivityCard[];
     ended?: ActivityCard[];
+    unclassified?: ActivityCard[];
     next_step?: string;
   };
   customers?: {
@@ -72,8 +80,8 @@ interface ActivityCard {
 interface CustomerCard {
   campaign_id: string;
   title: string;
-  authorized?: number;
-  pending_sync?: number;
+  authorized?: number | null;
+  pending_sync?: number | null;
   sales_received?: { available?: boolean; value?: number };
   follow_up?: { available?: boolean; value?: number; reason?: string };
   open_lead_ids?: string[];
@@ -174,14 +182,15 @@ export function MerchantWorkbench({
   const tasks = assembleTodos({
     tasks: payload.my_tasks ?? [],
     drafts: (payload.activities?.draft ?? []).map((item) => ({ id: item.id, title: item.title, status: item.status })),
-    pending: (payload.customers?.cards ?? []).map((card) => ({
-      campaign_id: card.campaign_id,
-      pending_sync: card.pending_sync ?? 0,
-    })),
+    pending: (payload.customers?.cards ?? []).flatMap((card) => {
+      if (typeof card.pending_sync !== "number") return [];
+      return [{ campaign_id: card.campaign_id, pending_sync: card.pending_sync }];
+    }),
   });
   const sections = visibleSections(tasks.length);
+  const gap = contentGap(payload.content?.gap);
   const offers = offerContentTools({
-    gap: payload.content?.gap === "has_material" ? "has_material" : "needs_material",
+    gap,
     intent,
     apps: model?.apps ?? [],
     returnProven: false,
@@ -203,7 +212,7 @@ export function MerchantWorkbench({
         </p>
       </div>
       {payload.account_separation ? <AccountSeparation view={payload.account_separation} /> : null}
-      <div style={{ display: "grid", gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, gap: 12 }}>
+      <div data-testid="workbench-grid" data-columns={columns} style={{ display: "grid", gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, gap: 12 }}>
         {sections.includes("my_tasks") ? (
           <article style={cardStyle} data-testid="section-my-tasks">
             <h3 style={{ marginTop: 0 }}>我的事情</h3>
@@ -219,7 +228,14 @@ export function MerchantWorkbench({
         ) : null}
         <article style={cardStyle} data-testid="section-content">
           <h3 style={{ marginTop: 0 }}>内容</h3>
-          {payload.content?.next_step ? <p>{payload.content.next_step}</p> : null}
+          {contentHonestyLine({ gap, next_step: payload.content?.next_step }) ? (
+            <p data-testid={gap === "unknown" ? "content-unknown" : "content-next"}>
+              {contentHonestyLine({ gap, next_step: payload.content?.next_step })}
+            </p>
+          ) : null}
+          {payload.content?.tasks_known === true ? null : (
+            <p data-testid="content-tasks-unknown">内容任务摘要未知。这里不显示 0。</p>
+          )}
           {(payload.content?.materials ?? []).length > 0 ? (
             <ul>
               {payload.content?.materials?.map((item) => (
@@ -274,9 +290,13 @@ export function MerchantWorkbench({
               <a href="#create-campaign">{payload.activities.next_step}</a>
             </p>
           ) : null}
-          <ActivityGroup label="草稿" items={payload.activities?.draft ?? []} />
-          <ActivityGroup label="进行中" items={payload.activities?.in_progress ?? []} />
-          <ActivityGroup label="已结束" items={payload.activities?.ended ?? []} />
+          {(payload.activities?.unclassified ?? []).length > 0 ? (
+            <p data-testid="activities-unclassified">状态未归类。不记成已结束，也不写成 0。</p>
+          ) : null}
+          <ActivityGroup label={activityGroupLabel("draft")} items={payload.activities?.draft ?? []} />
+          <ActivityGroup label={activityGroupLabel("in_progress")} items={payload.activities?.in_progress ?? []} />
+          <ActivityGroup label={activityGroupLabel("ended")} items={payload.activities?.ended ?? []} />
+          <ActivityGroup label={activityGroupLabel("unclassified")} items={payload.activities?.unclassified ?? []} />
         </article>
         <article style={cardStyle} data-testid="section-customers">
           <h3 style={{ marginTop: 0 }}>客户</h3>
@@ -288,12 +308,12 @@ export function MerchantWorkbench({
               return (
                 <div key={card.campaign_id} style={{ marginBottom: 10 }}>
                   <a href={`#campaign-${card.campaign_id}`}>{card.title}</a>
-                  <p style={{ margin: "4px 0" }}>授权线索 {card.authorized ?? 0} · 待同步 {card.pending_sync ?? 0}</p>
+                  <p style={{ margin: "4px 0" }}>{customerCountLine("授权线索", card.authorized)} · {customerCountLine("待同步", card.pending_sync)}</p>
                   <p style={{ margin: "4px 0" }} data-testid={`sales-reception-${card.campaign_id}`}>
                     {salesReceptionLine(card)}
                   </p>
                   <p style={{ margin: "4px 0" }} data-testid={`follow-up-${card.campaign_id}`}>
-                    {card.follow_up?.available ? `待跟进 ${card.follow_up.value}` : "待跟进数量未知，未把本地提交记成销售已收到"}
+                    {followUpLine(card.follow_up)}
                   </p>
                   {(card.open_lead_ids ?? []).map((id) => {
                     const href = leadLink(process.env.NEXT_PUBLIC_LEADS_ORIGIN ?? "", id);

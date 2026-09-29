@@ -177,6 +177,73 @@ func TestWorkbenchAcceptedLeadIsNotSalesReceived(t *testing.T) {
 	}
 }
 
+func TestWorkbenchLocalSubmissionDoesNotClaimCRMReceived(t *testing.T) {
+	f := newFixture(t, false)
+	f.s.Cfg.FeatureLeadsCapture = true
+	f.s.Cfg.NotifyBaseURL = "http://notify.test"
+	f.s.Cfg.NotifyToken = "notify-token"
+	f.s.Cfg.LeadsTargetApp = "leads-app"
+	f.s.Cfg.LeadsPhonePepper = "pepper"
+	cmp, err := f.s.St.CreateCampaign(store.NewCampaign{TenantID: f.tenA, Title: "店庆", CreatedBy: "usr_owner_a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.s.St.TransitionCampaign(cmp.ID, f.tenA, "active"); err != nil {
+		t.Fatal(err)
+	}
+	sto, err := f.s.St.CreateStore(f.tenA, "门店", "", "usr_owner_a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	lnk, err := f.s.St.CreateLink(f.tenA, cmp.ID, "usr_owner_a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := f.s.St.SubmitLead(store.NewLeadSubmission{
+		TenantID: f.tenA, CampaignID: cmp.ID, StoreID: sto.ID, LinkID: lnk.ID,
+		SubmissionRef: "sub_fixture", DedupKey: "dk_fixture",
+		Name: "王五", Phone: "13700001111",
+		NoticeVersion: "v1", ConsentAt: "2026-09-27T00:00:00Z",
+		OutboxEventID: "ev_fixture", OutboxPayload: `{}`,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	status, _, body := f.do(t, "GET", "/api/v1/workbench", "sess-owner-a", f.tenA, "")
+	if status != 200 {
+		t.Fatalf("status %d body %#v", status, body)
+	}
+	raw, _ := json.Marshal(body)
+	text := string(raw)
+	if strings.Contains(text, "13700001111") || strings.Contains(text, "王五") || strings.Contains(text, "sub_fixture") {
+		t.Fatalf("fixture contact leaked: %s", text)
+	}
+	if strings.Contains(text, "crm_received") {
+		t.Fatalf("local submission rendered as crm_received: %s", text)
+	}
+	content := body["content"].(map[string]any)
+	if content["gap"] != "unknown" || content["materials_known"] != false {
+		t.Fatalf("content = %#v", content)
+	}
+	if _, ok := content["materials"]; ok && content["materials"] != nil {
+		materials, _ := content["materials"].([]any)
+		if materials != nil && len(materials) == 0 {
+			t.Fatalf("unread library serialized as an empty list: %#v", content["materials"])
+		}
+	}
+	card := body["customers"].(map[string]any)["cards"].([]any)[0].(map[string]any)
+	sales := card["sales_received"].(map[string]any)
+	if sales["available"] != false {
+		t.Fatalf("fixture submission treated as a receipt: %#v", sales)
+	}
+	if _, ok := sales["value"]; ok {
+		t.Fatalf("sales value present: %#v", sales)
+	}
+	if sales["reason"] == "crm_received" {
+		t.Fatalf("reason %#v", sales["reason"])
+	}
+}
+
 func TestWorkbenchSeatUsesTheActiveRelation(t *testing.T) {
 	f := newFixture(t, false)
 	owner := &caller{Member: &store.Member{TenantID: f.tenA, PrincipalRef: "usr_owner_a", Role: "org_owner", Enabled: true}}

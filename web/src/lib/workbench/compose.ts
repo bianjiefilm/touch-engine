@@ -11,7 +11,7 @@ export interface WorkingForInput {
 }
 
 export interface ContentToolInput {
-  gap: "needs_material" | "has_material";
+  gap: "needs_material" | "has_material" | "unknown";
   intent: "operate" | "creative_plan" | "deep_edit" | "avatar" | "explain_return";
   apps: VisibleApp[];
   returnProven: boolean;
@@ -173,15 +173,43 @@ export function assembleTodos(input: {
 }
 
 export function salesReceptionLine(card: {
-  pending_sync?: number;
-  sales_received?: { available?: boolean; value?: number };
+  pending_sync?: number | null;
+  sales_received?: { available?: boolean; value?: number | null; reason?: string };
 }): string {
-  const pending = card.pending_sync ?? 0;
+  const pending = typeof card.pending_sync === "number" ? card.pending_sync : null;
   const sales = card.sales_received;
   const confirmed = sales?.available === true && typeof sales.value === "number" && sales.value > 0;
-  if (pending > 0 && !confirmed) return `待同步 ${pending}，销售接收尚未确认`;
-  if (sales?.available === true && typeof sales.value === "number") return `销售已收到 ${sales.value}`;
+  if (pending !== null && pending > 0 && !confirmed) return `待同步 ${pending}，销售接收尚未确认`;
+  if (confirmed && sales?.value) return `销售已收到 ${sales.value}`;
   return "销售接收未知";
+}
+
+export function customerCountLine(label: string, value: number | null | undefined): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) return `${label}未知`;
+  return `${label} ${value}`;
+}
+
+export function contentGap(raw: string | undefined): "needs_material" | "has_material" | "unknown" {
+  if (raw === "has_material" || raw === "needs_material") return raw;
+  return "unknown";
+}
+
+export function contentHonestyLine(input: { gap?: string; next_step?: string }): string {
+  if (input.gap === "needs_material") return input.next_step || "登记或选择已有素材";
+  if (input.gap === "has_material") return input.next_step || "";
+  return input.next_step || "素材摘要未知。这里不显示 0。";
+}
+
+export function followUpLine(follow?: { available?: boolean; value?: number | null }): string {
+  if (follow?.available === true && typeof follow.value === "number") return `待跟进 ${follow.value}`;
+  return "待跟进数量未知，未把本地提交记成销售已收到";
+}
+
+export function activityGroupLabel(kind: "draft" | "in_progress" | "ended" | "unclassified"): string {
+  if (kind === "draft") return "草稿";
+  if (kind === "in_progress") return "进行中";
+  if (kind === "ended") return "已结束";
+  return "状态未归类";
 }
 
 export function visibleSections(taskCount: number): string[] {
