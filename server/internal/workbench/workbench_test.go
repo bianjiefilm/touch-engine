@@ -35,6 +35,28 @@ func TestDraftCampaignIsAnUnpublishedTask(t *testing.T) {
 	}
 }
 
+func TestUnknownCampaignStatusIsNotCountedAsEndedOrZero(t *testing.T) {
+	view := Assemble(Facts{
+		Campaigns: []CampaignFact{{ID: "cmp_u", Title: "未归类", Status: "scheduled"}},
+	})
+	if len(view.Activities.Ended) != 0 || len(view.Activities.Draft) != 0 || len(view.Activities.InProgress) != 0 {
+		t.Fatalf("unknown status folded into a known bucket: %+v", view.Activities)
+	}
+	if len(view.Activities.Unclassified) != 1 || view.Activities.Unclassified[0].ID != "cmp_u" {
+		t.Fatalf("unclassified = %+v", view.Activities.Unclassified)
+	}
+	if view.Activities.Unclassified[0].Status != "scheduled" {
+		t.Fatalf("status rewritten: %+v", view.Activities.Unclassified[0])
+	}
+	if view.Activities.NextStep == "创建第一个活动" {
+		t.Fatal("unknown status looked like zero campaigns")
+	}
+	raw := mustJSON(t, view.Activities)
+	if strings.Contains(raw, `"status":"ended"`) || strings.Contains(raw, "crm_received") {
+		t.Fatalf("unknown campaign rendered as ended or received: %s", raw)
+	}
+}
+
 func TestEmptyActivitiesOfferCreateAsTheOnlyNextStep(t *testing.T) {
 	view := Assemble(Facts{})
 	if view.Activities.NextStep != "创建第一个活动" {
@@ -52,8 +74,8 @@ func TestPendingSyncIsNotAKnownZeroReceipt(t *testing.T) {
 		Leads:        []LeadCount{{CampaignID: "cmp_a", SyncState: "pending_sync", Count: 2}},
 	})
 	card := customerCard(t, view, "cmp_a")
-	if card.PendingSync != 2 {
-		t.Fatalf("pending = %d, want 2", card.PendingSync)
+	if card.PendingSync == nil || *card.PendingSync != 2 {
+		t.Fatalf("pending = %v, want 2", card.PendingSync)
 	}
 	if card.SalesReceived.Available || card.SalesReceived.Value != nil {
 		t.Fatalf("pending sync written as no sales receipt: %+v", card.SalesReceived)
@@ -88,8 +110,8 @@ func TestPendingSyncIsNotSalesReceived(t *testing.T) {
 	if card.SalesReceived.Available == false || card.SalesReceived.Value == nil || *card.SalesReceived.Value != 1 {
 		t.Fatalf("sales received = %+v, want 1", card.SalesReceived)
 	}
-	if card.PendingSync != 5 {
-		t.Fatalf("pending = %d, want 5 (accepted + pending_sync)", card.PendingSync)
+	if card.PendingSync == nil || *card.PendingSync != 5 {
+		t.Fatalf("pending = %v, want 5 (accepted + pending_sync)", card.PendingSync)
 	}
 	if !hasTask(view.MyTasks, "pending_lead", "cmp_a") {
 		t.Fatalf("pending lead task missing: %+v", view.MyTasks)
@@ -117,8 +139,12 @@ func TestRejectedLeadIsAFailureNotASuccess(t *testing.T) {
 		t.Fatalf("failure presented as success: %+v", task)
 	}
 	card := customerCard(t, view, "cmp_a")
-	if card.SalesReceived.Value == nil || *card.SalesReceived.Value != 0 {
-		t.Fatalf("rejected must not count as sales received: %+v", card.SalesReceived)
+	if card.SalesReceived.Available || card.SalesReceived.Value != nil || card.SalesReceived.Reason == "crm_received" {
+		t.Fatalf("rejected written as a crm receipt: %+v", card.SalesReceived)
+	}
+	raw := mustJSON(t, card.SalesReceived)
+	if strings.Contains(raw, `"value"`) || strings.Contains(raw, "crm_received") {
+		t.Fatalf("rejected JSON claimed crm_received: %s", raw)
 	}
 }
 
@@ -134,6 +160,56 @@ func TestRevokedLeadIsNotAuthorized(t *testing.T) {
 	card := customerCard(t, view, "cmp_a")
 	if card.Authorized == nil || *card.Authorized != 1 {
 		t.Fatalf("authorized = %v, want 1", card.Authorized)
+	}
+}
+
+func TestEmptyLeadCountIsNotCRMReceivedZero(t *testing.T) {
+	view := Assemble(Facts{
+		LeadsCapture: true,
+		Campaigns:    []CampaignFact{{ID: "cmp_a", Title: "店庆", Status: "active"}},
+	})
+	card := customerCard(t, view, "cmp_a")
+	if card.SalesReceived.Available || card.SalesReceived.Value != nil || card.SalesReceived.Reason == "crm_received" {
+		t.Fatalf("no rows written as crm_received: %+v", card.SalesReceived)
+	}
+	raw := mustJSON(t, card.SalesReceived)
+	if strings.Contains(raw, `"value"`) || strings.Contains(raw, "crm_received") {
+		t.Fatalf("sales JSON: %s", raw)
+	}
+	if card.Authorized == nil || *card.Authorized != 0 {
+		t.Fatalf("authorized = %v, want known 0", card.Authorized)
+	}
+	if card.PendingSync == nil || *card.PendingSync != 0 {
+		t.Fatalf("pending = %v, want known 0", card.PendingSync)
+	}
+}
+
+func TestUnknownSyncStateIsNotAZeroReceipt(t *testing.T) {
+	view := Assemble(Facts{
+		LeadsCapture: true,
+		Campaigns:    []CampaignFact{{ID: "cmp_a", Title: "店庆", Status: "active"}},
+		Leads:        []LeadCount{{CampaignID: "cmp_a", SyncState: "forwarded", Count: 2}},
+	})
+	card := customerCard(t, view, "cmp_a")
+	if card.Authorized != nil {
+		t.Fatalf("unknown sync counted as authorized %v", card.Authorized)
+	}
+	if card.PendingSync != nil {
+		t.Fatalf("unknown sync counted as pending %v", card.PendingSync)
+	}
+	if card.SalesReceived.Available || card.SalesReceived.Value != nil || card.SalesReceived.Reason == "crm_received" {
+		t.Fatalf("unknown sync became a receipt: %+v", card.SalesReceived)
+	}
+	raw := mustJSON(t, card)
+	if strings.Contains(raw, `"pending_sync"`) || strings.Contains(raw, `"authorized"`) || strings.Contains(raw, "crm_received") || strings.Contains(raw, `"value"`) {
+		t.Fatalf("unknown sync JSON used zero or crm_received: %s", raw)
+	}
+	if !hasTask(view.MyTasks, "lead_sync_unknown", "cmp_a") {
+		t.Fatalf("unknown sync missing from todos: %+v", view.MyTasks)
+	}
+	task := taskBy(view.MyTasks, "lead_sync_unknown", "cmp_a")
+	if task.State == "crm_received" || strings.Contains(task.Title, "成功") || strings.Contains(task.Title, "销售已收到") || strings.Contains(task.Title, "0") {
+		t.Fatalf("unknown sync task = %+v", task)
 	}
 }
 
@@ -347,8 +423,78 @@ func TestFailedContentTaskIsNotSuccess(t *testing.T) {
 	}
 }
 
+func TestUnreadLibraryIsNotAnEmptyMaterialGap(t *testing.T) {
+	view := Assemble(Facts{
+		LibraryEnabled: false,
+		Campaigns:      []CampaignFact{{ID: "cmp_a", Title: "店庆", Status: "active"}},
+	})
+	if view.Content.Gap != "unknown" {
+		t.Fatalf("gap %q, want unknown", view.Content.Gap)
+	}
+	if view.Content.MaterialsKnown {
+		t.Fatal("unread library marked known")
+	}
+	if view.Content.TasksKnown {
+		t.Fatal("unread content tasks marked known")
+	}
+	if view.Content.NextStep == "登记或选择已有素材" {
+		t.Fatal("unread library told the merchant the count was empty")
+	}
+	raw := mustJSON(t, view.Content)
+	if strings.Contains(raw, `"gap":"needs_material"`) || strings.Contains(raw, `"materials":[]`) || strings.Contains(raw, "crm_received") {
+		t.Fatalf("content JSON treated unknown as an empty list: %s", raw)
+	}
+}
+
+func TestKnownEmptyLibraryStillOffersRegister(t *testing.T) {
+	view := Assemble(Facts{LibraryEnabled: true})
+	if view.Content.Gap != "needs_material" || !view.Content.MaterialsKnown {
+		t.Fatalf("known empty library = %+v", view.Content)
+	}
+	if view.Content.NextStep != "登记或选择已有素材" {
+		t.Fatalf("next %q", view.Content.NextStep)
+	}
+	raw := mustJSON(t, view.Content)
+	if !strings.Contains(raw, `"materials":[]`) {
+		t.Fatalf("known empty library omitted the list: %s", raw)
+	}
+}
+
+func TestUnknownContentTaskIsNotSuccessOrZero(t *testing.T) {
+	view := Assemble(Facts{
+		ContentTasksKnown: true,
+		Campaigns:         []CampaignFact{{ID: "cmp_a", Title: "店庆", Status: "active"}},
+		ContentTasks:      []ContentTask{{ID: "job_1", CampaignID: "cmp_a", State: "unknown"}},
+	})
+	if !view.Content.TasksKnown {
+		t.Fatal("known content task feed marked unknown")
+	}
+	if !hasTask(view.MyTasks, "content_unknown", "cmp_a") {
+		t.Fatalf("unknown content task dropped: %+v", view.MyTasks)
+	}
+	task := taskBy(view.MyTasks, "content_unknown", "cmp_a")
+	if strings.Contains(task.Title, "成功") || strings.Contains(task.Title, "0") || task.State == "crm_received" || task.State == "failed" {
+		t.Fatalf("unknown content task = %+v", task)
+	}
+	done := Assemble(Facts{
+		ContentTasksKnown: true,
+		Campaigns:         []CampaignFact{{ID: "cmp_a", Title: "店庆", Status: "active"}},
+		ContentTasks:      []ContentTask{{ID: "job_2", CampaignID: "cmp_a", State: "succeeded"}},
+	})
+	if hasTask(done.MyTasks, "content_unknown", "cmp_a") || hasTask(done.MyTasks, "content_failed", "cmp_a") {
+		t.Fatalf("succeeded content task invented a state: %+v", done.MyTasks)
+	}
+	raw := mustJSON(t, done)
+	if strings.Contains(raw, "成功") || strings.Contains(raw, "crm_received") {
+		t.Fatalf("succeeded content claimed success: %s", raw)
+	}
+}
+
 func TestEmptyContentNextStepRegistersAnAsset(t *testing.T) {
-	view := Assemble(Facts{Campaigns: []CampaignFact{{ID: "cmp_a", Title: "店庆", Status: "draft"}}})
+	view := Assemble(Facts{
+		LibraryEnabled: true,
+		Campaigns:      []CampaignFact{{ID: "cmp_a", Title: "店庆", Status: "draft"}},
+	})
 	if view.Content.Gap != "needs_material" {
 		t.Fatalf("gap %q", view.Content.Gap)
 	}

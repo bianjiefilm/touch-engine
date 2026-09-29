@@ -19,12 +19,12 @@ type Facts struct {
 	FollowUpCount          int
 	// FollowUps is a per-campaign summary fetched from leads. A missing key
 	// stays unknown. A present fact is a real read, including a known zero.
-	FollowUps map[string]FollowUpFact
-	BillingKnown           bool
-	BillingAvailability    string
-	Seat                   Seat
-	Benefits               []BenefitFact
-	SubscriptionStatus     string
+	FollowUps           map[string]FollowUpFact
+	BillingKnown        bool
+	BillingAvailability string
+	Seat                Seat
+	Benefits            []BenefitFact
+	SubscriptionStatus  string
 }
 
 // FollowUpFact is a restricted leads summary. Lead IDs are not contact data.
@@ -100,14 +100,16 @@ type Task struct {
 }
 
 type ContentSection struct {
-	Gap           string          `json:"gap"`
-	NextStep      string          `json:"next_step,omitempty"`
-	UpgradeNote   string          `json:"upgrade_note,omitempty"`
-	LocksExisting bool            `json:"locks_existing"`
-	Materials     []LibraryItem   `json:"materials"`
-	Selections    []AssetFact     `json:"selections"`
-	Actions       []ContentAction `json:"actions"`
-	Withheld      []Withheld      `json:"withheld"`
+	Gap            string          `json:"gap"`
+	NextStep       string          `json:"next_step,omitempty"`
+	UpgradeNote    string          `json:"upgrade_note,omitempty"`
+	LocksExisting  bool            `json:"locks_existing"`
+	MaterialsKnown bool            `json:"materials_known"`
+	TasksKnown     bool            `json:"tasks_known"`
+	Materials      []LibraryItem   `json:"materials"`
+	Selections     []AssetFact     `json:"selections"`
+	Actions        []ContentAction `json:"actions"`
+	Withheld       []Withheld      `json:"withheld"`
 }
 
 type Withheld struct {
@@ -123,10 +125,11 @@ type ContentAction struct {
 }
 
 type ActivitySection struct {
-	Draft      []Activity `json:"draft"`
-	InProgress []Activity `json:"in_progress"`
-	Ended      []Activity `json:"ended"`
-	NextStep   string     `json:"next_step,omitempty"`
+	Draft        []Activity `json:"draft"`
+	InProgress   []Activity `json:"in_progress"`
+	Ended        []Activity `json:"ended"`
+	Unclassified []Activity `json:"unclassified,omitempty"`
+	NextStep     string     `json:"next_step,omitempty"`
 }
 
 type Activity struct {
@@ -150,9 +153,11 @@ type CustomerCard struct {
 	Title         string `json:"title"`
 	Authorized    *int   `json:"authorized,omitempty"`
 	SalesReceived Metric `json:"sales_received"`
-	PendingSync   int      `json:"pending_sync"`
-	FollowUp      Metric   `json:"follow_up"`
-	OpenLeadIDs   []string `json:"open_lead_ids,omitempty"`
+	// PendingSync is nil when the sync states were not fully known.
+	// A pointer to 0 is a real zero, not an unread summary.
+	PendingSync *int     `json:"pending_sync,omitempty"`
+	FollowUp    Metric   `json:"follow_up"`
+	OpenLeadIDs []string `json:"open_lead_ids,omitempty"`
 }
 
 type Metric struct {
