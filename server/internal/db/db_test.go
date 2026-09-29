@@ -17,6 +17,8 @@ func TestOpenCreatesSchema(t *testing.T) {
 		"activity_benefit_facts",
 		"agency_relations",
 		"agency_subaccount_trail",
+		"authorized_return_clicks",
+		"authorized_returns",
 		"campaign_assets",
 		"campaign_links",
 		"campaign_rule_revisions",

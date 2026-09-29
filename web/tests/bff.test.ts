@@ -282,4 +282,34 @@ describe("BFF relay semantics", () => {
     expect(bffPathToUpstream(["auth", "login"])).toBe("/api/v1/auth/login");
     expect(bffPathToUpstream(["public", "links", "CODE12"])).toBe("/api/v1/public/links/CODE12");
   });
+
+  it("PUT extra-jumps reaches the Go server with the owner cookie", async () => {
+    const prevUrl = process.env.TOUCH_SERVER_URL;
+    const prevToken = process.env.TOUCH_INTERNAL_TOKEN;
+    process.env.TOUCH_SERVER_URL = ENV.serverUrl;
+    process.env.TOUCH_INTERNAL_TOKEN = ENV.internalToken;
+    try {
+      const route = await import("../src/app/api/[...path]/route");
+      expect(typeof route.PUT).toBe("function");
+      const res = await route.PUT!(
+        bffReq("PUT", "campaigns/cmp_A1/extra-jumps", {
+          cookie: "touch_session=sess-owner-a",
+          tenant: "tnt_A",
+          body: JSON.stringify({ actions: [] }),
+        }),
+        { params: Promise.resolve({ path: ["campaigns", "cmp_A1", "extra-jumps"] }) },
+      );
+      expect(res.status).toBe(404);
+      const body = await res.json();
+      expect(body.error).toBe("no_route");
+      expect(upstreamCalls.at(-1)?.method).toBe("PUT");
+      expect(upstreamCalls.at(-1)?.url).toContain("/api/v1/campaigns/cmp_A1/extra-jumps");
+      expect(upstreamCalls.at(-1)?.headers.get("cookie")).toBe("touch_session=sess-owner-a");
+    } finally {
+      if (prevUrl === undefined) delete process.env.TOUCH_SERVER_URL;
+      else process.env.TOUCH_SERVER_URL = prevUrl;
+      if (prevToken === undefined) delete process.env.TOUCH_INTERNAL_TOKEN;
+      else process.env.TOUCH_INTERNAL_TOKEN = prevToken;
+    }
+  });
 });
