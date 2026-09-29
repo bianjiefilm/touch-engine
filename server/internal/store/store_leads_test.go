@@ -182,7 +182,10 @@ func TestRevokeLeadMatrix(t *testing.T) {
 			OutboxEventID: "ev_b", OutboxPayload: `{}`,
 		})
 		mustNoErr(t, err)
-		mustNoErr(t, s.MarkOutboxForwarded("ev_b"))
+		mustNoErr(t, s.MarkOutboxForwarded("ev_b", "evt_notify_b"))
+		if got, err := s.NotifyEventID("sub_b", "submit"); err != nil || got != "evt_notify_b" {
+			t.Fatalf("notify event id = %q %v", got, err)
+		}
 		mustNoErr(t, s.MarkLeadSyncPending("sub_b"))
 		if _, err := s.RevokeLeadSubmission("sub_b", "ev_b_r", `{"kind":"revoke"}`); err != nil {
 			t.Fatal(err)

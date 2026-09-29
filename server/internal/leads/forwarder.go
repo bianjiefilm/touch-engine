@@ -46,11 +46,11 @@ func NewForwarder(st *store.Store, poster Poster, logger *log.Logger) *Forwarder
 
 // TickResult summarizes one pass (for tests and observability).
 type TickResult struct {
-	Published int // facts accepted by notify this pass
-	Confirmed int // deliveries confirmed delivered this pass
-	Rejected  int // dead/disabled deliveries this pass
+	Published  int // facts accepted by notify this pass
+	Confirmed  int // deliveries confirmed delivered this pass
+	Rejected   int // dead/disabled deliveries this pass
 	Suppressed int // facts withheld because their lead was revoked
-	Failed    int // transport failures this pass
+	Failed     int // transport failures this pass
 }
 
 // Tick performs one outbox pass. It never returns early on row-level errors:
@@ -81,14 +81,22 @@ func (f *Forwarder) Tick(ctx context.Context) TickResult {
 			}
 			continue
 		}
-		if err := f.Poster.PostEvent(ctx, []byte(row.PayloadJSON)); err != nil {
+		notifyID, err := f.Poster.PostEvent(ctx, []byte(row.PayloadJSON))
+		if err != nil {
 			res.Failed++
 			_ = f.St.RecordOutboxError(row.EventID, err.Error())
 			_ = f.St.RecordLeadSyncError(lead.SubmissionRef, err.Error())
 			f.Log.Printf("leads forwarder: publish %s failed (kept pending): %v", row.EventID, err)
 			continue
 		}
-		if err := f.St.MarkOutboxForwarded(row.EventID); err != nil {
+		if notifyID == "" {
+			res.Failed++
+			msg := "notify accepted without event id"
+			_ = f.St.RecordOutboxError(row.EventID, msg)
+			_ = f.St.RecordLeadSyncError(lead.SubmissionRef, msg)
+			continue
+		}
+		if err := f.St.MarkOutboxForwarded(row.EventID, notifyID); err != nil {
 			f.Log.Printf("leads forwarder: mark forwarded %s: %v", row.EventID, err)
 			continue
 		}
@@ -114,7 +122,15 @@ func (f *Forwarder) confirmDeliveries(ctx context.Context, res *TickResult) {
 		return
 	}
 	for _, lead := range pending {
-		deliveries, err := f.Poster.Deliveries(ctx, lead.SubmissionRef)
+		notifyID, err := f.St.NotifyEventID(lead.SubmissionRef, "submit")
+		if err != nil {
+			f.Log.Printf("leads forwarder: notify id %s: %v", lead.SubmissionRef, err)
+			continue
+		}
+		if notifyID == "" {
+			continue
+		}
+		deliveries, err := f.Poster.Deliveries(ctx, notifyID)
 		if err != nil {
 			res.Failed++
 			_ = f.St.RecordLeadSyncError(lead.SubmissionRef, err.Error())

@@ -43,12 +43,13 @@ type notifyStub struct {
 	mu          sync.Mutex
 	srv         *httptest.Server
 	events      []recordedEvent
-	deliveries  map[string]string // event_id -> pending|delivered
+	deliveries  map[string]string // notify event_id -> pending|delivered
 	lastVersion map[string]int    // source_ref -> highest applied source_version
 	marketing   map[string]bool   // source_ref -> marketing allowed at the target
 	staleSkip   int
 	publish500  bool // notify refuses (transport-level)
 	badHeaders  int
+	itemsAlias  bool // report status under "items" instead of "deliveries"
 }
 
 func newNotifyStub(t *testing.T) *notifyStub {
@@ -79,16 +80,28 @@ func (s *notifyStub) handlePublish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	body, _ := io.ReadAll(r.Body)
+	var wrapped struct {
+		Type          string          `json:"type"`
+		SchemaVersion int             `json:"schema_version"`
+		AppID         string          `json:"app_id"`
+		TenantID      string          `json:"tenant_id"`
+		Data          json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal(body, &wrapped); err != nil || wrapped.Type == "" || wrapped.SchemaVersion < 1 || wrapped.AppID != "touch-engine" || len(wrapped.Data) == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
 	var env struct {
 		EventProfile leads.EventProfile    `json:"event_profile"`
 		Payload      leads.PayloadMetadata `json:"payload"`
 	}
-	if err := json.Unmarshal(body, &env); err != nil || env.EventProfile.EventID == "" {
+	if err := json.Unmarshal(wrapped.Data, &env); err != nil || env.EventProfile.EventID == "" || env.EventProfile.EventType != wrapped.Type || env.EventProfile.TenantScope != wrapped.TenantID {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
+	notifyID := "evt_" + env.EventProfile.EventID
 	s.events = append(s.events, recordedEvent{Profile: env.EventProfile, Raw: string(body)})
-	s.deliveries[env.EventProfile.EventID] = "pending" // accepted by notify, CRM not yet
+	s.deliveries[notifyID] = "pending" // accepted by notify, CRM not yet
 
 	// target-side inbox: source_version monotonic guard per fact (submission).
 	// The guard is tracked per source_ref across event types: a replayed older
@@ -110,7 +123,7 @@ func (s *notifyStub) handlePublish(w http.ResponseWriter, r *http.Request) {
 		s.staleSkip++ // late old version: skipped, never overwrites newer state
 	}
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(`{"accepted":true}`))
+	_, _ = w.Write([]byte(`{"event_id":"` + notifyID + `","duplicate":false}`))
 }
 
 func (s *notifyStub) handleDeliveries(w http.ResponseWriter, r *http.Request) {
@@ -120,14 +133,23 @@ func (s *notifyStub) handleDeliveries(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	eventID := parts[4]
+	if r.URL.Query().Get("app_id") == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	status := s.deliveries[eventID]
-	if status == "" {
-		status = "pending"
-	}
 	w.Header().Set("Content-Type", "application/json")
-	_, _ = w.Write([]byte(fmt.Sprintf(`{"items":[{"delivery_id":"d-%s","status":%q,"attempt_count":1}]}`, eventID, status)))
+	if status == "" || s.itemsAlias {
+		if s.itemsAlias && status != "" {
+			_, _ = w.Write([]byte(fmt.Sprintf(`{"items":[{"delivery_id":"d-%s","status":%q,"attempt_count":1}]}`, eventID, status)))
+			return
+		}
+		_, _ = w.Write([]byte(`{"deliveries":[]}`))
+		return
+	}
+	_, _ = w.Write([]byte(fmt.Sprintf(`{"deliveries":[{"delivery_id":"d-%s","status":%q,"attempt_count":1}]}`, eventID, status)))
 }
 
 // DeliverAll simulates CRM recovery: every pending delivery succeeds.
@@ -406,10 +428,18 @@ func TestLeadsE2EHappyPath(t *testing.T) {
 	if err := json.Unmarshal([]byte(raw), &probe); err != nil {
 		t.Fatal(err)
 	}
-	payload := probe["payload"].(map[string]any)
+	if probe["type"] != "lead.authorized_submitted" || probe["app_id"] != "touch-engine" || probe["tenant_id"] != f.tenA {
+		t.Fatalf("wrapper = %v", probe)
+	}
+	data, _ := probe["data"].(map[string]any)
+	payload, _ := data["payload"].(map[string]any)
 	if payload["consent_ref"] != "touch://leads/"+ref || payload["consent_version"] != "v1" ||
 		payload["marketing_optin"] != true || payload["campaign_ref"] != f.campaignID {
 		t.Fatalf("payload = %v", payload)
+	}
+	notifyID, nerr := f.s.St.NotifyEventID(ref, "submit")
+	if nerr != nil || notifyID == "" || notifyID == ref || notifyID != "evt_"+ref {
+		t.Fatalf("stored notify id = %q %v", notifyID, nerr)
 	}
 	for _, forbidden := range []string{"phone", "mobile", "wechat", "contact", "13800138000", "张三"} {
 		if strings.Contains(raw, forbidden) {
@@ -436,6 +466,23 @@ func TestLeadsE2EHappyPath(t *testing.T) {
 	audits, _ := f.s.St.ListLeadAudit(f.tenA, ref)
 	if len(audits) < 3 { // accept + sync_pending + sync_delivered
 		t.Fatalf("audit rows = %d", len(audits))
+	}
+}
+
+func TestLeadsItemsAliasDoesNotCountAsReceived(t *testing.T) {
+	f := newLeadsFixture(t)
+	f.stub.itemsAlias = true
+	status, out := f.submitLead(t, f.code, validLeadBody)
+	if status != 201 {
+		t.Fatalf("submit = %d %v", status, out)
+	}
+	ref := out["submission_ref"].(string)
+	f.forwarder.Tick(context.Background())
+	f.stub.DeliverAll()
+	f.forwarder.Tick(context.Background())
+	lead, err := f.s.St.GetLeadSubmissionByRef(ref)
+	if err != nil || lead.SyncState != "pending_sync" {
+		t.Fatalf("items alias state = %q %v, want pending_sync", lead.SyncState, err)
 	}
 }
 

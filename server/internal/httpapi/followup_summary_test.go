@@ -21,6 +21,10 @@ func TestWorkbenchReadsFollowUpSummary(t *testing.T) {
 			http.Error(w, "campaign", http.StatusBadRequest)
 			return
 		}
+		if r.URL.Query().Get("source_app") != "touch-engine" {
+			http.Error(w, "source_app", http.StatusBadRequest)
+			return
+		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"known": true,
 			"campaigns": []map[string]any{{

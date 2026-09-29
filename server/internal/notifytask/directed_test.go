@@ -20,15 +20,19 @@ func TestDirectedClientPublishesWithContractHeaders(t *testing.T) {
 		b, _ := io.ReadAll(r.Body)
 		_ = json.Unmarshal(b, &gotBody)
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"event_id":"ev_1","duplicate":false}`))
+		_, _ = w.Write([]byte(`{"event_id":"evt_1","duplicate":false}`))
 	}))
 	defer srv.Close()
 
 	sc := New(SideNotify, true, srv.URL, "tok", "touch-engine", notifyAppIDHeader)
 	c := NewDirectedClient(sc, srv.Client())
-	err := c.PostEvent(context.Background(), []byte(`{"event_profile":{}}`))
+	payload := []byte(`{"event_profile":{"event_id":"sub_1","event_type":"lead.authorized_submitted","tenant_scope":"tnt_a"},"payload":{"consent_ref":"touch://leads/sub_1"}}`)
+	id, err := c.PostEvent(context.Background(), payload)
 	if err != nil {
 		t.Fatalf("publish: %v", err)
+	}
+	if id != "evt_1" {
+		t.Fatalf("notify event id = %q", id)
 	}
 	if gotPath != "/internal/v1/notify/events" {
 		t.Fatalf("path = %q", gotPath)
@@ -38,6 +42,34 @@ func TestDirectedClientPublishesWithContractHeaders(t *testing.T) {
 	}
 	if gotCT != "application/json" {
 		t.Fatalf("content-type = %q", gotCT)
+	}
+	if gotBody["type"] != "lead.authorized_submitted" || gotBody["app_id"] != "touch-engine" || gotBody["tenant_id"] != "tnt_a" || gotBody["schema_version"] != float64(1) {
+		t.Fatalf("wrapper = %#v", gotBody)
+	}
+	data, _ := gotBody["data"].(map[string]any)
+	profile, _ := data["event_profile"].(map[string]any)
+	if profile["event_id"] != "sub_1" {
+		t.Fatalf("unwrapped data = %#v", data)
+	}
+	if _, ok := gotBody["idempotency_key"]; ok {
+		t.Fatal("empty idempotency key must be omitted")
+	}
+	if _, ok := gotBody["occurred_at"]; ok {
+		t.Fatal("zero occurred_at must be omitted")
+	}
+}
+
+func TestDirectedClientRejectsPublishWithoutEventID(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"duplicate":false}`))
+	}))
+	defer srv.Close()
+	sc := New(SideNotify, true, srv.URL, "tok", "touch-engine", notifyAppIDHeader)
+	c := NewDirectedClient(sc, srv.Client())
+	payload := []byte(`{"event_profile":{"event_type":"lead.authorized_submitted","tenant_scope":"tnt_a"},"payload":{}}`)
+	if _, err := c.PostEvent(context.Background(), payload); err == nil {
+		t.Fatal("2xx without event_id must fail")
 	}
 }
 
@@ -56,7 +88,8 @@ func TestDirectedClientContractErrors(t *testing.T) {
 		}))
 		sc := New(SideNotify, true, srv.URL, "tok", "touch-engine", notifyAppIDHeader)
 		c := NewDirectedClient(sc, srv.Client())
-		if err := c.PostEvent(context.Background(), []byte(`{}`)); err == nil {
+		payload := []byte(`{"event_profile":{"event_type":"lead.authorized_submitted","tenant_scope":"tnt_a"},"payload":{}}`)
+		if _, err := c.PostEvent(context.Background(), payload); err == nil {
 			t.Fatalf("%s: publish must fail explicitly", tc.name)
 		}
 		srv.Close()
@@ -67,7 +100,7 @@ func TestDirectedClientFailClosed(t *testing.T) {
 	// feature off -> ErrFeatureDisabled before any network attempt
 	off := New(SideNotify, false, "http://127.0.0.1:1", "tok", "app", notifyAppIDHeader)
 	c := NewDirectedClient(off, nil)
-	if err := c.PostEvent(context.Background(), []byte(`{}`)); err != ErrFeatureDisabled {
+	if _, err := c.PostEvent(context.Background(), []byte(`{}`)); err != ErrFeatureDisabled {
 		t.Fatalf("off publish = %v, want ErrFeatureDisabled", err)
 	}
 	if _, err := c.Deliveries(context.Background(), "ev"); err != ErrFeatureDisabled {
@@ -76,23 +109,27 @@ func TestDirectedClientFailClosed(t *testing.T) {
 	// on but unconfigured -> ErrNotConfigured
 	bad := New(SideNotify, true, "", "tok", "app", notifyAppIDHeader)
 	c2 := NewDirectedClient(bad, nil)
-	if err := c2.PostEvent(context.Background(), []byte(`{}`)); err != ErrNotConfigured {
+	if _, err := c2.PostEvent(context.Background(), []byte(`{}`)); err != ErrNotConfigured {
 		t.Fatalf("unconfigured publish = %v, want ErrNotConfigured", err)
 	}
 }
 
 func TestDirectedClientDeliveries(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet || r.URL.Path != "/internal/v1/notify/events/ev_1/deliveries" {
+		if r.Method != http.MethodGet || r.URL.Path != "/internal/v1/notify/events/evt_1/deliveries" {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
-		_, _ = w.Write([]byte(`{"items":[{"delivery_id":"d1","status":"pending","attempt_count":2,"last_error":"conn refused"}]}`))
+		if r.URL.Query().Get("app_id") != "touch-engine" {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		_, _ = w.Write([]byte(`{"event_id":"evt_1","deliveries":[{"delivery_id":"d1","status":"pending","attempt_count":2,"last_error":"conn refused"}]}`))
 	}))
 	defer srv.Close()
 	sc := New(SideNotify, true, srv.URL, "tok", "touch-engine", notifyAppIDHeader)
 	c := NewDirectedClient(sc, srv.Client())
-	items, err := c.Deliveries(context.Background(), "ev_1")
+	items, err := c.Deliveries(context.Background(), "evt_1")
 	if err != nil {
 		t.Fatalf("deliveries: %v", err)
 	}
@@ -101,5 +138,21 @@ func TestDirectedClientDeliveries(t *testing.T) {
 	}
 	if _, err := c.Deliveries(context.Background(), ""); err == nil {
 		t.Fatal("empty event id must be refused")
+	}
+}
+
+func TestDirectedClientIgnoresItemsAlias(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"items":[{"delivery_id":"d1","status":"delivered","attempt_count":1}]}`))
+	}))
+	defer srv.Close()
+	sc := New(SideNotify, true, srv.URL, "tok", "touch-engine", notifyAppIDHeader)
+	c := NewDirectedClient(sc, srv.Client())
+	items, err := c.Deliveries(context.Background(), "evt_1")
+	if err != nil {
+		t.Fatalf("deliveries: %v", err)
+	}
+	if len(items) != 0 {
+		t.Fatalf("items alias counted as deliveries: %+v", items)
 	}
 }

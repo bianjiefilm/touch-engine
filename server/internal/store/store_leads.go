@@ -479,9 +479,23 @@ func (s *Store) ListLeadsOutboxDue(limit int) ([]LeadsOutboxRow, error) {
 	return out, rows.Err()
 }
 
-func (s *Store) MarkOutboxForwarded(eventID string) error {
-	_, err := s.DB.Exec(`UPDATE leads_outbox SET forwarded=1,updated_at=? WHERE event_id=?`, now(), eventID)
+func (s *Store) MarkOutboxForwarded(eventID, notifyEventID string) error {
+	_, err := s.DB.Exec(`UPDATE leads_outbox SET forwarded=1,notify_event_id=?,updated_at=? WHERE event_id=?`, notifyEventID, now(), eventID)
 	return err
+}
+
+// NotifyEventID returns the platform-notify id stored for one forwarded fact.
+// An empty string means that fact was never accepted; callers must not invent
+// a receipt from the submission ref.
+func (s *Store) NotifyEventID(submissionRef, kind string) (string, error) {
+	var id string
+	err := s.DB.QueryRow(
+		`SELECT notify_event_id FROM leads_outbox WHERE submission_ref=? AND kind=? AND forwarded=1 ORDER BY updated_at DESC LIMIT 1`,
+		submissionRef, kind).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	return id, err
 }
 
 // MarkOutboxSuppressed marks a row as permanently withheld (revoked before
