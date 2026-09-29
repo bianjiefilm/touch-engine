@@ -309,6 +309,8 @@ function PublicCampaignInner() {
         state: submitted.duplicate ? "duplicate" : submitted.state || "accepted",
         duplicate: submitted.duplicate,
         crmReceived: submitted.crm_received,
+        salesReceived: "unknown",
+        ownerFollowedUp: "unknown",
       })
     : "";
 
