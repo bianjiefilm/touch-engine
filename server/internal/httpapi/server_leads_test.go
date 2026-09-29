@@ -822,6 +822,61 @@ func TestLeadsRevokeVerificationFailures(t *testing.T) {
 	}
 }
 
+func TestRejectedDeliveryRepairsWhenSameEventIsDelivered(t *testing.T) {
+	f := newLeadsFixture(t)
+	_, out := f.submitLead(t, f.code, validLeadBody)
+	ref := out["submission_ref"].(string)
+	f.forwarder.Tick(context.Background())
+	notifyID := "evt_" + ref
+	f.stub.mu.Lock()
+	f.stub.deliveries[notifyID] = "dead"
+	f.stub.mu.Unlock()
+	if tick := f.forwarder.Tick(context.Background()); tick.Rejected != 1 {
+		t.Fatalf("dead tick = %+v", tick)
+	}
+	lead, _ := f.s.St.GetLeadSubmissionByRef(ref)
+	if lead.SyncState != "rejected" {
+		t.Fatalf("state = %q, want rejected", lead.SyncState)
+	}
+	f.stub.mu.Lock()
+	f.stub.deliveries[notifyID] = "delivered"
+	f.stub.mu.Unlock()
+	if tick := f.forwarder.Tick(context.Background()); tick.Confirmed != 1 {
+		t.Fatalf("repair tick = %+v", tick)
+	}
+	lead, _ = f.s.St.GetLeadSubmissionByRef(ref)
+	if lead.SyncState != "crm_received" || lead.SyncError != "" {
+		t.Fatalf("repaired = state %q err %q", lead.SyncState, lead.SyncError)
+	}
+}
+
+func TestRevokeAfterRejectedEnqueuesStop(t *testing.T) {
+	f := newLeadsFixture(t)
+	_, out := f.submitLead(t, f.code, validLeadBody)
+	ref := out["submission_ref"].(string)
+	f.forwarder.Tick(context.Background())
+	notifyID := "evt_" + ref
+	f.stub.mu.Lock()
+	f.stub.deliveries[notifyID] = "dead"
+	f.stub.mu.Unlock()
+	f.forwarder.Tick(context.Background())
+	body := fmt.Sprintf(`{"submission_ref":%q,"phone":"13800138000"}`, ref)
+	if status, _, resp := f.guest(t, "POST", "/api/v1/public/links/"+f.code+"/lead-revocations", body); status != 200 || resp["state"] != "revoked" {
+		t.Fatalf("revoke after rejected = %d %v", status, resp)
+	}
+	if tick := f.forwarder.Tick(context.Background()); tick.Published != 1 {
+		t.Fatalf("revoke publish = %+v", tick)
+	}
+	events := f.stub.recorded()
+	if len(events) != 2 || events[1].Profile.EventType != leads.EventLeadConsentRevoked || events[1].Profile.SourceRef != ref {
+		t.Fatalf("events = %+v", events)
+	}
+	rows, _ := f.s.St.ListLeadSubmissions(f.tenA, f.campaignID)
+	if len(rows) != 1 || rows[0].SyncState != "revoked" || rows[0].TenantID != f.tenA {
+		t.Fatalf("rows = %+v", rows)
+	}
+}
+
 // ---- 7. restart recovery -------------------------------------------------------------------
 
 func TestLeadsRestartRecovery(t *testing.T) {
