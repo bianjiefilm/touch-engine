@@ -182,7 +182,10 @@ func TestRevokeLeadMatrix(t *testing.T) {
 			OutboxEventID: "ev_b", OutboxPayload: `{}`,
 		})
 		mustNoErr(t, err)
-		mustNoErr(t, s.MarkOutboxForwarded("ev_b"))
+		mustNoErr(t, s.MarkOutboxForwarded("ev_b", "evt_notify_b"))
+		if got, err := s.NotifyEventID("sub_b", "submit"); err != nil || got != "evt_notify_b" {
+			t.Fatalf("notify event id = %q %v", got, err)
+		}
 		mustNoErr(t, s.MarkLeadSyncPending("sub_b"))
 		if _, err := s.RevokeLeadSubmission("sub_b", "ev_b_r", `{"kind":"revoke"}`); err != nil {
 			t.Fatal(err)
@@ -196,6 +199,29 @@ func TestRevokeLeadMatrix(t *testing.T) {
 		s := newLeadsFixture(t)
 		if _, err := s.RevokeLeadSubmission("sub_none", "ev_x", `{}`); err == nil {
 			t.Fatal("unknown ref must fail")
+		}
+	})
+	t.Run("rejected after forward: revoke still returns to the original owner", func(t *testing.T) {
+		s := newLeadsFixture(t)
+		ten, cmp, sto, lnk, _ := seedActiveCampaign(t, s)
+		_, _, err := s.SubmitLead(NewLeadSubmission{
+			TenantID: ten, CampaignID: cmp, StoreID: sto, LinkID: lnk,
+			SubmissionRef: "sub_r", DedupKey: "dk_r",
+			NoticeVersion: "v1", ConsentAt: "2026-09-19T00:00:00Z",
+			OutboxEventID: "ev_r", OutboxPayload: `{}`,
+		})
+		mustNoErr(t, err)
+		mustNoErr(t, s.MarkOutboxForwarded("ev_r", "evt_notify_r"))
+		mustNoErr(t, s.MarkLeadSyncPending("sub_r"))
+		mustNoErr(t, s.MarkLeadRejected("sub_r", "dead: http status 404"))
+		got, err := s.RevokeLeadSubmission("sub_r", "ev_r_revoke", `{"kind":"revoke"}`)
+		mustNoErr(t, err)
+		if got.SyncState != "revoked" || got.TenantID != ten {
+			t.Fatalf("revoke = %+v, want revoked on the original tenant", got)
+		}
+		due, _ := s.ListLeadsOutboxDue(10)
+		if len(due) != 1 || due[0].Kind != "revoke" || due[0].EventID != "ev_r_revoke" {
+			t.Fatalf("due = %+v, want the revoke event", due)
 		}
 	})
 }

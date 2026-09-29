@@ -4,6 +4,7 @@
 // 语义(票面 + HUI-1734):
 //   - notify 持久接受(2xx)即确认源 → 线索 pending_sync("待同步");
 //   - deliveries delivered → crm_received;dead / subscription_disabled → rejected;
+//     已拒绝的行若后来同一 notify 事件变成 delivered，再写成 crm_received;
 //   - 传输失败/未确认 → 停留在待同步并记账,**不伪报入库**,不阻塞内容预览;
 //   - 撤销是终态:forwarder 发现撤销行时把未发的 submit 事实标记 suppressed
 //     (零网络);已发出的靠 revoke 事实(更高 source_version)收敛,
@@ -46,11 +47,11 @@ func NewForwarder(st *store.Store, poster Poster, logger *log.Logger) *Forwarder
 
 // TickResult summarizes one pass (for tests and observability).
 type TickResult struct {
-	Published int // facts accepted by notify this pass
-	Confirmed int // deliveries confirmed delivered this pass
-	Rejected  int // dead/disabled deliveries this pass
+	Published  int // facts accepted by notify this pass
+	Confirmed  int // deliveries confirmed delivered this pass
+	Rejected   int // dead/disabled deliveries this pass
 	Suppressed int // facts withheld because their lead was revoked
-	Failed    int // transport failures this pass
+	Failed     int // transport failures this pass
 }
 
 // Tick performs one outbox pass. It never returns early on row-level errors:
@@ -81,14 +82,22 @@ func (f *Forwarder) Tick(ctx context.Context) TickResult {
 			}
 			continue
 		}
-		if err := f.Poster.PostEvent(ctx, []byte(row.PayloadJSON)); err != nil {
+		notifyID, err := f.Poster.PostEvent(ctx, []byte(row.PayloadJSON))
+		if err != nil {
 			res.Failed++
 			_ = f.St.RecordOutboxError(row.EventID, err.Error())
 			_ = f.St.RecordLeadSyncError(lead.SubmissionRef, err.Error())
 			f.Log.Printf("leads forwarder: publish %s failed (kept pending): %v", row.EventID, err)
 			continue
 		}
-		if err := f.St.MarkOutboxForwarded(row.EventID); err != nil {
+		if notifyID == "" {
+			res.Failed++
+			msg := "notify accepted without event id"
+			_ = f.St.RecordOutboxError(row.EventID, msg)
+			_ = f.St.RecordLeadSyncError(lead.SubmissionRef, msg)
+			continue
+		}
+		if err := f.St.MarkOutboxForwarded(row.EventID, notifyID); err != nil {
 			f.Log.Printf("leads forwarder: mark forwarded %s: %v", row.EventID, err)
 			continue
 		}
@@ -106,16 +115,34 @@ func (f *Forwarder) Tick(ctx context.Context) TickResult {
 }
 
 // confirmDeliveries polls notify's deliveries endpoint for pending_sync leads
-// and resolves them. Queries are read-only on the notify side (零副作用).
+// and resolves them. A row already marked rejected is polled again only so a
+// later delivered status on the same notify event can repair it. Queries are
+// read-only on the notify side (零副作用).
 func (f *Forwarder) confirmDeliveries(ctx context.Context, res *TickResult) {
-	pending, err := f.St.ListLeadSubmissionsByState(StatePendingSync, 50)
+	f.confirmState(ctx, res, StatePendingSync, false)
+	f.confirmState(ctx, res, StateRejected, true)
+}
+
+func (f *Forwarder) confirmState(ctx context.Context, res *TickResult, state string, repair bool) {
+	rows, err := f.St.ListLeadSubmissionsByState(state, 50)
 	if err != nil {
-		f.Log.Printf("leads forwarder: list pending: %v", err)
+		f.Log.Printf("leads forwarder: list %s: %v", state, err)
 		return
 	}
-	for _, lead := range pending {
-		deliveries, err := f.Poster.Deliveries(ctx, lead.SubmissionRef)
+	for _, lead := range rows {
+		notifyID, err := f.St.NotifyEventID(lead.SubmissionRef, "submit")
 		if err != nil {
+			f.Log.Printf("leads forwarder: notify id %s: %v", lead.SubmissionRef, err)
+			continue
+		}
+		if notifyID == "" {
+			continue
+		}
+		deliveries, err := f.Poster.Deliveries(ctx, notifyID)
+		if err != nil {
+			if repair {
+				continue
+			}
 			res.Failed++
 			_ = f.St.RecordLeadSyncError(lead.SubmissionRef, err.Error())
 			continue
@@ -128,6 +155,9 @@ func (f *Forwarder) confirmDeliveries(ctx context.Context, res *TickResult) {
 				_ = f.St.AppendLeadAudit(lead.TenantID, lead.SubmissionRef, "sync_delivered", `{"by":"deliveries"}`, "system")
 			}
 		case "dead":
+			if repair {
+				continue
+			}
 			if err := f.St.MarkLeadRejected(lead.SubmissionRef, reason); err == nil {
 				res.Rejected++
 				reasonJSON, _ := json.Marshal(reason)

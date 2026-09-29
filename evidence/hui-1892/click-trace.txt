@@ -1,0 +1,281 @@
+viewport 390x844 url=http://127.0.0.1:18340/admin
+login-fields {'url': 'http://127.0.0.1:18340/admin', 'inputs': [{'ph': '平台账号邮箱', 'type': 'text', 'x': 195, 'y': 206, 'top': 126, 'h': 160}, {'ph': '密码', 'type': 'password', 'x': 195, 'y': 374, 'top': 294, 'h': 160}, {'ph': '租户 ID(tnt_*,由运维提供)', 'type': 'text', 'x': 195, 'y': 542, 'top': 462, 'h': 160}], 'buttons': [{'text': '登录', 'x': 195, 'y': 649, 'top': 630, 'h': 37}]}
+click email (195,206) type merchant@example.test
+click password (195,374) type [redacted] (桩)
+click tenant (195,542) type tnt_fe6dbf74b88376599ccfdf535d003f56
+field-values [{'ph': '平台账号邮箱', 'len': 21, 'v': 'merchant@example.test'}, {'ph': '密码', 'len': 13, 'v': ''}, {'ph': '租户 ID(tnt_*,由运维提供)', 'len': 36, 'v': 'tnt_fe6dbf74b88376599ccfdf535d003f56'}]
+click 登录 (195,649)
+after-login-text 碰一碰 · 商家后台
+m***@example.test · org_owner · 总部(全门店) · tnt_fe6dbf74b88376599ccfdf535d003f56退出
+
+工作台摘要还没读到。不会把缺失写成 0。
+
+门店、标签和设置
+门店
+新增门店
+活动
+标题	状态	有效期	订单引用	操作
+不关联门店
+创建活动(草稿)
+文案（短标题 / 简介 / 话题）
+
+先报价，再确认，然后生成。价格过期、地址或营业时间不确定、营销宣称没有证据时，请先补充。文案里的地点名不是渠道已挂载的 POI。没有模型凭证时不会标成成功文案，也不会扣费、发布或发奖励。
+
+选择活动
+商品未确认
+商品已确认
+商品已过期
+没有商品
+价格已过期
+价格已确认
+没有价格
+地址不确定
+地址已确认
+没有地址
+营业时间不确定
+营业时间已确认
+没有营业时间
+报价
+确认报价
+生成
+选定草稿
+保存到活动
+撤销
+素材引用(引用平台资产,不复制文件)
+选择活动
+添加引用
+NFC 标签(总部与门店经理可用,门店经理仅见本店标签;物理写入由 NFC 工具按导出文件执行)
+新建分组
+分组:(无)
+批量创建标签(绑定既有短码,1..5
+screenshot 02-after-login-narrow.png
+scroll+click 活动标题 {'x': 195, 'y': 548, 'top': 468, 'left': 37, 'w': 316, 'h': 160}
+scroll+click 公开内容 {'x': 195, 'y': 548, 'top': 468, 'left': 37, 'w': 316, 'h': 160}
+typed ['活动标题:', '公开内容(游客可见):HUI-1892 验收活动']
+click 创建活动(草稿) {'x': 195, 'y': 548, 'top': 530, 'left': 37, 'w': 316, 'h': 37}
+create-timeout 数海观澜
+碰一碰
+应用
+
+启动目标尚未解析：允许列表里没有可安全跳转的地址，不会伪造跳转地址。
+
+付款主体需确认
+额度需确认
+预览上下文 · 未接公共身份
+m***@example.test
+碰一碰 · 商家后台
+m***@example.test · org_owner · 总部(全门店) · tnt_fe6dbf74b88376599ccfdf535d003f56退出
+经营工作台
+
+费用 额度需确认
+
+套餐权限
+
+套餐状态未确认。不会为了统一计费扣费。已有活动、留资和营销记录仍可查看。
+
+AI 工具费用
+
+这次没有实际收费调用，不产生 AI 工具费用。
+
+营销奖励
+
+营销奖励留在活动里。当前没有优惠券、积分、抽奖或团购券。
+
+内容
+
+登记或选择已有素材
+
+当前内容任务
+用已有素材做活动
+需要脚本和分镜
+需要深剪成片
+需要数字人口播
+补充商品图
+活动
+
+创建第一个活动
+
+客户
+门店、标签
+click 启用 None
+viewport {'url': 'http://127.0.0.1:18340/admin', 'title': '碰一碰 · 商家线下活动', 'w': 448, 'h': 970, 'sx': 0, 'sy': 1760, 'pw': 448, 'ph': 6245}
+aim 活动标题 {'x': 195, 'y': 366, 'top': 342, 'h': 160, 'hit': '活动标题', 'ok': True}
+click 活动标题 (195,366)
+aim 公开内容(游客可见) {'x': 195, 'y': 492, 'top': 468, 'h': 160, 'hit': '公开内容(游客可见)', 'ok': True}
+click 公开内容(游客可见) (195,492)
+values ['活动标题=HUI-1892 验收活动', '公开内容(游客可见)=到店出示此页，工作人员现场接待。', '开始时间 RFC3339(可空)=', '结束时间 RFC3339(可空)=', '订单引用(可选,不透明)=']
+aim 创建活动(草稿) {'x': 195, 'y': 548, 'top': 530, 'h': 37, 'hit': '创建活动(草稿)', 'ok': True}
+click 创建活动(草稿) (195,548)
+create-timeout []
+viewport {'w': 390, 'h': 844} http://127.0.0.1:18340/admin
+aim 平台账号邮箱 {'ok': True, 'x': 195, 'y': 156, 'top': 126, 'h': 160, 'hit': '平台账号邮箱'}
+click 平台账号邮箱 (195,156)
+typed 平台账号邮箱 -> merchant@example.test
+aim 密码 {'ok': True, 'x': 195, 'y': 324, 'top': 294, 'h': 160, 'hit': '密码'}
+click 密码 (195,324)
+typed 密码 -> <redacted>
+aim 租户 ID(tnt_*,由运维提供) {'ok': True, 'x': 195, 'y': 492, 'top': 462, 'h': 160, 'hit': '租户 ID(tnt_*,由运维提供)'}
+click 租户 ID(tnt_*,由运维提供) (195,492)
+typed 租户 ID(tnt_*,由运维提供) -> tnt_fe6dbf74b88376599ccfdf535d003f56tnt_fe6dbf74b88376599ccfdf535d003f56
+viewport {'w': 390, 'h': 844} http://127.0.0.1:18340/admin
+aim 平台账号邮箱 {'ok': True, 'x': 195, 'y': 156, 'top': 126, 'h': 160, 'hit': '平台账号邮箱'}
+click 平台账号邮箱 (195,156)
+typed 平台账号邮箱 -> already set
+aim 密码 {'ok': True, 'x': 195, 'y': 324, 'top': 294, 'h': 160, 'hit': '密码'}
+click 密码 (195,324)
+typed 密码 -> already set
+aim 租户 ID(tnt_*,由运维提供) {'ok': True, 'x': 195, 'y': 492, 'top': 462, 'h': 160, 'hit': '租户 ID(tnt_*,由运维提供)'}
+click 租户 ID(tnt_*,由运维提供) (195,492)
+typed 租户 ID(tnt_*,由运维提供) -> tnt_fe6dbf74b88376599ccfdf535d003f56
+aim 登录 {'ok': True, 'x': 195, 'y': 649, 'top': 630, 'h': 37, 'hit': '登录'}
+click 登录 (195,649)
+logged-in merchant stub org_owner tenant A
+viewport {'w': 448, 'h': 970} http://127.0.0.1:18340/admin
+size {'w': 448, 'h': 970, 'vvw': 390, 'vvh': 844, 'logged': True}
+aim 活动标题 {'ok': True, 'x': 45, 'y': 492, 'top': 468, 'h': 160, 'hit': '活动标题'}
+click 活动标题 (45,492)
+typed 活动标题 -> HUI-1892 验收活动
+aim 公开内容(游客可见) {'ok': True, 'x': 45, 'y': 492, 'top': 468, 'h': 160, 'hit': '公开内容(游客可见)'}
+click 公开内容(游客可见) (45,492)
+typed 公开内容(游客可见) -> 到店出示此页，工作人员现场接待。
+aim 创建活动(草稿) {'ok': True, 'x': 45, 'y': 548, 'top': 530, 'h': 37, 'hit': '创建活动(草稿)'}
+click 创建活动(草稿) (45,548)
+size {'w': 448, 'h': 970, 'vvw': 390, 'vvh': 844, 'logged': True}
+aim 活动标题 {'ok': True, 'x': 49, 'y': 366, 'top': 342, 'off': 0, 'h': 160, 'hit': '活动标题'}
+click 活动标题 (49,366)
+typed 活动标题 -> HUI-1892 验收活动
+aim 公开内容(游客可见) {'ok': True, 'x': 49, 'y': 366, 'top': 468, 'off': 126, 'h': 160, 'hit': '公开内容(游客可见)'}
+click 公开内容(游客可见) (49,366)
+typed 公开内容(游客可见) -> 到店出示此页，工作人员现场接待。
+aim 创建活动(草稿) {'ok': True, 'x': 49, 'y': 422, 'top': 530, 'off': 126, 'h': 37, 'hit': '创建活动(草稿)'}
+click 创建活动(草稿) (49,422)
+created draft
+aim 启用 {'ok': True, 'x': 240, 'y': 422, 'top': 404, 'off': 0, 'h': 37, 'hit': '启用'}
+click 启用 (240,422)
+row HUI-1892 验收活动 active ∞ ~ ∞ (无订单活动) 暂停结束生成链接二维码 为本活动制作图片 为本活动制作视频 查看本活动线索
+aim 生成链接 {'ok': True, 'x': 244, 'y': 422, 'top': 441, 'off': 37, 'h': 37, 'hit': '生成链接'}
+click 生成链接 (244,422)
+same-origin POST /api/campaigns/{id}/lead-form status 201
+objects {"campaign_id": "cmp_47e03668d0efb580bf99e5dec08e0529", "status": "active", "form_status": 201, "links_status": 200, "links": {"items": [{"id": "lnk_c3c5c103daf8aaed2202591e1deb0287", "tenant_id": "tnt_fe6dbf74b88376599ccfdf535d003f56", "campaign_id": "cmp_47e03668d0efb580bf99e5dec08e0529", "code": "MP6DZG8X3SW3", "enabled": true, "created_by": "usr_touch_owner", "created_at": "2026-09-29T06:49:01.848011Z", "updated_at": "2026-09-29T06:49:01.848012Z"}]}}
+customers 客户 | HUI-1892 验收活动 |  | 授权线索 0 · 待同步 0 |  | 销售已收到 0 |  | 待跟进数量未知，未把本地提交记成销售已收到 |  | 进入获客看本活动线索
+shot bytes follow
+public-open {'url': 'http://127.0.0.1:18340/c/MP6DZG8X3SW3', 'w': 390, 'h': 844, 'vvw': 390, 'vvh': 844}
+aim 姓名 {'ok': True, 'x': 77, 'y': 451, 'hit': '怎么称呼你'}
+click 姓名 (77,451)
+aim 手机号 {'ok': True, 'x': 77, 'y': 525, 'hit': '商家用来联系你'}
+click 手机号 (77,525)
+public-fields ['怎么称呼你 len=4', '商家用来联系你 len=11']
+aim consent {'ok': True, 'x': 48, 'y': 639, 'disabled': False, 'checked': False}
+click consent (48,639)
+aim marketing-optin {'ok': True, 'x': 48, 'y': 689, 'disabled': False, 'checked': False}
+click marketing-optin (48,689)
+checked {'consent': True, 'marketing': True}
+screenshot 04-public-consent-narrow.png
+aim 提交给这家店 {'ok': True, 'x': 195, 'y': 760, 'disabled': False, 'checked': False}
+click 提交给这家店 (195,760)
+outcome 已提交给HUI1892商家。对方客户系统还没确认收到。你可以在本页撤销授权。 |  | 留资编号 sub_083d5fd0892ba8c51470bebc。可以在本页撤销。 |  | 撤销我的授权
+phone-visible-in-outcome False
+screenshot 05-public-outcome-narrow.png
+submission_ref sub_083d5fd0892ba8c51470bebc
+card-open {'url': 'http://127.0.0.1:18340/admin', 'w': 448, 'h': 970, 'vvw': 390, 'vvh': 844}
+customers-text 客户 | HUI-1892 验收活动 | 授权线索 1 · 待同步 0 | 销售已收到 0 | 待跟进 1 | 获客线索 lead_d133e139d4c1c42172d35b2b66cb9ece | 进入获客看本活动线索
+customers-phone-visible False
+card-flags {'failed': True, 'pending': False, 'owner': True, 'loggedOut': False}
+screenshot 06-customers-after-receive-narrow.png
+replay-open {'url': 'http://127.0.0.1:18340/c/MP6DZG8X3SW3', 'w': 390, 'h': 844, 'vvw': 390, 'vvh': 844}
+aim 姓名 {'ok': True, 'x': 77, 'y': 451}
+click 姓名 (77,451)
+aim 手机号 {'ok': True, 'x': 77, 'y': 525}
+click 手机号 (77,525)
+replay-fields ['怎么称呼你 len=4', '商家用来联系你 len=11']
+aim consent {'ok': True, 'x': 48, 'y': 639, 'disabled': False}
+click consent (48,639)
+aim marketing-optin {'ok': True, 'x': 48, 'y': 689, 'disabled': False}
+click marketing-optin (48,689)
+replay-checked {'consent': True, 'marketing': True}
+screenshot 07-replay-consent-narrow.png
+aim 提交给这家店 {'ok': True, 'x': 195, 'y': 760, 'disabled': False}
+click 提交给这家店 (195,760)
+replay-outcome 你已经把联系方式交给HUI1892商家。这次没有再记一条。 |  | 留资编号 sub_083d5fd0892ba8c51470bebc。可以在本页撤销。 |  | 撤销我的授权
+replay-phone-visible False
+replay-submission-ref sub_083d5fd0892ba8c51470bebc same=True
+screenshot 08-replay-outcome-narrow.png
+leads-open {'url': 'http://127.0.0.1:18342/', 'w': 390, 'h': 844, 'vvw': 390, 'vvh': 844}
+桩登录 sales status=200 authenticated=True
+aim 租户 id {'ok': True, 'x': 178, 'y': 175, 'disabled': None}
+click 租户 id (178,175)
+tenant-field-match True
+aim 加载 {'ok': True, 'x': 280, 'y': 175, 'disabled': False}
+click 加载 (280,175)
+sales-desk {'url': 'http://127.0.0.1:18342/leads/lead_d133e139d4c1c42172d35b2b66cb9ece', 'phone': False, 'lead': False, 'err': 'record not found', 'hasFollow': False}
+screenshot 09-sales-unassigned-narrow.png
+桩退出 sales
+桩登录 leads-owner status=200 authenticated=True
+aim 租户 id {'ok': True, 'x': 178, 'y': 175, 'disabled': None}
+click 租户 id (178,175)
+tenant-field-match True
+aim 加载 {'ok': True, 'x': 280, 'y': 175, 'disabled': False}
+click 加载 (280,175)
+owner-desk {'url': 'http://127.0.0.1:18342/leads/lead_d133e139d4c1c42172d35b2b66cb9ece', 'phone': True, 'lead': False, 'err': '2026-09-29T07:01:26.964016Z', 'hasFollow': True}
+owner-desk shows contact on the authorized tenant
+aim 跟进记录 {'ok': True, 'x': 195, 'y': 484, 'disabled': None}
+click 跟进记录 (195,484)
+note-len 13
+aim 记跟进 {'ok': True, 'x': 195, 'y': 668, 'disabled': False}
+click 记跟进 (195,668)
+follow-msg 状态：已提交 · 已接收 · 已跟进
+follow-visible True
+screenshot 10-owner-followup-narrow.png
+after-follow-customers 客户 | HUI-1892 验收活动 | 授权线索 1 · 待同步 0 | 销售已收到 0 | 待跟进 0 | 进入获客看本活动线索
+after-follow-flags {'phone': False, 'owner': True, 'title': True, 'lead': False}
+screenshot 11-customers-after-followup-narrow.png
+click 租户 id (125,175)
+tenant-b-match True
+click 加载 (280,175)
+tenant-b-desk {'phone': False, 'err': 'record not found', 'follow': False, 'leadId': False}
+screenshot 12-leads-tenant-b-narrow.png
+revoke-button-present True
+aim 撤销我的授权 {'ok': True, 'x': 108, 'y': 749, 'disabled': False}
+click 撤销我的授权 (108,749)
+revoke-outcome 你已经把联系方式交给HUI1892商家。这次没有再记一条。 |  | 留资编号 sub_083d5fd0892ba8c51470bebc。可以在本页撤销。 |  | 撤销中…
+revoke-phone-visible False
+revoke-ref sub_083d5fd0892ba8c51470bebc same=True
+screenshot 13-revoke-narrow.png
+click 退出 (80,215)
+click 平台账号邮箱 (60,150)
+filled 平台账号邮箱 len=18 match=True
+click 密码 (60,318)
+filled 密码 len=10 match=True
+click 租户 ID(tnt_*,由运维提供) (60,486)
+filled 租户 ID(tnt_*,由运维提供) len=36 match=True
+click 登录 (195,649)
+桩登录 tenant-b
+tenant-b-facts {'campaigns': 200, 'workbench': 200, 'phone': False, 'ids': [], 'title': False, 'customers': '客户'}
+screenshot 14-touch-tenant-b-narrow.png
+click 退出 (80,215)
+click 平台账号邮箱 (60,150)
+filled 平台账号邮箱 len=21 match=True
+click 密码 (60,318)
+filled 密码 len=13 match=True
+click 租户 ID(tnt_*,由运维提供) (60,486)
+filled 租户 ID(tnt_*,由运维提供) len=36 match=True
+click 登录 (195,649)
+桩登录 merchant-a
+relogin-facts {'campaigns': 200, 'workbench': 200, 'phone': False, 'ids': ['cmp_47e03668d0efb580bf99e5dec08e0529', 'tnt_fe6dbf74b88376599ccfdf535d003f56'], 'title': True, 'customers': '客户 HUI-1892 验收活动 授权线索 1 · 待同步 0 销售已收到 0 待跟进 0 进入获客看本活动线索'}
+screenshot 15-relogin-narrow.png
+repaired-customers 客户 | HUI-1892 验收活动 | 授权线索 1 · 待同步 0 | 销售已收到 1 | 待跟进 0 | 进入获客看本活动线索
+repaired-flags {'phone': False, 'logged': True, 'title': True}
+screenshot 16-customers-crm-received-narrow.png
+revoke-button-present True
+aim 撤销我的授权 {'ok': True, 'x': 108, 'y': 749, 'disabled': False}
+click 撤销我的授权 (108,749)
+revoke-outcome 你已经把联系方式交给HUI1892商家。这次没有再记一条。 |  | 留资编号 sub_083d5fd0892ba8c51470bebc。可以在本页撤销。 |  | 撤销中…
+revoke-phone-visible False
+revoke-ref  same=False
+screenshot 13-revoke-narrow.png
+revoke-final 已撤销。未同步的数据会停在这里，不再继续交给商家的客户系统。
+revoke-final-phone False
+screenshot 13-revoke-narrow.png
+after-revoke-customers 客户 | HUI-1892 验收活动 | 授权线索 0 · 待同步 0 | 销售已收到 0 | 待跟进 0 | 进入获客看本活动线索
+after-revoke-phone False
+screenshot 17-customers-after-revoke-narrow.png

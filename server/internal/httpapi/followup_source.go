@@ -42,6 +42,9 @@ func (s *Server) followUpSummaries(ctx context.Context, tenantID string, campaig
 	if len(asked) == 0 {
 		return nil, false
 	}
+	if app := strings.TrimSpace(s.Cfg.AppID); app != "" {
+		q.Set("source_app", app)
+	}
 	u.RawQuery = q.Encode()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {

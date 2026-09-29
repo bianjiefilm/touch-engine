@@ -347,9 +347,11 @@ func (s *Store) MarkLeadSyncPending(ref string) error {
 	return s.transitionLead(ref, []string{"accepted", "pending_sync"}, "pending_sync", "")
 }
 
-// MarkLeadDelivered: pending_sync -> crm_received (deliveries reported delivered).
+// MarkLeadDelivered: pending_sync -> crm_received when deliveries report
+// delivered. A row already closed as rejected can still be repaired when a
+// later read of the same notify event says delivered. It never invents receipt.
 func (s *Store) MarkLeadDelivered(ref string) error {
-	return s.transitionLead(ref, []string{"pending_sync", "crm_received"}, "crm_received", "")
+	return s.transitionLead(ref, []string{"pending_sync", "rejected", "crm_received"}, "crm_received", "")
 }
 
 // MarkLeadRejected: target refused (dead letter / publish rejection).
@@ -366,7 +368,7 @@ func (s *Store) RecordLeadSyncError(ref, msg string) error {
 	return err
 }
 
-// RevokeLeadSubmission flips a live submission to revoked (final state) and,
+// RevokeLeadSubmission flips a live or rejected submission to revoked and,
 // when the submit fact was already handed to notify (forwarded=1), enqueues the
 // revocation/stop-marketing event in the SAME transaction so the target
 // converges even if the original event is still in flight. When the fact was
@@ -387,7 +389,9 @@ func (s *Store) RevokeLeadSubmission(ref, revokeEventID, revokePayload string) (
 	if cur.SyncState == "revoked" {
 		return cur, nil // idempotent: already revoked
 	}
-	if cur.SyncState != "accepted" && cur.SyncState != "pending_sync" && cur.SyncState != "crm_received" {
+	switch cur.SyncState {
+	case "accepted", "pending_sync", "crm_received", "rejected":
+	default:
 		return LeadSubmission{}, errors.New("store: cannot revoke lead in state " + cur.SyncState)
 	}
 	rv := now()
@@ -479,9 +483,23 @@ func (s *Store) ListLeadsOutboxDue(limit int) ([]LeadsOutboxRow, error) {
 	return out, rows.Err()
 }
 
-func (s *Store) MarkOutboxForwarded(eventID string) error {
-	_, err := s.DB.Exec(`UPDATE leads_outbox SET forwarded=1,updated_at=? WHERE event_id=?`, now(), eventID)
+func (s *Store) MarkOutboxForwarded(eventID, notifyEventID string) error {
+	_, err := s.DB.Exec(`UPDATE leads_outbox SET forwarded=1,notify_event_id=?,updated_at=? WHERE event_id=?`, notifyEventID, now(), eventID)
 	return err
+}
+
+// NotifyEventID returns the platform-notify id stored for one forwarded fact.
+// An empty string means that fact was never accepted; callers must not invent
+// a receipt from the submission ref.
+func (s *Store) NotifyEventID(submissionRef, kind string) (string, error) {
+	var id string
+	err := s.DB.QueryRow(
+		`SELECT notify_event_id FROM leads_outbox WHERE submission_ref=? AND kind=? AND forwarded=1 ORDER BY updated_at DESC LIMIT 1`,
+		submissionRef, kind).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	return id, err
 }
 
 // MarkOutboxSuppressed marks a row as permanently withheld (revoked before
