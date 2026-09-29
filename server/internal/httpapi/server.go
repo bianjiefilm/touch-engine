@@ -29,6 +29,7 @@ import (
 	"github.com/bianjiefilm/touch-engine/server/internal/authz"
 	"github.com/bianjiefilm/touch-engine/server/internal/brandctx"
 	"github.com/bianjiefilm/touch-engine/server/internal/config"
+	"github.com/bianjiefilm/touch-engine/server/internal/copyjob"
 	"github.com/bianjiefilm/touch-engine/server/internal/db"
 	"github.com/bianjiefilm/touch-engine/server/internal/identity"
 	"github.com/bianjiefilm/touch-engine/server/internal/leads"
@@ -49,6 +50,10 @@ type Server struct {
 	Brand   *brandctx.Client
 	Log     *log.Logger
 	closeDB func()
+
+	// CopyModel replaces the platform text client when tests inject one.
+	// Production leaves it nil: missing credentials stay fail-closed.
+	CopyModel copyjob.TextModel
 
 	// LeadsLimiter gates the public lead-write surface per client IP
 	// (single-process sliding window; not distributed by design for T1).
@@ -204,6 +209,16 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/campaigns/{id}/copy-drafts", s.requireSession(s.handleCopyDraftCreate))
 	mux.Handle("GET /api/v1/campaigns/{id}/copy-drafts/{draftId}", s.requireSession(s.handleCopyDraftGet))
 	mux.Handle("POST /api/v1/campaigns/{id}/copy-drafts/{draftId}/versions", s.requireSession(s.handleCopyVersionAccept))
+
+	// Quote → confirm → generate → select → save. No public route: a guest
+	// tap cannot start a merchant copy job or a paid model call.
+	mux.Handle("POST /api/v1/campaigns/{id}/copy-jobs", s.requireSession(s.handleCopyJobQuote))
+	mux.Handle("GET /api/v1/campaigns/{id}/copy-jobs/{jobId}", s.requireSession(s.handleCopyJobGet))
+	mux.Handle("POST /api/v1/campaigns/{id}/copy-jobs/{jobId}/confirm", s.requireSession(s.handleCopyJobConfirm))
+	mux.Handle("POST /api/v1/campaigns/{id}/copy-jobs/{jobId}/generate", s.requireSession(s.handleCopyJobGenerate))
+	mux.Handle("POST /api/v1/campaigns/{id}/copy-jobs/{jobId}/select", s.requireSession(s.handleCopyJobSelect))
+	mux.Handle("POST /api/v1/campaigns/{id}/copy-jobs/{jobId}/revoke", s.requireSession(s.handleCopyJobRevoke))
+	mux.Handle("POST /api/v1/campaigns/{id}/copy-jobs/{jobId}/save", s.requireSession(s.handleCopyJobSave))
 
 	// QR fallback entry (HUI-1664 FEAT-0165): owner-only export of the
 	// canonical short-code URL as a server-rendered PNG (or json payload).

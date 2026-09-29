@@ -7,6 +7,26 @@ export interface CopyUsabilityInput {
   billed: boolean;
 }
 
+export function copyJobClosed(job: { real_generation?: string; success?: boolean }): { closed: boolean; label: string } {
+  if (job.real_generation === "completed" && job.success === true) {
+    return { closed: false, label: "模型已完成核对。保存前不会自动发布，也不会发奖励。" };
+  }
+  return { closed: true, label: "真实生成未完成。没有可用的模型凭证，不能把结果当成成功文案。" };
+}
+
+// copyJobKey is stable for one input fingerprint and contains only the
+// idempotency alphabet. A new fingerprint or an explicit epoch makes a new key.
+export function copyJobKey(campaignId: string, fingerprint: string): string {
+  let hash = 2166136261;
+  const src = `${campaignId}\n${fingerprint}`;
+  for (let i = 0; i < src.length; i++) {
+    hash ^= src.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  const camp = campaignId.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40) || "campaign";
+  return `cj-${camp}-${(hash >>> 0).toString(16).padStart(8, "0")}`.slice(0, 80);
+}
+
 export function copyUsability(draft: CopyUsabilityInput): { usable: boolean; label: string } {
   if (draft.billed) {
     return { usable: false, label: "这次没有完成扣费，也不能把结果展示成已扣费文案。" };

@@ -68,6 +68,16 @@ type Config struct {
 	TaskBaseURL   string
 	TaskToken     string
 
+	// Copy generation (HUI-1668). All of these must be set before a real
+	// model call. Missing any one fails closed inside the copy job; they are
+	// not part of Gate so the rest of the server still starts.
+	BillingBaseURL     string
+	BillingToken       string
+	CopyModelProvider  string
+	CopyModelID        string
+	CopyModelVersion   string
+	CopyPricingVersion string
+
 	// Lead capture (HUI-1747): delivery goes through platform-notify directed
 	// events. The target acquisition app and the phone-fingerprint pepper are
 	// dedicated, fail-closed configuration — never derived from request input.
@@ -130,6 +140,12 @@ func Load(get func(string) string) Config {
 		NotifyToken:           get("PLATFORM_NOTIFY_TOKEN"),
 		TaskBaseURL:           get("PLATFORM_TASK_BASE_URL"),
 		TaskToken:             get("PLATFORM_TASK_TOKEN"),
+		BillingBaseURL:        strings.TrimRight(strings.TrimSpace(get("PLATFORM_BILLING_BASE_URL")), "/"),
+		BillingToken:          get("PLATFORM_BILLING_TOKEN"),
+		CopyModelProvider:     strings.TrimSpace(get("COPY_MODEL_PROVIDER")),
+		CopyModelID:           strings.TrimSpace(get("COPY_MODEL_ID")),
+		CopyModelVersion:      strings.TrimSpace(get("COPY_MODEL_VERSION")),
+		CopyPricingVersion:    strings.TrimSpace(get("COPY_PRICING_VERSION")),
 		LeadsTargetApp:        get("LEADS_TARGET_APP_ID"),
 		LeadsPhonePepper:      get("LEADS_PHONE_PEPPER"),
 		LeadsFollowUpBaseURL:  strings.TrimRight(strings.TrimSpace(get("LEADS_FOLLOW_UP_BASE_URL")), "/"),
