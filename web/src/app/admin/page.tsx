@@ -4,6 +4,7 @@
 // 由服务端做平台会话解析 + 租户成员校验。本页面不持有任何凭证。
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ExtraJumpPanel } from "@/components/admin/ExtraJumpPanel";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { MerchantWorkbench } from "@/components/admin/MerchantWorkbench";
 import { TaskHandoffActions } from "@/components/admin/TaskHandoffActions";
@@ -897,6 +898,12 @@ export default function AdminPage() {
           </div>
         )}
       </section>
+
+      <ExtraJumpPanel
+        campaigns={campaigns.map((item) => ({ id: item.id, title: item.title }))}
+        role={role}
+        tenantId={tenantId}
+      />
 
       <section style={sectionStyle}>
         <h2>素材引用(引用平台资产,不复制文件)</h2>

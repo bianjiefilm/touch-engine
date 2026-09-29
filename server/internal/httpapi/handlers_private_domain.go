@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/bianjiefilm/touch-engine/server/internal/authz"
 	"github.com/bianjiefilm/touch-engine/server/internal/extrajump"
@@ -121,9 +122,9 @@ func (s *Server) privateDomainConfig(tenantID, campaignID string) ([]privatedoma
 		return nil, err
 	}
 	for _, jump := range jumps {
-		if jump.Kind == extrajump.KindWecom {
+		if jump.Kind == extrajump.KindWecom && extrajump.Usable(jump, time.Now().UTC()) {
 			items = append(items, privatedomain.Configured{
-				Kind: privatedomain.KindWecom, Enabled: jump.Enabled, Href: jump.Href,
+				Kind: privatedomain.KindWecom, Enabled: true, Href: jump.Href,
 			})
 		}
 	}

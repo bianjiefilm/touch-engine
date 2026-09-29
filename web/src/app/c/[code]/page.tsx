@@ -34,6 +34,17 @@ import {
 } from "@/lib/private-domain";
 import { CustomerPublish } from "./customer-publish";
 import { publicVisitorCopy } from "@/lib/account-separation";
+import {
+  authorizedReturnHref,
+  canonicalHref,
+  capabilityGapLines,
+  closedNotices,
+  honestOpen,
+  openedEvidenceCopy,
+  openMode,
+  standingEvidenceCopy,
+  type ClosedNotice,
+} from "@/lib/jump-matrix";
 
 interface PublicView {
   state: string;
@@ -97,6 +108,8 @@ function PublicCampaignInner() {
   const [actionNote, setActionNote] = useState("");
   const [privateNote, setPrivateNote] = useState("");
   const [guestActions, setGuestActions] = useState<GuestCapability[]>([]);
+  const [jumpClosed, setJumpClosed] = useState<ClosedNotice[]>([]);
+  const [returnHref, setReturnHref] = useState("");
   const [privateDomain, setPrivateDomain] = useState<PrivateDomainGuide>({
     entries: [],
     connected: false,
@@ -157,10 +170,16 @@ function PublicCampaignInner() {
     fetch(`/api/public/links/${encodeURIComponent(code)}/extra-jumps`)
       .then(async (res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (alive) setGuestActions(guestActionsFromPayload(data));
+        if (!alive) return;
+        setGuestActions(guestActionsFromPayload(data));
+        setJumpClosed(closedNotices(data?.closed));
+        setReturnHref(authorizedReturnHref(data?.return));
       })
       .catch(() => {
-        if (alive) setGuestActions([]);
+        if (!alive) return;
+        setGuestActions([]);
+        setJumpClosed([]);
+        setReturnHref("");
       });
     fetch(`/api/public/links/${encodeURIComponent(code)}/private-domain?channel=${encodeURIComponent(source.channel)}`)
       .then(async (res) => (res.ok ? res.json() : null))
@@ -285,12 +304,37 @@ function PublicCampaignInner() {
       .then(async (res) => {
         const data = await res.json().catch(() => null);
         const settled = settleClick(res.ok ? data : null);
-        if (!settled.open) {
+        const target = canonicalHref(href, data?.href);
+        if (!settled.open || !honestOpen(href, data) || openMode(target) !== "blank") {
           setActionNote("平台结果还是未知。没有把它当成添加成功、关注成功或留资。");
           return;
         }
-        setActionNote("已打开链接。平台还没有确认添加、关注或留资。");
-        window.open(href, "_blank", "noopener,noreferrer");
+        setActionNote(openedEvidenceCopy());
+        window.open(target, "_blank", "noopener,noreferrer");
+      })
+      .catch(() => {
+        setActionNote("没有打开。这一下也不是添加成功、关注成功或留资。");
+      });
+  };
+
+  const onReturn = (href: string) => {
+    setActionNote("正在打开返回地址。这一下还不是添加成功、关注成功，也不是留资。");
+    fetch(`/api/public/links/${encodeURIComponent(code)}/returns/clicks`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    })
+      .then(async (res) => {
+        const data = await res.json().catch(() => null);
+        const target = canonicalHref(href, data?.href);
+        const mode = openMode(target);
+        if (!honestOpen(href, data) || mode === "refuse") {
+          setActionNote("平台结果还是未知。没有把它当成添加成功、关注成功或留资。");
+          return;
+        }
+        setActionNote(openedEvidenceCopy());
+        if (mode === "assign") window.location.assign(target);
+        else window.open(target, "_blank", "noopener,noreferrer");
       })
       .catch(() => {
         setActionNote("没有打开。这一下也不是添加成功、关注成功或留资。");
@@ -348,6 +392,30 @@ function PublicCampaignInner() {
             ))}
           </div>
         )}
+        {jumpClosed.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+            {jumpClosed.map((item) => (
+              <button key={`${item.kind}:${item.reason}`} type="button" disabled data-testid={`extra-jump-closed-${item.kind}`} style={{ ...quietButton, color: "#6b7280", cursor: "not-allowed" }}>
+                {item.text}
+              </button>
+            ))}
+          </div>
+        )}
+        {returnHref && (
+          <div style={{ marginTop: 12 }}>
+            <button type="button" data-testid="authorized-return" style={quietButton} onClick={() => onReturn(returnHref)}>
+              返回
+            </button>
+          </div>
+        )}
+        <div data-testid="jump-evidence">
+          <p style={noteStyle}>{standingEvidenceCopy()}</p>
+        </div>
+        <div data-testid="jump-capability-gaps">
+          {capabilityGapLines().map((line) => (
+            <p key={line} style={noteStyle}>{line}</p>
+          ))}
+        </div>
         {actionNote && <p style={noteStyle}>{actionNote}</p>}
         {privateDomain.entries.length > 0 && (
           <div data-testid="private-domain" style={{ marginTop: 16 }}>

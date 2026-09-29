@@ -280,6 +280,8 @@ func (s *Server) Handler() http.Handler {
 	// HUI-1672 extra jumps. Guests only see configured public https targets.
 	mux.Handle("GET /api/v1/public/links/{code}/extra-jumps", http.HandlerFunc(s.handlePublicExtraJumps))
 	mux.Handle("POST /api/v1/public/links/{code}/extra-jumps/{kind}/clicks", http.HandlerFunc(s.handlePublicExtraJumpClick))
+	mux.Handle("POST /api/v1/public/links/{code}/returns/clicks", http.HandlerFunc(s.handlePublicReturnClick))
+	mux.Handle("GET /api/v1/campaigns/{id}/extra-jumps", s.requireSession(s.handleExtraJumpsGet))
 	mux.Handle("PUT /api/v1/campaigns/{id}/extra-jumps", s.requireSession(s.handleExtraJumpsPut))
 
 	// HUI-1673 private domain. WeCom and community links stay clicks until a callback exists.
