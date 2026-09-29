@@ -95,6 +95,61 @@ func TestExtraJumpsShowOnlyOfficialTargetsAndClicksStayUnknown(t *testing.T) {
 	}
 }
 
+func TestNavigateFollowAndWecomClicksStayUnknown(t *testing.T) {
+	f := newFixture(t, false)
+	status, _, cmp := f.do(t, "POST", "/api/v1/campaigns", "sess-owner-a", f.tenA,
+		`{"title":"到店","public_content":"欢迎"}`)
+	mustEqual(t, status, http.StatusCreated)
+	id := cmp["id"].(string)
+	status, _, _ = f.do(t, "POST", "/api/v1/campaigns/"+id+"/status", "sess-owner-a", f.tenA, `{"status":"active"}`)
+	mustEqual(t, status, http.StatusOK)
+	status, _, link := f.do(t, "POST", "/api/v1/campaigns/"+id+"/links", "sess-owner-a", f.tenA, "")
+	mustEqual(t, status, http.StatusCreated)
+	code := link["code"].(string)
+	body := `{"actions":[
+		{"kind":"wecom","enabled":true,"href":"https://work.weixin.qq.com/ca/demo"},
+		{"kind":"follow","enabled":true,"href":"https://shop.example.com/follow"},
+		{"kind":"navigate","enabled":true,"href":"https://uri.amap.com/marker?position=120,30"}
+	]}`
+	status, _, saved := f.do(t, "PUT", "/api/v1/campaigns/"+id+"/extra-jumps", "sess-owner-a", f.tenA, body)
+	mustEqual(t, status, http.StatusOK)
+	shown := shownHrefs(t, saved["actions"])
+	if len(shown) != 3 {
+		t.Fatalf("shown = %v", saved["actions"])
+	}
+	beforeLeads := tableCount(t, f, "lead_submissions")
+	for _, kind := range []string{"wecom", "follow", "navigate"} {
+		status, _, click := f.do(t, "POST", "/api/v1/public/links/"+code+"/extra-jumps/"+kind+"/clicks", "", "", `{}`)
+		mustEqual(t, status, http.StatusOK)
+		if click["recorded_as"] != "click" || click["success"] != false || click["platform_result"] != "unknown" || click["lead_created"] != false {
+			t.Fatalf("%s click = %v", kind, click)
+		}
+	}
+	if tableCount(t, f, "lead_submissions") != beforeLeads {
+		t.Fatal("jump clicks created a lead")
+	}
+	rows, err := f.s.St.DB.Query(`SELECT kind, success, platform_result FROM extra_jump_clicks ORDER BY kind`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	seen := map[string]bool{}
+	for rows.Next() {
+		var kind, result string
+		var success int
+		if err := rows.Scan(&kind, &success, &result); err != nil {
+			t.Fatal(err)
+		}
+		seen[kind] = true
+		if success != 0 || result != "unknown" {
+			t.Fatalf("stored %s success=%d result=%s", kind, success, result)
+		}
+	}
+	if !seen["wecom"] || !seen["follow"] || !seen["navigate"] {
+		t.Fatalf("stored clicks = %v", seen)
+	}
+}
+
 func closedReasons(t *testing.T, raw any) map[string]string {
 	t.Helper()
 	items, _ := raw.([]any)
