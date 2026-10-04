@@ -101,3 +101,28 @@ export function isPastEnd(endsAt: string | undefined, now = Date.now()): boolean
   const time = Date.parse(endsAt);
   return Number.isFinite(time) && time < now;
 }
+
+export interface HandoffRow {
+  id: string;
+  status: string;
+  ends_at?: string;
+}
+
+export interface HandoffPick {
+  id?: string;
+  state: "live" | "draft" | "paused_fallback" | "none";
+}
+
+// HUI-2628 r2（裁决3-3，root 2026-10-04 修正为行为保持抽取）：今天台的交接选择从组件体抽出。
+// 与组件现实现逐行对齐：第一个未过期 active → live；否则第一个 draft（不查过期）→ draft；
+// 否则第一个未过期且非 ended 的活动（现网即未过期 paused）→ paused_fallback；否则 none。
+export function pickHandoff(rows: HandoffRow[], nowISO: string): HandoffPick {
+  const now = Date.parse(nowISO);
+  const liveActive = rows.find((item) => item.status === "active" && !isPastEnd(item.ends_at, now));
+  if (liveActive) return { id: liveActive.id, state: "live" };
+  const draft = rows.find((item) => item.status === "draft");
+  if (draft) return { id: draft.id, state: "draft" };
+  const pausedFallback = rows.find((item) => item.status !== "ended" && !isPastEnd(item.ends_at, now));
+  if (pausedFallback) return { id: pausedFallback.id, state: "paused_fallback" };
+  return { state: "none" };
+}

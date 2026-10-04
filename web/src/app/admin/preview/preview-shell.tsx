@@ -36,7 +36,7 @@ export function PreviewShell() {
   const [notice, setNotice] = useState("");
 
   return (
-    <main style={{ maxWidth: 960, margin: "0 auto", padding: "0 20px 40px" }}>
+    <main className="tk-admin-shell">
       <EcoTopNav
         model={model}
         nickname="代理小林"
@@ -49,7 +49,7 @@ export function PreviewShell() {
         }}
       />
       <p data-testid="preview-note">这是商家后台预览。公共活动页、NFC、二维码和留资页没有这条导航。</p>
-      <div style={{ display: "flex", gap: 8, margin: "12px 0" }}>
+      <div className="tk-admin-form-row tk-admin-mt-12">
         <button type="button" onClick={() => setModel(brandModel("品牌甲", "product-image", "产品图", "ti-product-image-web"))}>
           品牌甲
         </button>

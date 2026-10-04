@@ -183,7 +183,9 @@
 .tk-button {
   border-color: var(--tk-brand);
   background: var(--tk-brand);
-  color: #fff;
+  /* 品牌底色（painuo token 下是薄荷绿 #6cebdc）配白字对比 1.44:1（axe serious）；
+     墨色文字在品牌底上约 10.7:1。生成 token 不可手改，修在手写层。 */
+  color: var(--tk-ink-main);
 }
 
 .tk-quiet:disabled,
@@ -271,3 +273,76 @@
     scroll-behavior: auto;
   }
 }
+
+/* ---- HUI-2628 r2: tk-admin-*（/admin 面 inline style 归零落点；色值只引用既有 --tk-* token） ---- */
+.tk-admin-shell { max-width: 960px; margin: 40px auto; padding: 0 20px; }
+.tk-admin-narrow { max-width: 420px; margin: 60px auto; padding: 0 20px; }
+.tk-admin-brandbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 0 0 16px; padding: 10px 14px; border-radius: 10px; background: var(--tk-ink-main); color: var(--tk-surface); }
+.tk-admin-h2 { margin: 28px 0 12px; color: var(--tk-ink-sub); font-size: 16px; }
+.tk-admin-section { background: var(--tk-surface); border: 1px solid var(--tk-border); border-radius: 8px; padding: 16px; margin-top: 20px; }
+.tk-admin-card { border: 1px solid var(--tk-border); border-radius: 8px; padding: 12px; margin-top: 12px; }
+.tk-admin-card-tight { margin-top: 8px; }
+.tk-admin-form { display: flex; flex-direction: column; gap: 8px; }
+.tk-admin-form-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.tk-admin-input { padding: 8px 10px; border: 1px solid var(--tk-border); border-radius: 6px; flex: 1 1 160px; }
+.tk-admin-input-tall { min-height: 96px; width: 100%; }
+.tk-admin-btn { padding: 8px 14px; border-radius: 6px; border: 1px solid var(--tk-brand); background: var(--tk-brand); color: var(--tk-surface); cursor: pointer; }
+.tk-admin-btn-dark { padding: 8px 14px; border-radius: 6px; border: 1px solid var(--tk-ink-main); background: var(--tk-ink-main); color: var(--tk-surface); cursor: pointer; }
+.tk-admin-btn-quiet { padding: 8px 14px; border-radius: 6px; border: 1px solid var(--tk-border); background: var(--tk-surface); color: var(--tk-brand); cursor: pointer; }
+.tk-admin-btn-danger { padding: 8px 14px; border-radius: 6px; border: 1px solid var(--tk-danger); background: var(--tk-surface); color: var(--tk-danger); cursor: pointer; }
+.tk-admin-btn-warn { padding: 8px 14px; border-radius: 6px; border: 1px solid var(--tk-warning); background: var(--tk-surface); color: var(--tk-warning); cursor: pointer; }
+.tk-admin-btn-ok { padding: 8px 14px; border-radius: 6px; border: 1px solid var(--tk-ok); background: var(--tk-surface); color: var(--tk-ok); cursor: pointer; }
+.tk-admin-btn-neutral { padding: 8px 14px; border-radius: 6px; border: 1px solid var(--tk-border); background: var(--tk-surface); color: var(--tk-ink-2); cursor: pointer; }
+.tk-admin-btn-sm { padding: 4px 8px; }
+.tk-admin-btn-xs { padding: 2px 8px; }
+.tk-admin-btn-xxs { padding: 0 6px; }
+.tk-admin-muted { color: var(--tk-ink-sub); }
+.tk-admin-muted-sm { color: var(--tk-ink-sub); font-size: 13px; }
+.tk-admin-note { color: var(--tk-ink-sub); font-size: 13px; margin: 8px 0 0; }
+.tk-admin-danger { color: var(--tk-danger); }
+.tk-admin-warn { color: var(--tk-warning); }
+.tk-admin-warn-sm { color: var(--tk-warning); font-size: 13px; }
+.tk-admin-ok { color: var(--tk-ok); }
+.tk-admin-ok-sm { color: var(--tk-ok); font-size: 13px; }
+.tk-admin-ink { color: var(--tk-ink-main); }
+.tk-admin-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+.tk-admin-table th, .tk-admin-table td { text-align: left; border-bottom: 1px solid var(--tk-border); padding: 6px; }
+.tk-admin-tag { font-size: 14px; border: 1px solid var(--tk-border); border-radius: 6px; padding: 2px 8px; }
+.tk-admin-nowrap { white-space: nowrap; }
+.tk-admin-dim { opacity: 0.7; }
+.tk-admin-dim-soft { opacity: 0.85; }
+.tk-admin-notice { margin: 0; padding: 10px 12px; background: var(--tk-warning-bg); border-radius: 10px; }
+.tk-admin-divider { border-bottom: 1px solid var(--tk-border); }
+.tk-admin-divider-soft { border-bottom: 1px solid var(--tk-bg-subtle); padding: 6px 0; }
+.tk-admin-row { display: flex; align-items: center; }
+.tk-admin-wrap { flex-wrap: wrap; }
+.tk-admin-inline-flex { display: inline-flex; align-items: center; }
+.tk-admin-block { display: block; }
+.tk-admin-between { display: flex; justify-content: space-between; align-items: baseline; }
+.tk-admin-items-center { align-items: center; }
+.tk-admin-grid-6 { display: grid; gap: 6px; }
+.tk-admin-grid-12 { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.tk-admin-grid-16 { display: grid; gap: 16px; margin-top: 16px; }
+.tk-admin-grid-cols-1 { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
+.tk-admin-grid-cols-2 { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.tk-admin-gap-4 { gap: 4px; }
+.tk-admin-gap-8 { gap: 8px; }
+.tk-admin-gap-12 { gap: 12px; }
+.tk-admin-m-0 { margin: 0; }
+.tk-admin-m-4-0 { margin: 4px 0; }
+.tk-admin-mt-0 { margin-top: 0; }
+.tk-admin-mt-8 { margin-top: 8px; }
+.tk-admin-mt-12 { margin-top: 12px; }
+.tk-admin-mt-16 { margin-top: 16px; }
+.tk-admin-mb-0 { margin-bottom: 0; }
+.tk-admin-mb-4 { margin-bottom: 4px; }
+.tk-admin-mb-8 { margin-bottom: 8px; }
+.tk-admin-mb-10 { margin-bottom: 10px; }
+.tk-admin-ml-6 { margin-left: 6px; }
+.tk-admin-ml-8 { margin-left: 8px; }
+.tk-admin-mr-8 { margin-right: 8px; }
+.tk-admin-mr-12 { margin-right: 12px; }
+.tk-admin-fs-12 { font-size: 12px; }
+.tk-admin-fs-13 { font-size: 13px; }
+.tk-admin-fs-14 { font-size: 14px; }
+.tk-admin-fs-16 { font-size: 16px; }

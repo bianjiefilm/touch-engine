@@ -1,0 +1,39 @@
+[33mThe CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.[39m
+
+ RUN  v2.1.8 /Volumes/MobileHD/Work/派诺生态/_worktrees/touch-engine/hui-2628-r2/web
+
+ ✓ tests/eco-nav/model.test.ts (15 tests) 16ms
+ ✓ tests/eco-nav/touch-shell.test.ts (6 tests) 8ms
+ ✓ tests/workbench/compose.test.ts (21 tests) 12ms
+ ✓ tests/page-map.test.ts (13 tests) 17ms
+ ✓ tests/bff.test.ts (32 tests) 62ms
+ ✓ tests/visitor-experience.test.ts (23 tests) 6ms
+ ✓ tests/page-representatives.test.ts (8 tests) 35ms
+ ✓ tests/page-census.test.ts (10 tests) 73ms
+ ✓ tests/uifinish.test.ts (18 tests) 143ms
+ ✓ tests/leads-relay.test.ts (5 tests) 13ms
+ ✓ tests/product-finish.test.ts (14 tests) 9ms
+ ✓ tests/jump-matrix.test.ts (7 tests) 7ms
+ ✓ tests/eco-nav/load.test.ts (7 tests) 15ms
+ ✓ tests/product-pages.test.ts (7 tests) 10ms
+ ✓ tests/private-domain.test.ts (8 tests) 12ms
+ ✓ tests/public-state.test.ts (17 tests) 6ms
+ ✓ tests/customer-publish.test.ts (7 tests) 6ms
+ ✓ tests/bff-qr.test.ts (2 tests) 11ms
+ ✓ tests/safe-redirect.test.ts (36 tests) 7ms
+ ✓ tests/eco-nav/allowlist.test.ts (7 tests) 18ms
+ ✓ tests/store-motion-note.test.ts (1 test) 5ms
+ ✓ tests/motion-handoff-brief.test.ts (5 tests) 4ms
+ ✓ tests/copy-draft.test.ts (7 tests) 26ms
+ ✓ tests/account-separation.test.ts (3 tests) 50ms
+ ✓ tests/store-motion-status.test.ts (4 tests) 7ms
+ ✓ tests/publish-reward.test.ts (3 tests) 4ms
+ ✓ tests/lead-outcome.test.ts (6 tests) 6ms
+ ✓ tests/store-notice.test.ts (3 tests) 4ms
+ ✓ tests/campaign-detail.test.ts (5 tests) 8ms
+
+ Test Files  29 passed (29)
+      Tests  300 passed (300)
+   Start at  23:28:05
+   Duration  2.04s (transform 1.20s, setup 0ms, collect 2.55s, tests 599ms, environment 6ms, prepare 3.67s)
+

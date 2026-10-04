@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/makiuchi-d/gozxing"
 	"github.com/makiuchi-d/gozxing/qrcode"
@@ -92,8 +93,10 @@ func fixtureWithQR(t *testing.T, logBuf *bytes.Buffer) *fixture {
 // seedActiveCampaign:创建 campaign + link 并把活动推到 active(含有效期窗口)。
 func seedActiveCampaign(t *testing.T, f *fixture) (campaignID, linkID, code string) {
 	t.Helper()
-	status, _, cmp := f.do(t, "POST", "/api/v1/campaigns", "sess-owner-a", f.tenA,
-		`{"title":"周年庆","public_content":"到店有礼","starts_at":"2026-09-01T00:00:00Z","ends_at":"2026-09-30T00:00:00Z"}`)
+	now := time.Now().UTC()
+	payload := fmt.Sprintf(`{"title":"周年庆","public_content":"到店有礼","starts_at":%q,"ends_at":%q}`,
+		now.Add(-1*time.Hour).Format(time.RFC3339), now.Add(48*time.Hour).Format(time.RFC3339))
+	status, _, cmp := f.do(t, "POST", "/api/v1/campaigns", "sess-owner-a", f.tenA, payload)
 	mustEqual(t, status, http.StatusCreated)
 	campaignID = cmp["id"].(string)
 	status, _, link := f.do(t, "POST", "/api/v1/campaigns/"+campaignID+"/links", "sess-owner-a", f.tenA, "")

@@ -8,6 +8,7 @@ import { failureText, useSession } from "@/components/work/merchant-session";
 import { MotionHandoffBrief } from "@/components/work/motion-handoff-brief";
 import { StoreMotionNote } from "@/components/work/store-motion-note";
 import { isPastEnd, surfaceLabel } from "@/lib/product-finish";
+import { takenList } from "@/lib/campaign-detail";
 
 interface Campaign {
   id: string;
@@ -63,12 +64,12 @@ export default function CampaignDetailPage() {
       session.api("GET", `nfc/tags?campaign_id=${encodeURIComponent(id)}`),
       session.api("GET", `campaigns/${id}/lead-stats`),
     ]);
-    const linkLoad = takenList<LinkRec>(linkRes.ok, linkRes.data.items);
-    setLinks(linkLoad.rows);
-    setLinkPhase(linkLoad.phase);
-    const tagLoad = takenList<TagRec>(tagRes.ok, tagRes.data.items);
-    setTags(tagLoad.rows);
-    setTagPhase(tagLoad.phase);
+    const linkLoad = takenList<LinkRec>({ ok: linkRes.ok, items: linkRes.data.items as unknown[] | null | undefined });
+    setLinks(linkLoad.items);
+    setLinkPhase(linkLoad.state);
+    const tagLoad = takenList<TagRec>({ ok: tagRes.ok, items: tagRes.data.items as unknown[] | null | undefined });
+    setTags(tagLoad.items);
+    setTagPhase(tagLoad.state);
     if (statRes.status === 404) setLeads("留资统计未开通，不显示 0");
     else if (!statRes.ok) setLeads("留资统计没有读到，不显示 0");
     else setLeads(`授权提交 ${String(statRes.data.submissions ?? "未知")}，匿名浏览 ${String(statRes.data.anonymous_views ?? "未知")}`);
@@ -186,11 +187,4 @@ export default function CampaignDetailPage() {
       ) : null}
     </main>
   );
-}
-
-function takenList<T>(ok: boolean, items: unknown): { phase: "error" | "empty" | "ready"; rows: T[] } {
-  if (!ok) return { phase: "error", rows: [] };
-  if (items == null) return { phase: "empty", rows: [] };
-  if (!Array.isArray(items)) return { phase: "error", rows: [] };
-  return { phase: items.length === 0 ? "empty" : "ready", rows: items as T[] };
 }

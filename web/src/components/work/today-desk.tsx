@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { TaskHandoffActions } from "@/components/admin/TaskHandoffActions";
 import { MerchantGate, useSession } from "@/components/work/merchant-session";
-import { isPastEnd, planToday, surfaceLabel, type TodayItem } from "@/lib/product-finish";
+import { planToday, pickHandoff, surfaceLabel, type TodayItem } from "@/lib/product-finish";
 import { contentGap } from "@/lib/workbench/compose";
 
 interface CampaignRow {
@@ -73,9 +73,8 @@ function TodayBody() {
         redemptionKnown: false,
       });
       setItems(next);
-      const liveActive = campaigns.filter((item) => item.status === "active" && !isPastEnd(item.ends_at));
       setCampaignCount(campaigns.length);
-      setHandoffId(liveActive[0]?.id || pick("draft")[0]?.id || campaigns.find((item) => !isPastEnd(item.ends_at) && item.status !== "ended")?.id || "");
+      setHandoffId(pickHandoff(campaigns, new Date().toISOString()).id ?? "");
       setPhase("ready");
     })().catch(() => {
       if (alive) setPhase("error");

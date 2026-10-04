@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 )
 
 // seedNFCTenantCampaign:在租户 A 建门店 + active 活动 + nLinks 条短码。
@@ -25,8 +26,10 @@ func seedNFCTenantCampaign(t *testing.T, f *fixture, nLinks int) (storeID, campa
 	mustEqual(t, status, http.StatusCreated)
 	storeID = st["id"].(string)
 
-	status, _, cmp := f.do(t, "POST", "/api/v1/campaigns", "sess-owner-a", f.tenA,
-		`{"title":"周年庆","public_content":"到店有礼","starts_at":"2026-09-01T00:00:00Z","ends_at":"2026-09-30T00:00:00Z"}`)
+	now := time.Now().UTC()
+	payload := fmt.Sprintf(`{"title":"周年庆","public_content":"到店有礼","starts_at":%q,"ends_at":%q}`,
+		now.Add(-1*time.Hour).Format(time.RFC3339), now.Add(48*time.Hour).Format(time.RFC3339))
+	status, _, cmp := f.do(t, "POST", "/api/v1/campaigns", "sess-owner-a", f.tenA, payload)
 	mustEqual(t, status, http.StatusCreated)
 	campaignID = cmp["id"].(string)
 	for i := 0; i < nLinks; i++ {

@@ -119,6 +119,20 @@
   position: relative;
 }
 
+/* HUI-2628 r2（评审 A7）：390 窄视口横向溢出修复。实测溢出源是右侧账户钮——
+   .right 已收缩（52px），但 .popover min-width:auto 拒缩，连同昵称溢出到视口外，
+   五张 work 页截图因此实际 428px 宽。只放行收缩与就近截断，不动结构，宽屏无感。 */
+.right .popover {
+  min-width: 0;
+}
+
+.right > .popover > .button {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .menu {
   position: absolute;
   top: calc(100% + 4px);

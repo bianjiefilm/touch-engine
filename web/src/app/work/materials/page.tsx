@@ -112,7 +112,7 @@ export default function MaterialsPage() {
       </section>
       <form className="tk-form tk-section" onSubmit={addRef}>
         <h2 className="tk-section-title">添加引用</h2>
-        <select className="tk-select" value={draft.campaign} onChange={(event) => setDraft({ ...draft, campaign: event.target.value })} required>
+        <select className="tk-select" aria-label="选择活动" value={draft.campaign} onChange={(event) => setDraft({ ...draft, campaign: event.target.value })} required>
           <option value="">选择活动</option>
           {campaigns.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
         </select>

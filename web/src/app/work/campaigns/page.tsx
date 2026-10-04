@@ -115,7 +115,7 @@ export default function CampaignsPage() {
         <input className="tk-input" placeholder="顾客能看到的内容" value={draft.public_content} onChange={(event) => setDraft({ ...draft, public_content: event.target.value })} />
         <input className="tk-input" placeholder="开始时间 RFC3339，可空" value={draft.starts_at} onChange={(event) => setDraft({ ...draft, starts_at: event.target.value })} />
         <input className="tk-input" placeholder="结束时间 RFC3339，可空" value={draft.ends_at} onChange={(event) => setDraft({ ...draft, ends_at: event.target.value })} />
-        <select className="tk-select" value={draft.store_id} onChange={(event) => setDraft({ ...draft, store_id: event.target.value })}>
+        <select className="tk-select" aria-label="关联门店" value={draft.store_id} onChange={(event) => setDraft({ ...draft, store_id: event.target.value })}>
           <option value="">不关联门店</option>
           {stores.filter((store) => store.status !== "disabled").map((store) => (
             <option key={store.id} value={store.id}>{store.name}</option>

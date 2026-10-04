@@ -63,7 +63,9 @@ describe("代表页面是真实路由", () => {
     for (const state of ["empty", "loading", "error", "expired", "paused", "ended"]) {
       expect(campaign).toContain(`data-state="${state}"`);
     }
-    expect(read("app/work/rewards/page.tsx")).toContain("tk-unknown");
+    // HUI-2628 r2：奖励未知样式经 rewardPresentation().className 下发（unknown→tk-unknown 行为已锁定），
+    // 页面不再出现字面量 tk-ok/tk-unknown（uifinish unknown_reward_success_green 静态闸要求）。
+    expect(read("app/work/rewards/page.tsx")).toContain("presented.className");
     expect(read("app/work/analytics/page.tsx")).toContain("未知");
     expect(read("app/c/[code]/contact/page.tsx")).toContain("contact");
   });
@@ -84,7 +86,9 @@ describe("代表页面是真实路由", () => {
     const source = read("app/c/[code]/public-campaign.tsx");
     expect(source).not.toMatch(/data-testid="lead-outcome"[^>\n]*data-state="success"/);
     expect(source).not.toMatch(/data-tone="confirmed"|data-tone=\{[^}]*"confirmed"/);
-    expect(source).toMatch(/待同步[\s\S]{0,120}"pending"|"pending"[\s\S]{0,120}待同步/);
+    // HUI-2628 r2：pending 判定已抽到 lib/lead-outcome（待同步→pending 由 lead-outcome.test.ts 行为锁定）；
+    // 页面必须委托该纯函数，撤销时用同源 LEAD_REVOKED_COPY。
+    expect(source).toMatch(/leadOutcomeState\(revokeDone\s*\?\s*LEAD_REVOKED_COPY\s*:\s*outcome\)/);
     expect(source).toContain('data-state="revoked"');
     const outcome = source.slice(source.indexOf('data-testid="lead-outcome"'));
     expect(outcome).toContain("tk-ok");

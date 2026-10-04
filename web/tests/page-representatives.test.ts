@@ -9,7 +9,7 @@ const absent = {
   surface: "not_present",
   stack: "not_present",
   screenshot: "not_measured",
-};
+} as const;
 
 // 与生产函数分开写的同一规则。只读普查行，不调用 selectRepresentatives。
 function representativesByHand(

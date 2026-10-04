@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "./touch.css";
+import "../styles/generated/painuo/v1/tokens.css";
+import "../styles/generated/painuo/v1/aliases.css";
 
 export const metadata: Metadata = {
   title: "碰一碰",
@@ -10,7 +12,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="zh-CN">
-      <body>{children}</body>
+      <body data-pn-surface="work.light" data-pn-theme="light">{children}</body>
     </html>
   );
 }

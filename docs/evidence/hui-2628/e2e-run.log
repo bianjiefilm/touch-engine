@@ -1,0 +1,78 @@
+[run] next build
+
+> touch-engine-web@0.1.0 build
+> next build
+
+ ⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+ We detected multiple lockfiles and selected the directory of /Volumes/MobileHD/Work/派诺生态/package-lock.json as the root directory.
+ To silence this warning, set `outputFileTracingRoot` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+   See https://nextjs.org/docs/app/api-reference/config/next-config-js/output#caveats for more information.
+ Detected additional lockfiles: 
+   * /Volumes/MobileHD/Work/派诺生态/_worktrees/touch-engine/hui-2628-r2/web/package-lock.json
+
+   ▲ Next.js 15.5.25
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 2.0s
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/14) ...
+   Generating static pages (3/14) 
+   Generating static pages (6/14) 
+   Generating static pages (10/14) 
+ ✓ Generating static pages (14/14)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                 Size  First Load JS
+┌ ○ /                                    6.27 kB         113 kB
+├ ○ /_not-found                            989 B         104 kB
+├ ○ /admin                               15.3 kB         129 kB
+├ ○ /admin/preview                        1.9 kB         112 kB
+├ ƒ /api/[...path]                         137 B         103 kB
+├ ƒ /api/eco-nav                           137 B         103 kB
+├ ƒ /api/eco-nav/campaign-image            137 B         103 kB
+├ ƒ /api/eco-nav/launches                  137 B         103 kB
+├ ƒ /c/[code]                              254 B         115 kB
+├ ƒ /c/[code]/contact                      251 B         115 kB
+├ ○ /work/analytics                      3.83 kB         106 kB
+├ ○ /work/campaigns                       4.4 kB         107 kB
+├ ƒ /work/campaigns/[id]                 7.01 kB         113 kB
+├ ○ /work/materials                      4.02 kB         107 kB
+├ ○ /work/rewards                        5.07 kB         108 kB
+└ ○ /work/stores                         4.13 kB         107 kB
++ First Load JS shared by all             103 kB
+  ├ chunks/255-37e0f0325134c4d7.js       46.4 kB
+  ├ chunks/4bd1b696-c023c6e3521b1417.js  54.2 kB
+  └ other shared chunks (total)          1.93 kB
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+[env] provisioned tenant tnt_9e7620c6ab67f1ef8447a8cbb002c342
+[env] up complete
+
+Running 7 tests using 1 worker
+
+  ✓  1 e2e/specs/01-merchant-first-entry.spec.ts:5:5 › merchant first entry shows today desk with real data (1.3s)
+  ✓  2 e2e/specs/02-public-states.spec.ts:8:5 › public page states (731ms)
+  ✓  3 e2e/specs/02-public-states.spec.ts:32:5 › public page loading state while link fetch is pending (450ms)
+  ✓  4 e2e/specs/03-contact-flow.spec.ts:8:5 › contact flow submit then revoke (690ms)
+  ✓  5 e2e/specs/04-reward-unknown.spec.ts:5:5 › unknown reward never shows success green (424ms)
+  ✓  6 e2e/specs/05-no-eco-nav-on-public.spec.ts:5:5 › no eco nav on public page (684ms)
+  ✓  7 e2e/specs/06-a11y-screenshots.spec.ts:29:5 › a11y + screenshots across 8 representative pages (20.4s)
+
+  7 passed (27.6s)
+[env] stopped identity pid 72476 (port 18461)
+[env] stopped identity pid 72538 (port 18461)
+[env] stopped web pid 72542 (port 18462)
+[run] playwright exit=0
+[gate] ---- 证据汇总 ----
+[gate] spec 文件数: 6（01-merchant-first-entry.spec.ts, 02-public-states.spec.ts, 03-contact-flow.spec.ts, 04-reward-unknown.spec.ts, 05-no-eco-nav-on-public.spec.ts, 06-a11y-screenshots.spec.ts）
+[gate] 用例数: 7，passed=7，failed=0，skipped=0
+[gate] 验收截图: 17/17 在 evidence/（missing: 无）
+[gate] axe critical+serious: 0
+[gate] ----------------------
+[gate] 证据门通过
+[run] PASS
