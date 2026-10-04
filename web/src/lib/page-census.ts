@@ -85,7 +85,8 @@ export function scanMarkers(source: string): Marker[] {
 
 const markerBook: readonly { route: string; markers: readonly Marker[] }[] = [
   { route: "/", markers: [] },
-  { route: "/admin", markers: ["inline style", "raw button", "raw input", "raw table", "bare hex"] },
+  // HUI-2628 r2：admin/page.tsx 行内样式与裸 hex 已清零（token 化），账本同步。
+  { route: "/admin", markers: ["raw button", "raw input", "raw table"] },
   { route: "/admin/preview", markers: ["inline style"] },
   { route: "/work/stores", markers: ["raw button", "raw input"] },
   { route: "/work/campaigns", markers: ["raw button", "raw input"] },

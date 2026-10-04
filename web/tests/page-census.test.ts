@@ -211,7 +211,8 @@ describe("半成品标记", () => {
   it("记下的命中和重新扫描该页面文件一致", () => {
     const want = new Map<string, Marker[]>([
       ["/", []],
-      ["/admin", ["inline style", "raw button", "raw input", "raw table", "bare hex"]],
+      // HUI-2628 r2：admin/page.tsx 行内样式与裸 hex 清零后账本同步。
+      ["/admin", ["raw button", "raw input", "raw table"]],
       ["/admin/preview", ["inline style"]],
       ["/work/stores", ["raw button", "raw input"]],
       ["/work/campaigns", ["raw button", "raw input"]],

@@ -605,11 +605,11 @@ export default function AdminPage() {
 
   if (!role) {
     return (
-      <main style={{ maxWidth: 420, margin: "60px auto", padding: "0 20px" }}>
+      <main className="tk-admin-narrow">
         <h1>商家后台登录</h1>
-        <form onSubmit={handleLogin} style={formStyle}>
-          <input placeholder="平台账号邮箱" value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} />
-          <input placeholder="密码" type="password" value={password} onChange={(e) => setPassword(e.target.value)} style={inputStyle} />
+        <form onSubmit={handleLogin} className="tk-admin-form">
+          <input placeholder="平台账号邮箱" value={email} onChange={(e) => setEmail(e.target.value)} className="tk-admin-input" />
+          <input placeholder="密码" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="tk-admin-input" />
           <input
             placeholder="租户 ID(tnt_*,由运维提供)"
             value={tenantId}
@@ -617,45 +617,35 @@ export default function AdminPage() {
               setTenantId(e.target.value);
               localStorage.setItem(TENANT_KEY, e.target.value);
             }}
-            style={inputStyle}
+            className="tk-admin-input"
           />
-          <button type="submit" style={btnStyle}>登录</button>
+          <button type="submit" className="tk-admin-btn">登录</button>
         </form>
-        {error && <p style={{ color: "#b91c1c" }}>{error}</p>}
+        {error && <p className="tk-admin-danger">{error}</p>}
       </main>
     );
   }
 
   return (
     <AdminShell nickname={email_ || "商家"} sessionRole={role} onLogout={() => void logout()} onTenantChange={switchMerchant}>
-    <main style={{ maxWidth: 960, margin: "40px auto", padding: "0 20px" }}>
+    <main className="tk-admin-shell">
       {workbar && (
         <div
           data-testid="brand-workbar"
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 12,
-            margin: "0 0 16px",
-            padding: "10px 14px",
-            borderRadius: 10,
-            background: "#0f172a",
-            color: "#f8fafc",
-          }}
+          className="tk-admin-brandbar"
         >
           <div>
             <strong>{brandName || "品牌"}</strong>
-            <span style={{ opacity: 0.7 }}> / </span>
+            <span className="tk-admin-dim"> / </span>
             <span>{tenantName || tenantId}</span>
           </div>
-          {supportLine && <span style={{ fontSize: 13, opacity: 0.85 }}>客服 {supportLine}</span>}
+          {supportLine && <span className="tk-admin-dim-soft tk-admin-fs-13">客服 {supportLine}</span>}
         </div>
       )}
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+      <header className="tk-admin-between">
         <h1>碰一碰 · 商家后台</h1>
         <div>
-          <span style={{ marginRight: 12 }}>
+          <span className="tk-admin-mr-12">
             {email_} · {role}
             {isStoreManager
               ? ` · 门店:${managedStore?.name ?? storeScope}`
@@ -665,10 +655,10 @@ export default function AdminPage() {
             {" · "}
             {tenantId}
           </span>
-          <button onClick={logout} style={btnStyle}>退出</button>
+          <button onClick={logout} className="tk-admin-btn">退出</button>
         </div>
       </header>
-      {error && <p style={{ color: "#b91c1c" }}>{error}</p>}
+      {error && <p className="tk-admin-danger">{error}</p>}
 
       <MerchantWorkbench
         tenantId={tenantId}
@@ -684,37 +674,37 @@ export default function AdminPage() {
         }}
       />
 
-      <h2 style={{ marginTop: 28, color: "#6b7280", fontSize: 16 }}>门店、标签和设置</h2>
-      <section style={sectionStyle}>
+      <h2 className="tk-admin-h2">门店、标签和设置</h2>
+      <section className="tk-admin-section">
         <h2>门店</h2>
-        {storeError && <p style={{ color: isStoreManager ? undefined : "#b45309" }}>{storeError}</p>}
+        {storeError && <p className={isStoreManager ? undefined : "tk-admin-warn"}>{storeError}</p>}
         {isStoreManager ? (
-          <p style={{ color: "#6b7280" }}>
+          <p className="tk-admin-muted">
             你只管辖本门店:{managedStore ? `${managedStore.name}(${managedStore.address || "无地址"})` : "(门店不存在或已被移除)"}。
             门店的增删改由总部(org_owner)操作。
           </p>
         ) : (
           <ul>
             {stores.map((s) => (
-              <li key={s.id} style={{ marginBottom: 4 }}>
+              <li key={s.id} className="tk-admin-mb-4">
                 {storeEdit?.id === s.id ? (
-                  <form onSubmit={saveStoreEdit} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    <input value={storeEdit.name} onChange={(e) => setStoreEdit({ ...storeEdit, name: e.target.value })} style={inputStyle} required />
-                    <input value={storeEdit.address} onChange={(e) => setStoreEdit({ ...storeEdit, address: e.target.value })} style={inputStyle} placeholder="地址" />
-                    <button style={btnStyle}>保存</button>
-                    <button type="button" onClick={() => setStoreEdit(null)} style={{ ...btnStyle, background: "#fff", color: "#374151", borderColor: "#d1d5db" }}>取消</button>
+                  <form onSubmit={saveStoreEdit} className="tk-admin-form-row">
+                    <input value={storeEdit.name} onChange={(e) => setStoreEdit({ ...storeEdit, name: e.target.value })} className="tk-admin-input" required />
+                    <input value={storeEdit.address} onChange={(e) => setStoreEdit({ ...storeEdit, address: e.target.value })} className="tk-admin-input" placeholder="地址" />
+                    <button className="tk-admin-btn">保存</button>
+                    <button type="button" onClick={() => setStoreEdit(null)} className="tk-admin-btn-neutral">取消</button>
                   </form>
                 ) : (
                   <>
                     {s.name}({s.address || "无地址"}){" "}
                     {s.status === "disabled"
-                      ? <span style={{ color: "#b45309", fontSize: 13 }}>[已停用:禁止新建活动,公共页标注「门店暂不可用」]</span>
-                      : <span style={{ color: "#059669", fontSize: 13 }}>[启用]</span>}
+                      ? <span className="tk-admin-warn-sm">[已停用:禁止新建活动,公共页标注「门店暂不可用」]</span>
+                      : <span className="tk-admin-ok-sm">[启用]</span>}
                     {" "}
-                    <button type="button" onClick={() => setStoreEdit({ id: s.id, name: s.name, address: s.address })} style={{ ...btnStyle, padding: "2px 8px", background: "#fff", color: "#2563eb" }}>编辑</button>
+                    <button type="button" onClick={() => setStoreEdit({ id: s.id, name: s.name, address: s.address })} className="tk-admin-btn-quiet tk-admin-btn-xs">编辑</button>
                     {s.status === "active"
-                      ? <button type="button" onClick={() => void setStoreStatus(s.id, "disabled")} style={{ ...btnStyle, padding: "2px 8px", background: "#fff", color: "#b45309", borderColor: "#b45309" }}>停用</button>
-                      : <button type="button" onClick={() => void setStoreStatus(s.id, "active")} style={{ ...btnStyle, padding: "2px 8px", background: "#fff", color: "#059669", borderColor: "#059669" }}>启用</button>}
+                      ? <button type="button" onClick={() => void setStoreStatus(s.id, "disabled")} className="tk-admin-btn-warn tk-admin-btn-xs">停用</button>
+                      : <button type="button" onClick={() => void setStoreStatus(s.id, "active")} className="tk-admin-btn-ok tk-admin-btn-xs">启用</button>}
                   </>
                 )}
               </li>
@@ -722,36 +712,36 @@ export default function AdminPage() {
           </ul>
         )}
         {isOrgOwner && (
-          <form onSubmit={createStore} style={{ display: "flex", gap: 8 }}>
-            <input placeholder="门店名" value={newStore.name} onChange={(e) => setNewStore({ ...newStore, name: e.target.value })} style={inputStyle} required />
-            <input placeholder="地址(可选)" value={newStore.address} onChange={(e) => setNewStore({ ...newStore, address: e.target.value })} style={inputStyle} />
-            <button style={btnStyle}>新增门店</button>
+          <form onSubmit={createStore} className="tk-admin-form-row">
+            <input placeholder="门店名" value={newStore.name} onChange={(e) => setNewStore({ ...newStore, name: e.target.value })} className="tk-admin-input" required />
+            <input placeholder="地址(可选)" value={newStore.address} onChange={(e) => setNewStore({ ...newStore, address: e.target.value })} className="tk-admin-input" />
+            <button className="tk-admin-btn">新增门店</button>
           </form>
         )}
       </section>
 
-      <section style={sectionStyle}>
+      <section className="tk-admin-section">
         <h2>活动</h2>
-        <table width="100%" cellPadding={6} style={{ borderCollapse: "collapse" }}>
+        <table className="tk-admin-table">
           <thead>
-            <tr style={{ textAlign: "left", borderBottom: "1px solid #e5e7eb" }}>
+            <tr>
               <th>标题</th><th>状态</th><th>有效期</th><th>订单引用</th><th>操作</th>
             </tr>
           </thead>
           <tbody>
             {campaigns.map((c) => (
-              <tr key={c.id} id={`campaign-${c.id}`} style={{ borderBottom: "1px solid #f3f4f6" }}>
+              <tr key={c.id} id={`campaign-${c.id}`} className="tk-admin-divider-soft">
                 <td>{c.title}</td>
                 <td>{c.status}</td>
                 <td>{c.starts_at || "∞"} ~ {c.ends_at || "∞"}</td>
                 <td>{c.order_ref || "(无订单活动)"}</td>
                 <td>
-                  {c.status === "draft" && <button onClick={() => transition(c.id, "active")} style={btnStyle}>启用</button>}
-                  {c.status === "active" && <button onClick={() => transition(c.id, "paused")} style={btnStyle}>暂停</button>}
-                  {c.status === "paused" && <button onClick={() => transition(c.id, "active")} style={btnStyle}>恢复</button>}
-                  {(c.status === "active" || c.status === "paused") && <button onClick={() => transition(c.id, "ended")} style={btnStyle}>结束</button>}
-                  <button onClick={() => createCampaignLinks(c.id)} style={btnStyle}>生成链接</button>
-                  <button onClick={() => void openQrPanel(c.id)} style={{ ...btnStyle, background: "#fff", color: "#2563eb" }}>
+                  {c.status === "draft" && <button onClick={() => transition(c.id, "active")} className="tk-admin-btn">启用</button>}
+                  {c.status === "active" && <button onClick={() => transition(c.id, "paused")} className="tk-admin-btn">暂停</button>}
+                  {c.status === "paused" && <button onClick={() => transition(c.id, "active")} className="tk-admin-btn">恢复</button>}
+                  {(c.status === "active" || c.status === "paused") && <button onClick={() => transition(c.id, "ended")} className="tk-admin-btn">结束</button>}
+                  <button onClick={() => createCampaignLinks(c.id)} className="tk-admin-btn">生成链接</button>
+                  <button onClick={() => void openQrPanel(c.id)} className="tk-admin-btn-quiet">
                     {qrFor === c.id ? "收起二维码" : "二维码"}
                   </button>
                   <TaskHandoffActions campaignId={c.id} onPlanned={setTaskNotice} />
@@ -763,104 +753,104 @@ export default function AdminPage() {
         {taskNotice ? <p data-testid="task-notice">{taskNotice}</p> : null}
 
         {qrFor && (
-          <div style={{ marginTop: 12, border: "1px solid #e5e7eb", borderRadius: 8, padding: 12 }}>
-            <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 8 }}>
+          <div className="tk-admin-card">
+            <div className="tk-admin-row tk-admin-gap-12 tk-admin-mb-8">
               <strong>二维码(扫码进入公共活动页)</strong>
-              <label style={{ fontSize: 14 }}>
+              <label className="tk-admin-fs-14">
                 尺寸
-                <select value={qrSize} onChange={(e) => setQrSize(Number(e.target.value))} style={{ ...inputStyle, marginLeft: 6, width: "auto" }}>
+                <select value={qrSize} onChange={(e) => setQrSize(Number(e.target.value))} className="tk-admin-input tk-admin-ml-6">
                   {QR_SIZES.map((s) => (
                     <option key={s} value={s}>{s}px</option>
                   ))}
                 </select>
               </label>
             </div>
-            {qrBusy && <p style={{ color: "#6b7280" }}>加载中…</p>}
-            {!qrBusy && qrLinks.length === 0 && <p style={{ color: "#6b7280" }}>该活动还没有短码链接,请先「生成链接」。</p>}
+            {qrBusy && <p className="tk-admin-muted">加载中…</p>}
+            {!qrBusy && qrLinks.length === 0 && <p className="tk-admin-muted">该活动还没有短码链接,请先「生成链接」。</p>}
             {qrLinks.map((l) => (
-              <div key={l.id} style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", borderBottom: "1px solid #f3f4f6", padding: "6px 0" }}>
-                <code style={{ fontSize: 13 }}>{qrMeta[l.id]?.url ?? l.code}</code>
-                {!l.enabled && <span style={{ color: "#b45309", fontSize: 13 }}>已停用</span>}
+              <div key={l.id} className="tk-admin-divider-soft tk-admin-row tk-admin-wrap tk-admin-gap-12">
+                <code className="tk-admin-fs-13">{qrMeta[l.id]?.url ?? l.code}</code>
+                {!l.enabled && <span className="tk-admin-warn-sm">已停用</span>}
                 <button
                   onClick={() => void downloadQr(qrFor, l.id, qrMeta[l.id]?.code ?? l.code, qrSize)}
-                  style={btnStyle}
+                  className="tk-admin-btn"
                 >
                   下载 PNG({qrSize}px)
                 </button>
               </div>
             ))}
-            <p style={{ color: "#6b7280", fontSize: 13, margin: "8px 0 0" }}>
+            <p className="tk-admin-note">
               二维码内容为纯短码地址,不含任何凭证或客户信息;游客扫码无需注册商家账户。
             </p>
           </div>
         )}
 
-        <form id="create-campaign" onSubmit={createCampaign} style={{ ...formStyle, marginTop: 12 }}>
-          <input placeholder="活动标题" value={newCampaign.title} onChange={(e) => setNewCampaign({ ...newCampaign, title: e.target.value })} style={inputStyle} required />
-          <input placeholder="公开内容(游客可见)" value={newCampaign.public_content} onChange={(e) => setNewCampaign({ ...newCampaign, public_content: e.target.value })} style={inputStyle} />
-          <input placeholder="开始时间 RFC3339(可空)" value={newCampaign.starts_at} onChange={(e) => setNewCampaign({ ...newCampaign, starts_at: e.target.value })} style={inputStyle} />
-          <input placeholder="结束时间 RFC3339(可空)" value={newCampaign.ends_at} onChange={(e) => setNewCampaign({ ...newCampaign, ends_at: e.target.value })} style={inputStyle} />
-          <select value={newCampaign.store_id} onChange={(e) => setNewCampaign({ ...newCampaign, store_id: e.target.value })} style={inputStyle}>
+        <form id="create-campaign" onSubmit={createCampaign} className="tk-admin-form tk-admin-mt-12">
+          <input placeholder="活动标题" value={newCampaign.title} onChange={(e) => setNewCampaign({ ...newCampaign, title: e.target.value })} className="tk-admin-input" required />
+          <input placeholder="公开内容(游客可见)" value={newCampaign.public_content} onChange={(e) => setNewCampaign({ ...newCampaign, public_content: e.target.value })} className="tk-admin-input" />
+          <input placeholder="开始时间 RFC3339(可空)" value={newCampaign.starts_at} onChange={(e) => setNewCampaign({ ...newCampaign, starts_at: e.target.value })} className="tk-admin-input" />
+          <input placeholder="结束时间 RFC3339(可空)" value={newCampaign.ends_at} onChange={(e) => setNewCampaign({ ...newCampaign, ends_at: e.target.value })} className="tk-admin-input" />
+          <select value={newCampaign.store_id} onChange={(e) => setNewCampaign({ ...newCampaign, store_id: e.target.value })} className="tk-admin-input">
             <option value="">{isStoreManager ? "本门店(自动)" : "不关联门店"}</option>
             {activeStores.map((s) => (
               <option key={s.id} value={s.id}>{s.name}</option>
             ))}
           </select>
-          <input placeholder="订单引用(可选,不透明)" value={newCampaign.order_ref} onChange={(e) => setNewCampaign({ ...newCampaign, order_ref: e.target.value })} style={inputStyle} />
-          <button style={btnStyle}>创建活动(草稿)</button>
+          <input placeholder="订单引用(可选,不透明)" value={newCampaign.order_ref} onChange={(e) => setNewCampaign({ ...newCampaign, order_ref: e.target.value })} className="tk-admin-input" />
+          <button className="tk-admin-btn">创建活动(草稿)</button>
         </form>
 
-        <div style={{ ...formStyle, marginTop: 16, borderTop: "1px solid #f3f4f6", paddingTop: 12 }}>
+        <div className="tk-admin-form tk-admin-mt-16 tk-admin-divider-soft">
           <strong>文案（短标题 / 简介 / 话题）</strong>
-          <p style={{ color: "#6b7280", fontSize: 13, margin: 0 }}>
+          <p className="tk-admin-muted-sm tk-admin-m-0">
             先报价，再确认，然后生成。价格过期、地址或营业时间不确定、营销宣称没有证据时，请先补充。文案里的地点名不是渠道已挂载的 POI。没有模型凭证时不会标成成功文案，也不会扣费、发布或发奖励。
           </p>
-          <select value={copyCampaign} onChange={(e) => setCopyCampaign(e.target.value)} style={inputStyle}>
+          <select value={copyCampaign} onChange={(e) => setCopyCampaign(e.target.value)} className="tk-admin-input">
             <option value="">选择活动</option>
             {campaigns.map((c) => (
               <option key={c.id} value={c.id}>{c.title}（{c.status}）</option>
             ))}
           </select>
-          <input placeholder="商品原文，未确认就不要当事实" value={copyProduct.text} onChange={(e) => setCopyProduct({ ...copyProduct, text: e.target.value })} style={inputStyle} />
-          <select value={copyProduct.status} onChange={(e) => setCopyProduct({ ...copyProduct, status: e.target.value })} style={inputStyle}>
+          <input placeholder="商品原文，未确认就不要当事实" value={copyProduct.text} onChange={(e) => setCopyProduct({ ...copyProduct, text: e.target.value })} className="tk-admin-input" />
+          <select value={copyProduct.status} onChange={(e) => setCopyProduct({ ...copyProduct, status: e.target.value })} className="tk-admin-input">
             <option value="uncertain">商品未确认</option>
             <option value="confirmed">商品已确认</option>
             <option value="expired">商品已过期</option>
             <option value="absent">没有商品</option>
           </select>
-          <input placeholder="价格原文，过期就不要当事实" value={copyPrice.text} onChange={(e) => setCopyPrice({ ...copyPrice, text: e.target.value })} style={inputStyle} />
-          <select value={copyPrice.status} onChange={(e) => setCopyPrice({ ...copyPrice, status: e.target.value })} style={inputStyle}>
+          <input placeholder="价格原文，过期就不要当事实" value={copyPrice.text} onChange={(e) => setCopyPrice({ ...copyPrice, text: e.target.value })} className="tk-admin-input" />
+          <select value={copyPrice.status} onChange={(e) => setCopyPrice({ ...copyPrice, status: e.target.value })} className="tk-admin-input">
             <option value="expired">价格已过期</option>
             <option value="confirmed">价格已确认</option>
             <option value="absent">没有价格</option>
           </select>
-          <input placeholder="地址（须与门店记录一致才算确认）" value={copyAddress.text} onChange={(e) => setCopyAddress({ ...copyAddress, text: e.target.value })} style={inputStyle} />
-          <select value={copyAddress.status} onChange={(e) => setCopyAddress({ ...copyAddress, status: e.target.value })} style={inputStyle}>
+          <input placeholder="地址（须与门店记录一致才算确认）" value={copyAddress.text} onChange={(e) => setCopyAddress({ ...copyAddress, text: e.target.value })} className="tk-admin-input" />
+          <select value={copyAddress.status} onChange={(e) => setCopyAddress({ ...copyAddress, status: e.target.value })} className="tk-admin-input">
             <option value="uncertain">地址不确定</option>
             <option value="confirmed">地址已确认</option>
             <option value="absent">没有地址</option>
           </select>
-          <input placeholder="营业时间" value={copyHours.text} onChange={(e) => setCopyHours({ ...copyHours, text: e.target.value })} style={inputStyle} />
-          <select value={copyHours.status} onChange={(e) => setCopyHours({ ...copyHours, status: e.target.value })} style={inputStyle}>
+          <input placeholder="营业时间" value={copyHours.text} onChange={(e) => setCopyHours({ ...copyHours, text: e.target.value })} className="tk-admin-input" />
+          <select value={copyHours.status} onChange={(e) => setCopyHours({ ...copyHours, status: e.target.value })} className="tk-admin-input">
             <option value="uncertain">营业时间不确定</option>
             <option value="confirmed">营业时间已确认</option>
             <option value="absent">没有营业时间</option>
           </select>
-          <input placeholder="营销宣称" value={copyClaim.text} onChange={(e) => setCopyClaim({ ...copyClaim, text: e.target.value })} style={inputStyle} />
-          <input placeholder="宣称证据（没有就留空）" value={copyClaim.evidence} onChange={(e) => setCopyClaim({ ...copyClaim, evidence: e.target.value })} style={inputStyle} />
-          <textarea placeholder="地点名，一行一个。这不是 POI 绑定。" value={copyPoi} onChange={(e) => setCopyPoi(e.target.value)} style={{ ...inputStyle, minHeight: 64 }} />
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button type="button" data-testid="copy-quote" style={btnStyle} onClick={() => void runCopy("quote")}>报价</button>
-            <button type="button" data-testid="copy-confirm" style={btnStyle} onClick={() => void runCopy("confirm")}>确认报价</button>
-            <button type="button" data-testid="copy-generate" style={btnStyle} onClick={() => void runCopy("generate")}>生成</button>
-            <button type="button" data-testid="copy-select" style={btnStyle} onClick={() => void runCopy("select")}>选定草稿</button>
-            <button type="button" data-testid="copy-save" style={btnStyle} onClick={() => void runCopy("save")}>保存到活动</button>
-            <button type="button" data-testid="copy-revoke" style={{ ...btnStyle, background: "#fff", color: "#b91c1c", borderColor: "#b91c1c" }} onClick={() => void runCopy("revoke")}>撤销</button>
+          <input placeholder="营销宣称" value={copyClaim.text} onChange={(e) => setCopyClaim({ ...copyClaim, text: e.target.value })} className="tk-admin-input" />
+          <input placeholder="宣称证据（没有就留空）" value={copyClaim.evidence} onChange={(e) => setCopyClaim({ ...copyClaim, evidence: e.target.value })} className="tk-admin-input" />
+          <textarea placeholder="地点名，一行一个。这不是 POI 绑定。" value={copyPoi} onChange={(e) => setCopyPoi(e.target.value)} className="tk-admin-input tk-admin-input-tall" />
+          <div className="tk-admin-form-row">
+            <button type="button" data-testid="copy-quote" className="tk-admin-btn" onClick={() => void runCopy("quote")}>报价</button>
+            <button type="button" data-testid="copy-confirm" className="tk-admin-btn" onClick={() => void runCopy("confirm")}>确认报价</button>
+            <button type="button" data-testid="copy-generate" className="tk-admin-btn" onClick={() => void runCopy("generate")}>生成</button>
+            <button type="button" data-testid="copy-select" className="tk-admin-btn" onClick={() => void runCopy("select")}>选定草稿</button>
+            <button type="button" data-testid="copy-save" className="tk-admin-btn" onClick={() => void runCopy("save")}>保存到活动</button>
+            <button type="button" data-testid="copy-revoke" className="tk-admin-btn-danger" onClick={() => void runCopy("revoke")}>撤销</button>
           </div>
         </div>
-        {copyError && <p style={{ color: "#b91c1c" }}>{copyError}</p>}
+        {copyError && <p className="tk-admin-danger">{copyError}</p>}
         {shownJob && (
-          <div style={{ marginTop: 12, border: "1px solid #e5e7eb", borderRadius: 8, padding: 12 }}>
+          <div className="tk-admin-card">
             <p data-testid="copy-job-state">状态：{String(shownJob.state ?? "")}</p>
             <p data-testid="copy-real-generation">真实生成：{String(shownJob.real_generation ?? "incomplete")}</p>
             <p data-testid="copy-notice">{copyJobClosed({
@@ -881,19 +871,19 @@ export default function AdminPage() {
               ))}
             </ul>
             <p>{String((shownJob.draft as { poi?: { message?: string } } | undefined)?.poi?.message ?? "")}</p>
-            <p style={{ color: "#6b7280", fontSize: 13 }}>
+            <p className="tk-admin-muted-sm">
               挂载状态：{shownJob.poi_mounted === true ? "可挂载" : "未绑定"}。文案中的地点名不等于渠道已挂载 POI。
             </p>
-            <p style={{ color: "#6b7280", fontSize: 13 }}>
+            <p className="tk-admin-muted-sm">
               活动仍是「{String(shownJob.campaign_status ?? "")} / {String(shownJob.campaign_title ?? "")}」。扣费：{String(shownJob.billed)}。奖励：{String(shownJob.rewards_triggered)}。费用记录：{String(shownJob.charge_count ?? 0)} 次提交，金额 {shownJob.amount_minor == null ? "无" : String(shownJob.amount_minor)}。
             </p>
             <textarea
               readOnly
               value={JSON.stringify((shownJob.draft as { professional_handoff?: unknown } | undefined)?.professional_handoff ?? {}, null, 2)}
-              style={{ ...inputStyle, minHeight: 96, width: "100%" }}
+              className="tk-admin-input tk-admin-input-tall"
             />
             {handoffHasFormalJump(((shownJob.draft as { professional_handoff?: Record<string, unknown> } | undefined)?.professional_handoff) ?? {}) && (
-              <p style={{ color: "#b91c1c" }}>交接资料含临时地址，已禁止跳转。</p>
+              <p className="tk-admin-danger">交接资料含临时地址，已禁止跳转。</p>
             )}
           </div>
         )}
@@ -905,39 +895,39 @@ export default function AdminPage() {
         tenantId={tenantId}
       />
 
-      <section style={sectionStyle}>
+      <section className="tk-admin-section">
         <h2>素材引用(引用平台资产,不复制文件)</h2>
-        <form onSubmit={addAsset} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <select value={newAsset.campaign} onChange={(e) => setNewAsset({ ...newAsset, campaign: e.target.value })} style={inputStyle} required>
+        <form onSubmit={addAsset} className="tk-admin-form-row">
+          <select value={newAsset.campaign} onChange={(e) => setNewAsset({ ...newAsset, campaign: e.target.value })} className="tk-admin-input" required>
             <option value="">选择活动</option>
             {campaigns.map((c) => (
               <option key={c.id} value={c.id}>{c.title}</option>
             ))}
           </select>
-          <input placeholder="平台 asset_id" value={newAsset.asset_id} onChange={(e) => setNewAsset({ ...newAsset, asset_id: e.target.value })} style={inputStyle} required />
-          <input placeholder="版本(可选,须为平台 sha256)" value={newAsset.version} onChange={(e) => setNewAsset({ ...newAsset, version: e.target.value })} style={inputStyle} />
-          <button style={btnStyle}>添加引用</button>
+          <input placeholder="平台 asset_id" value={newAsset.asset_id} onChange={(e) => setNewAsset({ ...newAsset, asset_id: e.target.value })} className="tk-admin-input" required />
+          <input placeholder="版本(可选,须为平台 sha256)" value={newAsset.version} onChange={(e) => setNewAsset({ ...newAsset, version: e.target.value })} className="tk-admin-input" />
+          <button className="tk-admin-btn">添加引用</button>
         </form>
       </section>
 
-      <section style={sectionStyle}>
+      <section className="tk-admin-section">
         <h2>NFC 标签(总部与门店经理可用,门店经理仅见本店标签;物理写入由 NFC 工具按导出文件执行)</h2>
-        {nfcError && <p style={{ color: "#b91c1c" }}>{nfcError}</p>}
+        {nfcError && <p className="tk-admin-danger">{nfcError}</p>}
 
         {/* 分组(总部 org_owner 专属;门店经理无分组权限,服务端同样裁决) */}
         {!isStoreManager && (
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <form onSubmit={createTagGroup} style={{ display: "flex", gap: 8 }}>
-              <input placeholder="新分组名" value={newGroup} onChange={(e) => setNewGroup(e.target.value)} style={inputStyle} required />
-              <button style={btnStyle}>新建分组</button>
+          <div className="tk-admin-form-row tk-admin-items-center">
+            <form onSubmit={createTagGroup} className="tk-admin-form-row">
+              <input placeholder="新分组名" value={newGroup} onChange={(e) => setNewGroup(e.target.value)} className="tk-admin-input" required />
+              <button className="tk-admin-btn">新建分组</button>
             </form>
-            <span style={{ fontSize: 14, color: "#6b7280" }}>
+            <span className="tk-admin-muted tk-admin-fs-14">
               分组:{tagGroups.length === 0 ? "(无)" : ""}
             </span>
             {tagGroups.map((g) => (
-              <span key={g.id} style={{ fontSize: 14, border: "1px solid #e5e7eb", borderRadius: 6, padding: "2px 8px" }}>
+              <span key={g.id} className="tk-admin-tag">
                 {g.name}{" "}
-                <button type="button" onClick={() => void deleteTagGroup(g.id)} style={{ ...btnStyle, padding: "0 6px", background: "#fff", color: "#b91c1c", borderColor: "#b91c1c" }} title="删除分组(组内标签变为未分组)">
+                <button type="button" onClick={() => void deleteTagGroup(g.id)} className="tk-admin-btn-danger tk-admin-btn-xxs" title="删除分组(组内标签变为未分组)">
                   ×
                 </button>
               </span>
@@ -946,42 +936,42 @@ export default function AdminPage() {
         )}
 
         {/* 批量创建 */}
-        <form onSubmit={submitBatch} style={{ ...formStyle, marginTop: 12, borderTop: "1px solid #f3f4f6", paddingTop: 12 }}>
-          <strong style={{ fontSize: 14 }}>批量创建标签(绑定既有短码,1..500)</strong>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <select value={batch.campaign} onChange={(e) => void loadBatchLinks(e.target.value)} style={inputStyle} required>
+        <form onSubmit={submitBatch} className="tk-admin-form tk-admin-mt-12 tk-admin-divider-soft">
+          <strong className="tk-admin-fs-14">批量创建标签(绑定既有短码,1..500)</strong>
+          <div className="tk-admin-form-row">
+            <select value={batch.campaign} onChange={(e) => void loadBatchLinks(e.target.value)} className="tk-admin-input" required>
               <option value="">选择活动</option>
               {campaigns.map((c) => (
                 <option key={c.id} value={c.id}>{c.title}</option>
               ))}
             </select>
-            <select value={batch.mode} onChange={(e) => setBatch({ ...batch, mode: e.target.value })} style={{ ...inputStyle, flex: "0 0 auto" }}>
+            <select value={batch.mode} onChange={(e) => setBatch({ ...batch, mode: e.target.value })} className="tk-admin-input">
               <option value="shared">共用一条短码</option>
               <option value="rotate">轮流绑定多条短码</option>
             </select>
-            <input placeholder="数量(1..500)" value={batch.count} onChange={(e) => setBatch({ ...batch, count: e.target.value })} style={{ ...inputStyle, flex: "0 1 120px" }} required />
-            <select value={batch.store} onChange={(e) => setBatch({ ...batch, store: e.target.value })} style={inputStyle}>
+            <input placeholder="数量(1..500)" value={batch.count} onChange={(e) => setBatch({ ...batch, count: e.target.value })} className="tk-admin-input" required />
+            <select value={batch.store} onChange={(e) => setBatch({ ...batch, store: e.target.value })} className="tk-admin-input">
               <option value="">{isStoreManager ? "本门店(自动)" : "不绑门店"}</option>
               {activeStores.map((s) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
             {!isStoreManager && (
-              <select value={batch.group} onChange={(e) => setBatch({ ...batch, group: e.target.value })} style={inputStyle}>
+              <select value={batch.group} onChange={(e) => setBatch({ ...batch, group: e.target.value })} className="tk-admin-input">
                 <option value="">不分组</option>
                 {tagGroups.map((g) => (
                   <option key={g.id} value={g.id}>{g.name}</option>
                 ))}
               </select>
             )}
-            <input placeholder="标签名前缀(默认 NFC)" value={batch.prefix} onChange={(e) => setBatch({ ...batch, prefix: e.target.value })} style={inputStyle} />
-            <button style={btnStyle}>批量生成</button>
+            <input placeholder="标签名前缀(默认 NFC)" value={batch.prefix} onChange={(e) => setBatch({ ...batch, prefix: e.target.value })} className="tk-admin-input" />
+            <button className="tk-admin-btn">批量生成</button>
           </div>
           {batch.campaign && (
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 14 }}>
-              {batchLinks.length === 0 && <span style={{ color: "#6b7280" }}>该活动还没有短码,请先在活动区「生成链接」。</span>}
+            <div className="tk-admin-form-row tk-admin-gap-12 tk-admin-fs-14">
+              {batchLinks.length === 0 && <span className="tk-admin-muted">该活动还没有短码,请先在活动区「生成链接」。</span>}
               {batchLinks.map((l) => (
-                <label key={l.id} style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
+                <label key={l.id} className="tk-admin-inline-flex tk-admin-gap-4">
                   <input
                     type="checkbox"
                     checked={batchLinkIds.includes(l.id)}
@@ -990,7 +980,7 @@ export default function AdminPage() {
                     }
                   />
                   <code>{l.code}</code>
-                  {!l.enabled && <span style={{ color: "#b45309" }}>(停用)</span>}
+                  {!l.enabled && <span className="tk-admin-warn">(停用)</span>}
                 </label>
               ))}
             </div>
@@ -998,96 +988,96 @@ export default function AdminPage() {
         </form>
 
         {/* 筛选 + 导出 */}
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12, alignItems: "center" }}>
-          <select value={tagFilter.campaign} onChange={(e) => setTagFilter({ ...tagFilter, campaign: e.target.value })} style={{ ...inputStyle, flex: "0 1 auto" }}>
+        <div className="tk-admin-form-row tk-admin-mt-12 tk-admin-items-center">
+          <select value={tagFilter.campaign} onChange={(e) => setTagFilter({ ...tagFilter, campaign: e.target.value })} className="tk-admin-input">
             <option value="">全部活动</option>
             {campaigns.map((c) => (
               <option key={c.id} value={c.id}>{c.title}</option>
             ))}
           </select>
           {!isStoreManager && (
-            <select value={tagFilter.group} onChange={(e) => setTagFilter({ ...tagFilter, group: e.target.value })} style={{ ...inputStyle, flex: "0 1 auto" }}>
+            <select value={tagFilter.group} onChange={(e) => setTagFilter({ ...tagFilter, group: e.target.value })} className="tk-admin-input">
               <option value="">全部分组</option>
               {tagGroups.map((g) => (
                 <option key={g.id} value={g.id}>{g.name}</option>
               ))}
             </select>
           )}
-          <select value={tagFilter.status} onChange={(e) => setTagFilter({ ...tagFilter, status: e.target.value })} style={{ ...inputStyle, flex: "0 1 auto" }}>
+          <select value={tagFilter.status} onChange={(e) => setTagFilter({ ...tagFilter, status: e.target.value })} className="tk-admin-input">
             <option value="">全部状态</option>
             <option value="active">启用</option>
             <option value="disabled">停用</option>
           </select>
-          <button onClick={() => void exportCsv()} style={btnStyle}>导出 CSV(供 NFC 写入工具)</button>
-          <span style={{ fontSize: 13, color: "#6b7280" }}>{tags.length} 条标签</span>
+          <button onClick={() => void exportCsv()} className="tk-admin-btn">导出 CSV(供 NFC 写入工具)</button>
+          <span className="tk-admin-muted-sm">{tags.length} 条标签</span>
         </div>
 
         {/* 标签表 */}
-        <table width="100%" cellPadding={6} style={{ borderCollapse: "collapse", marginTop: 8 }}>
+        <table className="tk-admin-table">
           <thead>
-            <tr style={{ textAlign: "left", borderBottom: "1px solid #e5e7eb" }}>
+            <tr>
               <th>标签</th><th>短码 / URL</th><th>门店</th><th>分组</th><th>状态</th><th>UID 提示(写入后回填)</th><th>操作</th>
             </tr>
           </thead>
           <tbody>
             {tags.map((t) => (
-              <tr key={t.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+              <tr key={t.id} className="tk-admin-divider-soft">
                 <td>{t.label}</td>
-                <td><code style={{ fontSize: 12 }}>https://…/c/{t.code}</code></td>
+                <td><code className="tk-admin-fs-12">https://…/c/{t.code}</code></td>
                 <td>{t.store_name || "—"}</td>
                 <td>{t.group_name || "—"}</td>
-                <td>{t.status === "active" ? "启用" : <span style={{ color: "#b45309" }}>停用</span>}</td>
+                <td>{t.status === "active" ? "启用" : <span className="tk-admin-warn">停用</span>}</td>
                 <td>
-                  <span style={{ display: "inline-flex", gap: 4 }}>
+                  <span className="tk-admin-inline-flex tk-admin-gap-4">
                     <input
                       placeholder="如 04:A2:2F"
                       value={uidDraft[t.id] ?? t.uid_hint ?? ""}
                       onChange={(e) => setUidDraft({ ...uidDraft, [t.id]: e.target.value })}
-                      style={{ ...inputStyle, flex: "0 1 140px", padding: "4px 6px" }}
+                      className="tk-admin-input"
                     />
-                    <button type="button" onClick={() => void saveUidHint(t)} style={{ ...btnStyle, padding: "4px 8px" }}>存</button>
+                    <button type="button" onClick={() => void saveUidHint(t)} className="tk-admin-btn tk-admin-btn-sm">存</button>
                   </span>
                 </td>
-                <td style={{ whiteSpace: "nowrap" }}>
+                <td className="tk-admin-nowrap">
                   {t.status === "active"
-                    ? <button onClick={() => void setTagStatus(t, "disabled")} style={{ ...btnStyle, background: "#fff", color: "#b45309", borderColor: "#b45309" }}>停用</button>
-                    : <button onClick={() => void setTagStatus(t, "active")} style={btnStyle}>恢复</button>}
-                  <button onClick={() => void openRebind(t)} style={{ ...btnStyle, background: "#fff", color: "#2563eb" }}>
+                    ? <button onClick={() => void setTagStatus(t, "disabled")} className="tk-admin-btn-warn">停用</button>
+                    : <button onClick={() => void setTagStatus(t, "active")} className="tk-admin-btn">恢复</button>}
+                  <button onClick={() => void openRebind(t)} className="tk-admin-btn-quiet">
                     {rebind?.tagId === t.id ? "收起换绑" : "换绑"}
                   </button>
-                  <button onClick={() => void deleteTag(t.id)} style={{ ...btnStyle, background: "#fff", color: "#b91c1c", borderColor: "#b91c1c" }}>删除</button>
+                  <button onClick={() => void deleteTag(t.id)} className="tk-admin-btn-danger">删除</button>
                 </td>
               </tr>
             ))}
             {tags.length === 0 && (
-              <tr><td colSpan={7} style={{ color: "#6b7280" }}>暂无标签;先用上方向导批量生成,再导出 CSV 交给 NFC 写入工具。</td></tr>
+              <tr><td colSpan={7} className="tk-admin-muted">暂无标签;先用上方向导批量生成,再导出 CSV 交给 NFC 写入工具。</td></tr>
             )}
           </tbody>
         </table>
 
         {/* 换绑面板 */}
         {rebind && (
-          <div style={{ marginTop: 8, border: "1px solid #e5e7eb", borderRadius: 8, padding: 12 }}>
-            <strong style={{ fontSize: 14 }}>换绑标签:先选活动,再选该活动下的短码(标签 URL 随之变化)</strong>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
-              <select value={rebind.campaign} onChange={(e) => void rebindCampaign(e.target.value)} style={inputStyle}>
+          <div className="tk-admin-card tk-admin-card-tight">
+            <strong className="tk-admin-fs-14">换绑标签:先选活动,再选该活动下的短码(标签 URL 随之变化)</strong>
+            <div className="tk-admin-form-row tk-admin-mt-8">
+              <select value={rebind.campaign} onChange={(e) => void rebindCampaign(e.target.value)} className="tk-admin-input">
                 <option value="">选择活动</option>
                 {campaigns.map((c) => (
                   <option key={c.id} value={c.id}>{c.title}</option>
                 ))}
               </select>
-              <select value={rebind.linkId} onChange={(e) => setRebind({ ...rebind, linkId: e.target.value })} style={inputStyle}>
+              <select value={rebind.linkId} onChange={(e) => setRebind({ ...rebind, linkId: e.target.value })} className="tk-admin-input">
                 <option value="">选择短码</option>
                 {rebind.links.map((l) => (
                   <option key={l.id} value={l.id}>{l.code}{l.enabled ? "" : "(停用)"}</option>
                 ))}
               </select>
-              <button onClick={() => void confirmRebind()} style={btnStyle}>确认换绑</button>
+              <button onClick={() => void confirmRebind()} className="tk-admin-btn">确认换绑</button>
             </div>
           </div>
         )}
 
-        <p style={{ color: "#6b7280", fontSize: 13, margin: "8px 0 0" }}>
+        <p className="tk-admin-note">
           CSV 列:label, short_code, url, store, group, uid_hint(初始留空);URL 为纯短码地址,不含任何凭证或客户信息。
           停用标签后其短码公共页立即进入停用态;物理写入与实机验证由 NFC 工具执行。
         </p>
@@ -1102,7 +1092,3 @@ function whoStatusText(status: number, data: Record<string, unknown>): string {
   return `请求失败(${status} ${String(data.error ?? "")})${detail}`;
 }
 
-const formStyle: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 8 };
-const inputStyle: React.CSSProperties = { padding: "8px 10px", border: "1px solid #d1d5db", borderRadius: 6, flex: "1 1 160px" };
-const btnStyle: React.CSSProperties = { padding: "8px 14px", borderRadius: 6, border: "1px solid #2563eb", background: "#2563eb", color: "#fff", cursor: "pointer" };
-const sectionStyle: React.CSSProperties = { background: "#fff", borderRadius: 8, padding: 16, marginTop: 20, border: "1px solid #e5e7eb" };
