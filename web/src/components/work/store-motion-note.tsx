@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { failureText, useSession } from "@/components/work/merchant-session";
+import { presentDeclaration } from "@/lib/store-motion-status";
 import { surfaceLabel } from "@/lib/product-finish";
 
 interface StoreMotionParams {
@@ -63,6 +64,7 @@ export function StoreMotionNote({ campaignId }: { campaignId: string }) {
   const [recorded, setRecorded] = useState<RecordedMotion | null>(null);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const statusView = recorded ? presentDeclaration(recorded.status) : null;
 
   const load = useCallback(async () => {
     setPhase("loading");
@@ -137,7 +139,11 @@ export function StoreMotionNote({ campaignId }: { campaignId: string }) {
       {phase === "error" ? <p className="tk-state tk-danger" data-state="error">{error || surfaceLabel("error")}</p> : null}
       {recorded ? (
         <>
-          <p className="tk-note" data-field="declaration-status">状态 {recorded.status}</p>
+          {statusView ? (
+            <p className="tk-note tk-unknown" data-field="declaration-status" data-state={statusView.tone}>
+              状态 {statusView.copy}
+            </p>
+          ) : null}
           <p className="tk-note" data-field="unchanged-store-note">{recorded.note}</p>
         </>
       ) : null}
