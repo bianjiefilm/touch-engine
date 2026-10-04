@@ -1,7 +1,8 @@
-// HUI-2620 第一片：只给账上已经存在的用户路由做普查。
+// HUI-2620 第二片：在已有普查上补四类半成品标记。
 // 一条路由一条。surface 只按路径和模式编号归类。
 // 半成品标记只扫该 page 文件，不读 layout、组件或同目录其它文件。
-// token、状态、响应式、无障碍、截图都不测。不改页面。
+// 命中只记账，不删源码里的标记，不改页面。
+// token、状态、响应式、无障碍、截图都不测。
 // 这一片不能把 HUI-2620、HUI-2619、HUI-2628 或 HUI-2748 标 Done。
 
 import { existsSync, readFileSync } from "node:fs";
@@ -17,7 +18,17 @@ export const surfaceList = ["portal", "work", "editor", "public", "admin"] as co
 
 export type Surface = (typeof surfaceList)[number];
 
-export const markerKindList = ["TODO", "FIXME", "inline style", "接口说明", "架构说明"] as const;
+export const markerKindList = [
+  "TODO",
+  "FIXME",
+  "inline style",
+  "接口说明",
+  "架构说明",
+  "raw button",
+  "raw input",
+  "raw table",
+  "bare hex",
+] as const;
 
 export type Marker = (typeof markerKindList)[number];
 
@@ -49,6 +60,15 @@ function hasToken(source: string, token: string): boolean {
   return pattern.test(source);
 }
 
+function hasRawTag(source: string, tag: "button" | "input" | "table"): boolean {
+  return new RegExp(`(?:^|[^A-Za-z0-9_])<${tag}`).test(source);
+}
+
+// # 后恰好 3 或 6 个十六进制字符。更长的一段，例如 4、8 位，不算。
+function hasBareHex(source: string): boolean {
+  return /(?:^|[^A-Za-z0-9_])#(?:[0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})(?![0-9A-Fa-f])/.test(source);
+}
+
 export function scanMarkers(source: string): Marker[] {
   const found: Marker[] = [];
   if (hasToken(source, "TODO")) found.push("TODO");
@@ -56,17 +76,21 @@ export function scanMarkers(source: string): Marker[] {
   if (/(?:^|[^A-Za-z0-9_])style\s*=/.test(source)) found.push("inline style");
   if (source.includes("接口说明")) found.push("接口说明");
   if (source.includes("架构说明")) found.push("架构说明");
+  if (hasRawTag(source, "button")) found.push("raw button");
+  if (hasRawTag(source, "input")) found.push("raw input");
+  if (hasRawTag(source, "table")) found.push("raw table");
+  if (hasBareHex(source)) found.push("bare hex");
   return found;
 }
 
 const markerBook: readonly { route: string; markers: readonly Marker[] }[] = [
   { route: "/", markers: [] },
-  { route: "/admin", markers: ["inline style"] },
+  { route: "/admin", markers: ["inline style", "raw button", "raw input", "raw table", "bare hex"] },
   { route: "/admin/preview", markers: ["inline style"] },
-  { route: "/work/stores", markers: [] },
-  { route: "/work/campaigns", markers: [] },
-  { route: "/work/campaigns/[id]", markers: [] },
-  { route: "/work/materials", markers: [] },
+  { route: "/work/stores", markers: ["raw button", "raw input"] },
+  { route: "/work/campaigns", markers: ["raw button", "raw input"] },
+  { route: "/work/campaigns/[id]", markers: ["raw button"] },
+  { route: "/work/materials", markers: ["raw button", "raw input"] },
   { route: "/work/rewards", markers: [] },
   { route: "/work/analytics", markers: [] },
   { route: "/c/[code]", markers: [] },
