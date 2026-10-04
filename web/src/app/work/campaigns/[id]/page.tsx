@@ -39,6 +39,8 @@ export default function CampaignDetailPage() {
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [links, setLinks] = useState<LinkRec[]>([]);
   const [tags, setTags] = useState<TagRec[]>([]);
+  const [linkPhase, setLinkPhase] = useState<"empty" | "error" | "ready">("empty");
+  const [tagPhase, setTagPhase] = useState<"empty" | "error" | "ready">("empty");
   const [leads, setLeads] = useState<string>("留资数量未知");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -59,8 +61,12 @@ export default function CampaignDetailPage() {
       session.api("GET", `nfc/tags?campaign_id=${encodeURIComponent(id)}`),
       session.api("GET", `campaigns/${id}/lead-stats`),
     ]);
-    setLinks(linkRes.ok && Array.isArray(linkRes.data.items) ? (linkRes.data.items as LinkRec[]) : []);
-    setTags(tagRes.ok && Array.isArray(tagRes.data.items) ? (tagRes.data.items as TagRec[]) : []);
+    const linkLoad = takenList<LinkRec>(linkRes.ok, linkRes.data.items);
+    setLinks(linkLoad.rows);
+    setLinkPhase(linkLoad.phase);
+    const tagLoad = takenList<TagRec>(tagRes.ok, tagRes.data.items);
+    setTags(tagLoad.rows);
+    setTagPhase(tagLoad.phase);
     if (statRes.status === 404) setLeads("留资统计未开通，不显示 0");
     else if (!statRes.ok) setLeads("留资统计没有读到，不显示 0");
     else setLeads(`授权提交 ${String(statRes.data.submissions ?? "未知")}，匿名浏览 ${String(statRes.data.anonymous_views ?? "未知")}`);
@@ -138,7 +144,8 @@ export default function CampaignDetailPage() {
                 {QR_SIZES.map((size) => <option key={size} value={size}>{size}px</option>)}
               </select>
             </label>
-            {links.length === 0 ? <p className="tk-state" data-state="empty">还没有短码。生成之后才能下载二维码。</p> : null}
+            {linkPhase === "error" ? <p className="tk-state tk-danger" data-list="links" data-state="error">短码没有读到。这不是还没有短码。</p> : null}
+            {linkPhase === "empty" ? <p className="tk-state" data-list="links" data-state="empty">还没有短码。生成之后才能下载二维码。</p> : null}
             <ul className="tk-list">
               {links.map((link) => (
                 <li key={link.id}>
@@ -149,7 +156,8 @@ export default function CampaignDetailPage() {
               ))}
             </ul>
             <h3 className="tk-section-title">标签</h3>
-            {tags.length === 0 ? <p className="tk-note">这个活动还没有标签。批量写入仍走标签操作。</p> : null}
+            {tagPhase === "error" ? <p className="tk-state tk-danger" data-list="tags" data-state="error">标签没有读到。这不是还没有标签。</p> : null}
+            {tagPhase === "empty" ? <p className="tk-note" data-list="tags" data-state="empty">这个活动还没有标签。批量写入仍走标签操作。</p> : null}
             <ul className="tk-list">
               {tags.map((tag) => (
                 <li key={tag.id}>{tag.label} {tag.code} {tag.status === "disabled" ? "停用" : "启用"}</li>
@@ -170,4 +178,11 @@ export default function CampaignDetailPage() {
       ) : null}
     </main>
   );
+}
+
+function takenList<T>(ok: boolean, items: unknown): { phase: "error" | "empty" | "ready"; rows: T[] } {
+  if (!ok) return { phase: "error", rows: [] };
+  if (items == null) return { phase: "empty", rows: [] };
+  if (!Array.isArray(items)) return { phase: "error", rows: [] };
+  return { phase: items.length === 0 ? "empty" : "ready", rows: items as T[] };
 }

@@ -23,6 +23,7 @@ export function rewardPresentation(body: RewardView): RewardPresentation {
 export interface TodayRef {
   id: string;
   title: string;
+  ends_at?: string;
 }
 
 export interface TodayInput {
@@ -41,7 +42,7 @@ export interface TodayItem {
   id: string;
   title: string;
   href: string;
-  tone: "empty" | "now" | "paused" | "ended" | "unknown" | "confirmed";
+  tone: "empty" | "now" | "paused" | "ended" | "expired" | "unknown" | "confirmed";
 }
 
 export function planToday(input: TodayInput): TodayItem[] {
@@ -53,7 +54,11 @@ export function planToday(input: TodayInput): TodayItem[] {
   if (draft) items.push({ id: "drafts", title: `先处理草稿「${draft.title}」`, href: `/work/campaigns/${draft.id}`, tone: "now" });
   const paused = input.paused[0];
   if (paused) items.push({ id: "paused", title: `处理暂停的活动「${paused.title}」`, href: "/work/campaigns?state=paused", tone: "paused" });
-  const active = input.active[0];
+  const overdue = input.active.filter((item) => isPastEnd(item.ends_at));
+  const live = input.active.filter((item) => !isPastEnd(item.ends_at));
+  const expired = overdue[0];
+  if (expired) items.push({ id: "expired", title: `「${expired.title}」窗口已过，不要当成今天还在进行`, href: "/work/campaigns?state=expired", tone: "expired" });
+  const active = live[0];
   if (active) items.push({ id: "active", title: `今天进行中：${active.title}`, href: `/work/campaigns/${active.id}`, tone: "now" });
   const ended = input.ended[0];
   if (ended) items.push({ id: "ended", title: `「${ended.title}」已结束，不要当成还在进行`, href: "/work/campaigns?state=ended", tone: "ended" });

@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { planToday, rewardPresentation, surfaceLabel } from "@/lib/product-finish";
 
@@ -61,6 +63,28 @@ describe("商家今天的下一步", () => {
     expect(items.find((item) => item.id === "paused")?.tone).toBe("paused");
     expect(items.find((item) => item.id === "ended")?.tone).toBe("ended");
     expect(items.find((item) => item.id === "rewards")?.tone).toBe("unknown");
+  });
+
+  it("status=active 且 ends_at 早于现在时，交接去过期列表，不写成今天进行中", () => {
+    const items = planToday({
+      stores: 1,
+      active: [{ id: "cmp_late", title: "窗口已过", ends_at: "2020-01-01T00:00:00Z" }],
+      paused: [],
+      ended: [],
+      drafts: [],
+      materialGap: "has_material",
+      pendingLeads: 0,
+      rewardKnown: true,
+      redemptionKnown: true,
+    });
+    const expired = items.find((item) => item.href === "/work/campaigns?state=expired");
+    expect(expired).toMatchObject({ tone: "expired" });
+    expect(expired?.title).not.toContain("今天进行中");
+    expect(items.some((item) => item.tone === "now")).toBe(false);
+    expect(items.some((item) => item.title.includes("今天进行中"))).toBe(false);
+    const desk = readFileSync(path.resolve(process.cwd(), "src/components/work/today-desk.tsx"), "utf8");
+    expect(desk).toContain("ends_at");
+    expect(desk).toMatch(/tone === "expired"/);
   });
 });
 

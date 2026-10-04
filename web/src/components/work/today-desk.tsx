@@ -3,13 +3,14 @@
 import { useEffect, useState } from "react";
 import { TaskHandoffActions } from "@/components/admin/TaskHandoffActions";
 import { MerchantGate, useSession } from "@/components/work/merchant-session";
-import { planToday, surfaceLabel, type TodayItem } from "@/lib/product-finish";
+import { isPastEnd, planToday, surfaceLabel, type TodayItem } from "@/lib/product-finish";
 import { contentGap } from "@/lib/workbench/compose";
 
 interface CampaignRow {
   id: string;
   title: string;
   status: string;
+  ends_at?: string;
 }
 
 interface StoreRow {
@@ -40,6 +41,7 @@ function TodayBody() {
   const [phase, setPhase] = useState<"loading" | "error" | "ready">("loading");
   const [items, setItems] = useState<TodayItem[]>([]);
   const [handoffId, setHandoffId] = useState("");
+  const [campaignCount, setCampaignCount] = useState(0);
   const [notice, setNotice] = useState("");
 
   useEffect(() => {
@@ -58,7 +60,7 @@ function TodayBody() {
       const campaigns = Array.isArray(campaignsRes.data.items) ? (campaignsRes.data.items as CampaignRow[]) : [];
       const stores = Array.isArray(storesRes.data.items) ? (storesRes.data.items as StoreRow[]) : [];
       const work = workRes.ok ? (workRes.data as WorkbenchPayload) : null;
-      const pick = (status: string) => campaigns.filter((item) => item.status === status).map((item) => ({ id: item.id, title: item.title }));
+      const pick = (status: string) => campaigns.filter((item) => item.status === status).map((item) => ({ id: item.id, title: item.title, ends_at: item.ends_at }));
       const next = planToday({
         stores: stores.length,
         active: pick("active"),
@@ -71,7 +73,9 @@ function TodayBody() {
         redemptionKnown: false,
       });
       setItems(next);
-      setHandoffId(pick("active")[0]?.id || pick("draft")[0]?.id || campaigns[0]?.id || "");
+      const liveActive = campaigns.filter((item) => item.status === "active" && !isPastEnd(item.ends_at));
+      setCampaignCount(campaigns.length);
+      setHandoffId(liveActive[0]?.id || pick("draft")[0]?.id || campaigns.find((item) => !isPastEnd(item.ends_at) && item.status !== "ended")?.id || "");
       setPhase("ready");
     })().catch(() => {
       if (alive) setPhase("error");
@@ -115,6 +119,8 @@ function TodayBody() {
                   <a href={`/work/campaigns/${handoffId}#jumps`}>去保存这活动的跳转</a>
                 </p>
               </>
+            ) : campaignCount > 0 ? (
+              <p className="tk-note">没有还在窗口里的活动，不从过期场交接获客和内容。<a href="/work/campaigns?state=expired">去看过期活动</a></p>
             ) : (
               <p className="tk-note">先创建活动，再交接获客、内容和跳转。<a href="/work/campaigns">去活动</a></p>
             )}
@@ -146,6 +152,7 @@ function toneText(tone: TodayItem["tone"]): string {
   if (tone === "unknown") return "未知";
   if (tone === "paused") return surfaceLabel("paused");
   if (tone === "ended") return surfaceLabel("ended");
+  if (tone === "expired") return surfaceLabel("expired");
   if (tone === "empty") return surfaceLabel("empty");
   return "现在做";
 }

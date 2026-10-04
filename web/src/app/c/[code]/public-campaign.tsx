@@ -482,9 +482,9 @@ function PublicCampaignInner({ lane }: { lane: "activity" | "contact" }) {
       <section key="lead" className="tk-state" data-state="empty">这家店还没有打开留资。可以继续看活动。</section>
     ) : null,
     next: submitted ? (
-      <section key="next" data-testid="lead-outcome" data-state="success" data-tone={outcome.includes("销售已收到") ? "confirmed" : "pending"} className={outcome.includes("销售已收到") ? "tk-outcome tk-ok" : "tk-outcome"}>
+      <section key="next" data-testid="lead-outcome" data-state={revokeDone ? "revoked" : outcome.includes("待同步") ? "pending" : outcome.includes("销售已收到") ? "received" : "recorded"} data-tone={revokeDone ? "revoked" : outcome.includes("待同步") ? "pending" : outcome.includes("销售已收到") ? "received" : "recorded"} className={!revokeDone && outcome.includes("销售已收到") ? "tk-outcome tk-ok" : "tk-outcome"}>
         {revokeDone ? (
-          <p className="tk-ok">已撤销。未同步的数据会停在这里，不再继续交给商家的客户系统。</p>
+          <p className="tk-ok" data-state="revoked">已撤销。未同步的数据会停在这里，不再继续交给商家的客户系统。</p>
         ) : (
           <>
             <p className="tk-lead">{outcome}</p>

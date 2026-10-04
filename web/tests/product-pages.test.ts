@@ -67,6 +67,30 @@ describe("代表页面是真实路由", () => {
     expect(read("app/work/analytics/page.tsx")).toContain("未知");
     expect(read("app/c/[code]/contact/page.tsx")).toContain("contact");
   });
+
+  it("活动详情里短码和标签请求失败单独标错误，不写成还没有", () => {
+    const source = read("app/work/campaigns/[id]/page.tsx");
+    expect(source).toMatch(/data-list="links"[^>]*data-state="error"/);
+    expect(source).toMatch(/data-list="tags"[^>]*data-state="error"/);
+    expect(source).toContain("短码没有读到");
+    expect(source).toContain("标签没有读到");
+    expect(source).not.toContain("setLinks(linkRes.ok && Array.isArray(linkRes.data.items) ? (linkRes.data.items as LinkRec[]) : [])");
+    expect(source).not.toContain("setTags(tagRes.ok && Array.isArray(tagRes.data.items) ? (tagRes.data.items as TagRec[]) : [])");
+    expect(source).toContain("还没有短码");
+    expect(source).toContain("这个活动还没有标签");
+  });
+
+  it("待同步留资结果是 pending，撤销绿色不使用发奖成功状态名", () => {
+    const source = read("app/c/[code]/public-campaign.tsx");
+    expect(source).not.toMatch(/data-testid="lead-outcome"[^>\n]*data-state="success"/);
+    expect(source).not.toMatch(/data-tone="confirmed"|data-tone=\{[^}]*"confirmed"/);
+    expect(source).toMatch(/待同步[\s\S]{0,120}"pending"|"pending"[\s\S]{0,120}待同步/);
+    expect(source).toContain('data-state="revoked"');
+    const outcome = source.slice(source.indexOf('data-testid="lead-outcome"'));
+    expect(outcome).toContain("tk-ok");
+    expect(outcome).not.toContain("data-reward-tone");
+    expect(outcome).not.toContain('data-state="success"');
+  });
 });
 
 describe("顾客页没有生态导航和平台宣传", () => {
