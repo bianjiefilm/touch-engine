@@ -23,6 +23,42 @@ type LinkPublication struct {
 	Host    string
 }
 
+// LinkStamp is the mint-time brand/host stamp on one short code, plus the
+// code itself. The motion handoff brief reads these; nothing writes here.
+type LinkStamp struct {
+	LinkID           string
+	Code             string
+	Enabled          bool
+	PublishedBrandID string
+	PublishedHost    string
+}
+
+// ListLinkStamps returns the campaign's short codes with their mint-time
+// brand stamps, in mint order (created_at then rowid, both stable). Missing
+// stamps are empty strings.
+func (s *Store) ListLinkStamps(tenantID, campaignID string) ([]LinkStamp, error) {
+	rows, err := s.DB.Query(
+		`SELECT id,code,enabled,published_brand_id,published_host
+		 FROM campaign_links
+		 WHERE tenant_id=? AND campaign_id=?
+		 ORDER BY created_at, rowid`, tenantID, campaignID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []LinkStamp{}
+	for rows.Next() {
+		var st LinkStamp
+		var enabled int
+		if err := rows.Scan(&st.LinkID, &st.Code, &enabled, &st.PublishedBrandID, &st.PublishedHost); err != nil {
+			return nil, err
+		}
+		st.Enabled = enabled == 1
+		out = append(out, st)
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) BindTenantBrand(tenantID, brandID string) error {
 	res, err := s.DB.Exec(`UPDATE tenants SET brand_id=? WHERE id=?`, brandID, tenantID)
 	if err != nil {
