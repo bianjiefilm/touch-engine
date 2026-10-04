@@ -86,7 +86,7 @@ export function testProductImageUrl(raw: string | undefined): string | null {
   return url.toString();
 }
 
-export function resolveRegisteredLaunch(targetId: string | null | undefined, env: AllowlistEnv = process.env): string | null {
+export function resolveRegisteredLaunch(targetId: string | null | undefined, env: AllowlistEnv = process.env as AllowlistEnv): string | null {
   if (!targetId) return null;
   if (env.TOUCH_ECO_NAV_TEST_BRAND === "1" && targetId === PRODUCT_IMAGE_TARGET) {
     return testProductImageUrl(env.TOUCH_ECO_NAV_TEST_PRODUCT_IMAGE_URL);
@@ -96,7 +96,7 @@ export function resolveRegisteredLaunch(targetId: string | null | undefined, env
   return raw;
 }
 
-export function registeredLaunchMap(env: AllowlistEnv = process.env): Record<string, string> {
+export function registeredLaunchMap(env: AllowlistEnv = process.env as AllowlistEnv): Record<string, string> {
   const out: Record<string, string> = {};
   for (const targetId of registeredTargets.keys()) {
     const href = resolveRegisteredLaunch(targetId, env);
