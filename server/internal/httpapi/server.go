@@ -35,6 +35,7 @@ import (
 	"github.com/bianjiefilm/touch-engine/server/internal/leads"
 	"github.com/bianjiefilm/touch-engine/server/internal/redact"
 	"github.com/bianjiefilm/touch-engine/server/internal/store"
+	"github.com/bianjiefilm/touch-engine/server/internal/storemotion"
 	"github.com/bianjiefilm/touch-engine/server/internal/upload"
 )
 
@@ -54,6 +55,11 @@ type Server struct {
 	// CopyModel replaces the platform text client when tests inject one.
 	// Production leaves it nil: missing credentials stay fail-closed.
 	CopyModel copyjob.TextModel
+
+	// StoreMotionProbe counts model and render calls for the store-motion
+	// slice. Production leaves it nil. The handlers pass it through and do
+	// not call it.
+	StoreMotionProbe *storemotion.Probe
 
 	// LeadsLimiter gates the public lead-write surface per client IP
 	// (single-process sliding window; not distributed by design for T1).
@@ -209,6 +215,11 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/campaigns/{id}/copy-drafts", s.requireSession(s.handleCopyDraftCreate))
 	mux.Handle("GET /api/v1/campaigns/{id}/copy-drafts/{draftId}", s.requireSession(s.handleCopyDraftGet))
 	mux.Handle("POST /api/v1/campaigns/{id}/copy-drafts/{draftId}/versions", s.requireSession(s.handleCopyVersionAccept))
+
+	// HUI-2748: record store parameters and an unverified Motion declaration.
+	// No public route. Changing a parameter does not render or call a model.
+	mux.Handle("PUT /api/v1/campaigns/{id}/store-motion", s.requireSession(s.handleStoreMotionPut))
+	mux.Handle("GET /api/v1/campaigns/{id}/store-motion", s.requireSession(s.handleStoreMotionGet))
 
 	// Quote → confirm → generate → select → save. No public route: a guest
 	// tap cannot start a merchant copy job or a paid model call.
