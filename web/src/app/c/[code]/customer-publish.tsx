@@ -11,6 +11,7 @@ import {
   type CapabilityMatrix,
   type PlatformRow,
 } from "@/lib/customer-publish";
+import { rewardPresentation } from "@/lib/product-finish";
 import { proofNotice, publishRewardOpen, rewardNotice, type ProofView, type RewardView } from "@/lib/publish-reward";
 
 interface AttemptResponse {
@@ -146,30 +147,31 @@ export function CustomerPublish({ code, defaultCopy }: { code: string; defaultCo
   };
 
   const rewardOpen = publishRewardOpen(reward ?? {});
+  const presented = rewardPresentation(reward ?? {});
   const succeeded = attempt ? publishSucceeded(attempt) : false;
   const draftMatches = draftMatchesAttempt(attempt, copy, account);
   const publishClosed = !row || !actionEnabled(row, "authorized_publish");
   const editorClosed = !row || !actionEnabled(row, "open_editor");
 
   return (
-    <section style={{ marginTop: 24, textAlign: "left" }} data-testid="customer-publish">
-      <h2 style={{ fontSize: 18, margin: "0 0 8px" }}>预览并手动发布</h2>
-      <p data-testid="publish-reward" style={{ color: rewardOpen ? "#065f46" : "#92400e", fontSize: 14 }}>
+    <section className="tk-section" data-testid="customer-publish">
+      <h2 className="tk-section-title">预览并手动发布</h2>
+      <p data-testid="publish-reward" data-reward-tone={presented.tone} data-success={presented.success ? "true" : "false"} className={presented.success ? "tk-ok" : "tk-unknown"}>
         {rewardNotice(reward ?? {})}
         {rewardOpen ? "" : " 预览、导出、唤起编辑器或点击「我已发布」都不能领券。"}
       </p>
-      <p style={{ color: "#6b7280", fontSize: 13, marginTop: 0 }}>
+      <p className="tk-note">
         发布账号是你自己的。商家账号不能代替你发，再算成你的作品。
-        {matrix && !authorizedPublishEnabled(matrix) ? " 当前没有平台授权我们代你发布。" : ""}
+        {matrix && !authorizedPublishEnabled(matrix) ? " 当前没有授权代你发布。" : ""}
       </p>
       {matrix?.registered_adapters && matrix.registered_adapters.length > 0 && (
-        <p style={{ color: "#92400e", fontSize: 13 }}>
+        <p className="tk-unknown">
           已登记适配器：{matrix.registered_adapters.join("、")}。登记不等于这些平台可以发布。
         </p>
       )}
-      <label style={labelStyle}>
-        平台
-        <select style={inputStyle} value={platform} onChange={(e) => setPlatform(e.target.value)}>
+      <label className="tk-label">
+        发布到
+        <select className="tk-select" value={platform} onChange={(e) => setPlatform(e.target.value)}>
           {(matrix?.platforms ?? [{ platform: "douyin" }]).map((item) => (
             <option key={item.platform} value={item.platform}>
               {platformLabel(item.platform)}
@@ -178,7 +180,7 @@ export function CustomerPublish({ code, defaultCopy }: { code: string; defaultCo
         </select>
       </label>
       {row && (
-        <ul style={{ paddingLeft: 18, color: "#374151", fontSize: 13 }}>
+        <ul className="tk-list">
           {(["preview", "export", "open_editor", "authorized_publish", "confirm_publish"] as const).map((kind) => {
             const cell = row.capabilities[kind];
             const title =
@@ -197,99 +199,79 @@ export function CustomerPublish({ code, defaultCopy }: { code: string; defaultCo
           })}
         </ul>
       )}
-      {row?.manual_guide && <p style={{ fontSize: 13, color: "#374151" }}>{row.manual_guide}</p>}
-      <label style={labelStyle}>
+      {row?.manual_guide && <p className="tk-note">{row.manual_guide}</p>}
+      <label className="tk-label">
         文案
-        <textarea style={{ ...inputStyle, minHeight: 72 }} value={copy} onChange={(e) => setCopy(e.target.value)} />
+        <textarea className="tk-input tk-input-tall" value={copy} onChange={(e) => setCopy(e.target.value)} />
       </label>
-      <label style={labelStyle}>
-        我将使用的平台账号
-        <input style={inputStyle} value={account} onChange={(e) => setAccount(e.target.value)} placeholder="你自己的账号说明，不是商家账号" />
+      <label className="tk-label">
+        我将使用的账号
+        <input className="tk-input" value={account} onChange={(e) => setAccount(e.target.value)} placeholder="你自己的账号说明，不是商家账号" />
       </label>
-      <label style={{ display: "block", fontSize: 14, marginBottom: 12 }}>
+      <label className="tk-check">
         <input type="checkbox" checked={assetOk} onChange={(e) => setAssetOk(e.target.checked)} /> 我确认使用本次活动素材，并用我自己的账号发布
       </label>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-        <button type="button" disabled={busy || !actionEnabled(row, "preview")} onClick={preview} style={buttonStyle}>
+      <div className="tk-row">
+        <button type="button" disabled={busy || !actionEnabled(row, "preview")} onClick={preview} className="tk-quiet">
           预览
         </button>
-        <button type="button" disabled={busy || !attempt?.attempt_id || !actionEnabled(row, "export")} onClick={exportPack} style={buttonStyle}>
+        <button type="button" disabled={busy || !attempt?.attempt_id || !actionEnabled(row, "export")} onClick={exportPack} className="tk-quiet">
           导出
         </button>
-        <button type="button" disabled={busy || !attempt?.attempt_id || !assetOk || !draftMatches} onClick={confirm} style={buttonStyle}>
+        <button type="button" disabled={busy || !attempt?.attempt_id || !assetOk || !draftMatches} onClick={confirm} className="tk-quiet">
           确认这次内容
         </button>
-        <button type="button" disabled={editorClosed || busy} onClick={() => undefined} style={buttonStyle}>
+        <button type="button" disabled={editorClosed || busy} onClick={() => undefined} className="tk-quiet">
           唤起编辑器
         </button>
-        <button type="button" disabled={publishClosed || busy} onClick={() => undefined} style={buttonStyle}>
+        <button type="button" disabled={publishClosed || busy} onClick={() => undefined} className="tk-quiet">
           授权发布
         </button>
-        <button type="button" disabled={busy || !attempt?.attempt_id} onClick={selfReport} style={buttonStyle}>
+        <button type="button" disabled={busy || !attempt?.attempt_id} onClick={selfReport} className="tk-quiet">
           我已发布
         </button>
-        <button type="button" disabled={busy || !attempt?.attempt_id || rewardOpen} onClick={submitProof} style={buttonStyle}>
+        <button type="button" disabled={busy || !attempt?.attempt_id || rewardOpen} onClick={submitProof} className="tk-quiet">
           提交发布证明
         </button>
       </div>
       {attempt?.attempt_id && (
-        <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
-          <button type="button" disabled={busy} onClick={() => revise({ copy })} style={quietButton}>
+        <div className="tk-row tk-gap">
+          <button type="button" disabled={busy} onClick={() => revise({ copy })} className="tk-quiet">
             更新文案（需重新确认）
           </button>
-          <button type="button" disabled={busy} onClick={() => revise({ account_label: account })} style={quietButton}>
+          <button type="button" disabled={busy} onClick={() => revise({ account_label: account })} className="tk-quiet">
             更新账号（需重新确认）
           </button>
         </div>
       )}
-      {editorClosed && <p style={{ fontSize: 13, color: "#6b7280" }}>{row?.capabilities.open_editor?.reason}</p>}
-      {publishClosed && <p style={{ fontSize: 13, color: "#6b7280" }}>{row?.capabilities.authorized_publish?.reason}</p>}
+      {editorClosed && <p className="tk-note">{row?.capabilities.open_editor?.reason}</p>}
+      {publishClosed && <p className="tk-note">{row?.capabilities.authorized_publish?.reason}</p>}
       {notice && (
-        <p style={{ color: succeeded ? "#065f46" : "#1f2937", fontSize: 14 }} data-testid="publish-outcome">
+        <p className={succeeded ? "tk-ok" : "tk-note"} data-testid="publish-outcome" data-success={succeeded ? "true" : "false"}>
           {notice}
         </p>
       )}
       {attempt?.attempt_id && !draftMatches && (
-        <p style={{ fontSize: 13, color: "#92400e" }}>文案或账号已改，需要先更新，再重新确认。现在的输入还没有确认。</p>
+        <p className="tk-unknown">文案或账号已改，需要先更新，再重新确认。现在的输入还没有确认。</p>
       )}
       {attempt?.confirmation_current && draftMatches && !succeeded && (
-        <p style={{ fontSize: 13, color: "#6b7280" }}>你已确认这次文案和账号。确认不是发布成功。</p>
+        <p className="tk-note">你已确认这次文案和账号。确认不是发布成功。</p>
       )}
       {attempt?.package?.steps && attempt.package.steps.length > 0 && (
-        <ol style={{ fontSize: 14 }}>
+        <ol className="tk-list">
           {attempt.package.steps.map((step) => (
             <li key={step}>{step}</li>
           ))}
         </ol>
       )}
       {attempt && attempt.platform_post_id === "" && attempt.self_reported && (
-        <p style={{ fontSize: 13 }}>没有平台回执，不计入已发布视频，也不发奖励。</p>
+        <p className="tk-note">没有回执，不计入已发布视频，也不发奖励。</p>
       )}
       {proof && (
-        <p data-testid="reward-proof" style={{ fontSize: 14 }}>
+        <p data-testid="reward-proof" className="tk-unknown">
           {proofNotice(proof)}
         </p>
       )}
     </section>
   );
 }
-
-const labelStyle = { display: "block", fontSize: 14, marginBottom: 10 } as const;
-const inputStyle = {
-  display: "block",
-  width: "100%",
-  marginTop: 4,
-  padding: "8px 10px",
-  borderRadius: 6,
-  border: "1px solid #d1d5db",
-  fontSize: 15,
-  boxSizing: "border-box" as const,
-};
-const buttonStyle = {
-  padding: "8px 12px",
-  borderRadius: 6,
-  border: "1px solid #d1d5db",
-  background: "#fff",
-  cursor: "pointer",
-};
-const quietButton = { ...buttonStyle, color: "#374151", fontSize: 13 };

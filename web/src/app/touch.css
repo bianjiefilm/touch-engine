@@ -1,0 +1,273 @@
+.tk-page,
+.tk-public {
+  width: 100%;
+  margin: 0 auto;
+  padding: 1rem 1rem 3rem;
+}
+
+.tk-page {
+  max-width: 46rem;
+}
+
+.tk-public {
+  max-width: 28rem;
+}
+
+.tk-public-card,
+.tk-card {
+  background: var(--tk-surface);
+  border: 1px solid var(--tk-border);
+  padding: 1rem;
+}
+
+.tk-card + .tk-card,
+.tk-stack {
+  margin-top: 0.75rem;
+}
+
+.tk-public-merchant,
+.tk-note,
+.tk-public-foot {
+  color: var(--tk-ink-sub);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.tk-public-merchant {
+  margin: 0 0 0.25rem;
+}
+
+.tk-public-store {
+  margin: 0 0 0.5rem;
+  font-weight: 600;
+}
+
+.tk-public-title {
+  margin: 0 0 0.5rem;
+  font-family: var(--tk-display);
+  font-size: 2rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.tk-title {
+  margin: 0 0 0.35rem;
+  font-size: 1.75rem;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.tk-lead {
+  margin: 0 0 1rem;
+  font-size: 1.05rem;
+  line-height: 1.5;
+}
+
+.tk-public-value {
+  margin: 0.75rem 0 0.5rem;
+  font-size: 1.125rem;
+  line-height: 1.55;
+}
+
+.tk-section-title {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 1.125rem;
+}
+
+.tk-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.9rem;
+  margin: 0 0 1.25rem;
+  padding: 0.75rem 0 0;
+  list-style: none;
+  border-top: 3px solid var(--tk-brand);
+}
+
+.tk-nav a {
+  color: var(--tk-ink-2);
+  text-decoration: none;
+}
+
+.tk-nav a[aria-current="page"] {
+  color: var(--tk-ink-main);
+  box-shadow: inset 0 -2px 0 var(--tk-brand);
+}
+
+.tk-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.tk-row > .tk-input,
+.tk-row > .tk-select {
+  flex: 1 1 12rem;
+  width: auto;
+  min-width: 0;
+}
+
+.tk-gap {
+  margin-top: 0.75rem;
+}
+
+.tk-section {
+  margin-top: 1rem;
+}
+
+.tk-label,
+.tk-check {
+  display: block;
+  margin: 0 0 0.75rem;
+  font-size: 0.9375rem;
+}
+
+.tk-check {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+
+.tk-input,
+.tk-select {
+  display: block;
+  width: 100%;
+  margin-top: 0.25rem;
+  padding: 0.7rem 0.75rem;
+  border: 1px solid var(--tk-border);
+  border-radius: 2px;
+  background: var(--tk-surface);
+  color: var(--tk-ink-main);
+  font: inherit;
+  font-size: 1rem;
+}
+
+.tk-input-tall {
+  min-height: 4.5rem;
+}
+
+.tk-form {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.tk-primary,
+.tk-button,
+.tk-quiet {
+  font: inherit;
+  cursor: pointer;
+}
+
+.tk-primary {
+  display: block;
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.85rem 1rem;
+  border: 0;
+  border-radius: 2px;
+  background: var(--tk-ink-main);
+  color: #fff;
+  font-size: 1rem;
+}
+
+.tk-button,
+.tk-quiet {
+  padding: 0.55rem 0.8rem;
+  border-radius: 2px;
+  border: 1px solid var(--tk-border);
+  background: var(--tk-surface);
+  color: var(--tk-ink-main);
+}
+
+.tk-button {
+  border-color: var(--tk-brand);
+  background: var(--tk-brand);
+  color: #fff;
+}
+
+.tk-quiet:disabled,
+.tk-button:disabled,
+.tk-primary:disabled {
+  color: var(--tk-ink-sub);
+  background: var(--tk-bg-subtle);
+  border-color: var(--tk-border);
+  cursor: not-allowed;
+}
+
+.tk-list {
+  margin: 0.5rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.tk-list li + li {
+  margin-top: 0.65rem;
+}
+
+.tk-warn,
+.tk-unknown {
+  color: var(--tk-warning);
+  background: var(--tk-warning-bg);
+}
+
+.tk-unknown,
+.tk-warn,
+.tk-state {
+  padding: 0.55rem 0.7rem;
+  line-height: 1.45;
+}
+
+.tk-danger {
+  color: var(--tk-danger);
+}
+
+.tk-ok {
+  color: var(--tk-ok);
+}
+
+.tk-outcome,
+.tk-public-foot {
+  margin-top: 1rem;
+}
+
+.tk-public-foot {
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--tk-border);
+}
+
+.tk-kicker {
+  margin: 0;
+  color: var(--tk-ink-sub);
+  font-size: 0.8125rem;
+}
+
+.tk-split {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.tk-inline-label {
+  flex: 0 0 5.5rem;
+  font-weight: 600;
+}
+
+@media (min-width: 800px) {
+  .tk-page {
+    padding-top: 1.5rem;
+  }
+
+  .tk-split {
+    grid-template-columns: 1.15fr 0.85fr;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--tk-brand);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    scroll-behavior: auto;
+  }
+}
