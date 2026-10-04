@@ -116,7 +116,7 @@ export default function RewardsPage() {
               {campaigns.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
             </select>
           </label>
-          <p className={presented.success ? "tk-ok" : "tk-unknown"} data-reward-tone={presented.tone} data-success={presented.success ? "true" : "false"}>
+          <p className={presented.className} data-reward-tone={presented.tone} data-success={presented.success ? "true" : "false"}>
             {rewardNotice(reward)} 核销未知。
           </p>
           <p className="tk-note">{rulesNote}</p>

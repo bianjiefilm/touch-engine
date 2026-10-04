@@ -63,7 +63,9 @@ describe("代表页面是真实路由", () => {
     for (const state of ["empty", "loading", "error", "expired", "paused", "ended"]) {
       expect(campaign).toContain(`data-state="${state}"`);
     }
-    expect(read("app/work/rewards/page.tsx")).toContain("tk-unknown");
+    // HUI-2628 r2：奖励未知样式经 rewardPresentation().className 下发（unknown→tk-unknown 行为已锁定），
+    // 页面不再出现字面量 tk-ok/tk-unknown（uifinish unknown_reward_success_green 静态闸要求）。
+    expect(read("app/work/rewards/page.tsx")).toContain("presented.className");
     expect(read("app/work/analytics/page.tsx")).toContain("未知");
     expect(read("app/c/[code]/contact/page.tsx")).toContain("contact");
   });

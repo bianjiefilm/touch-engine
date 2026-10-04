@@ -138,8 +138,8 @@ const ALERT_RES: RegExp[] = [
 const SUCCESS_GREEN_RE = new RegExp(`tk-ok\\b|${TOUCH_SUCCESS_GREEN}\\b|成功绿|--tk-ok\\b`, "i");
 const GREEN_CLASS_SPLIT_RE = /["']tk-["']\s*\+\s*["']ok["']/gi;
 const EXPIRED_STATE_RE = /\bdata-state\s*=\s*(?:["']expired["']|\{\s*["']expired["']\s*\})/i;
-const SPREAD_STYLE_COLOR_RE = /style\s*:\s*\{[^{}]*\bcolor\s*:/i;
-const DOM_STYLE_COLOR_RE = /\.style\s*\.\s*color\b/i;
+const SPREAD_STYLE_COLOR_RE = /style\s*:\s*\{[^{}]*\bcolor\s*:/gi;
+const DOM_STYLE_COLOR_RE = /\.style\s*\.\s*color\b/gi;
 const TODAY_CONCAT_RES: RegExp[] = [
   /\{\s*["']今天["']\s*\+\s*["']进行中["']\s*\}/g,
   /["']今天["']\s*\+\s*["']进行中["']/g,
@@ -668,18 +668,16 @@ function stripTags(s: string): string {
 // ---- 屏蔽非渲染内容（对齐 maskNonRendered） ---------------------------------
 
 function maskNonRendered(src: string): string {
+  // 对齐上游 Go 版：引号内字符只跳过（保留原文），仅清空 //、/* */、JSX/HTML 注释与模板字符串。
   const b = src.split("");
   let quote = "";
   for (let i = 0; i < b.length; ) {
     if (quote !== "") {
       if (b[i] === "\\" && i + 1 < b.length) {
-        b[i] = " ";
-        b[i + 1] = " ";
         i += 2;
         continue;
       }
       if (b[i] === quote) quote = "";
-      b[i] = " ";
       i++;
       continue;
     }
