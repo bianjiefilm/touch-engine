@@ -3,7 +3,7 @@
 // up: identity stub(18461) -> go server(18460, 临时库) -> provision -> HTTP seed -> next start(18462)
 // down: 按 spawn 记录逆序回收并删临时库。UNKNOWN 不算绿由 run.sh 判定。
 import { execFileSync, spawn } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, openSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -27,9 +27,12 @@ const procs = [];
 const state = { db: "", session: "", tenantId: "", urls: {} };
 
 function spawnProc(name, cmd, args, opts = {}) {
-  const child = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"], ...opts });
-  child.stdout.on("data", (d) => process.stdout.write(`[${name}] ${d}`));
-  child.stderr.on("data", (d) => process.stdout.write(`[${name}!] ${d}`));
+  // 子进程输出落 _art/logs/（不挂管道）：up 进程退出后子进程仍在跑，
+  // 文件日志是观测它们（尤其 go server）存活的唯一窗口。
+  const logDir = path.join(artDir, "logs");
+  mkdirSync(logDir, { recursive: true });
+  const logFd = openSync(path.join(logDir, `${name}.log`), "a");
+  const child = spawn(cmd, args, { stdio: ["ignore", logFd, logFd], ...opts });
   procs.push({ name, child });
   return child;
 }
@@ -108,8 +111,11 @@ async function seed() {
   const expired = await mkCampaign("E2E 过期活动", relDays(-10), relDays(-1));
   const paused = await mkCampaign("E2E 暂停活动", relDays(-1), relDays(2));
   const ended = await mkCampaign("E2E 结束活动", relDays(-10), relDays(-5));
+  // 状态迁移表（server/internal/campaign/campaign.go）：draft→active|ended、active→paused|ended。
+  // 新建活动是 draft，所以 paused/ended 也必须先转 active 再到目标态。
   await goApi("POST", `/api/v1/campaigns/${active.id}/status`, { status: "active" });
   await goApi("POST", `/api/v1/campaigns/${expired.id}/status`, { status: "active" });
+  await goApi("POST", `/api/v1/campaigns/${paused.id}/status`, { status: "active" });
   await goApi("POST", `/api/v1/campaigns/${paused.id}/status`, { status: "paused" });
   await goApi("POST", `/api/v1/campaigns/${ended.id}/status`, { status: "ended" });
 
@@ -196,6 +202,24 @@ async function up() {
   console.log("[env] up complete");
 }
 
+function killPort(label, port) {
+  // up/down 是两次独立进程调用：run.sh 的 down 是新进程，procs 记录为空，
+  // 所以跨进程一律按端口回收（lsof 找监听 PID）。
+  try {
+    const out = execFileSync("lsof", ["-ti", `tcp:${port}`], { encoding: "utf8" });
+    for (const pid of out.split("\n").map((l) => l.trim()).filter(Boolean)) {
+      try {
+        process.kill(Number(pid), "SIGTERM");
+        console.log(`[env] stopped ${label} pid ${pid} (port ${port})`);
+      } catch {
+        /* already gone */
+      }
+    }
+  } catch {
+    /* nothing listening on this port */
+  }
+}
+
 async function down() {
   for (const { name, child } of procs.reverse()) {
     try {
@@ -205,6 +229,11 @@ async function down() {
       /* already gone */
     }
   }
+  killPort("identity", PORTS.identity);
+  killPort("go", PORTS.go);
+  killPort("web", PORTS.web);
+  // 给内核一点时间释放 TIME_WAIT，下一轮 bind 才不会 EADDRINUSE
+  await new Promise((r) => setTimeout(r, 1500));
   if (state.db) {
     try {
       rmSync(state.db, { recursive: true, force: true });
