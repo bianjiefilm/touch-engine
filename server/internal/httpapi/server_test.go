@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/bianjiefilm/touch-engine/server/internal/config"
 	"github.com/bianjiefilm/touch-engine/server/internal/db"
@@ -417,8 +418,9 @@ func TestPublicRouteFiveStates(t *testing.T) {
 		mustEqual(t, st, http.StatusOK)
 	}
 
-	// valid: active, window containing now
-	validID, validCode := mk("周年庆", "到店有礼", "2026-09-01T00:00:00Z", "2026-09-30T00:00:00Z")
+	// valid: active, window containing now（相对 now 计算，夹具不再随日历过期）
+	now := time.Now().UTC()
+	validID, validCode := mk("周年庆", "到店有礼", now.Add(-48*time.Hour).Format(time.RFC3339), now.Add(48*time.Hour).Format(time.RFC3339))
 	toStatus(validID, "active")
 
 	// paused
@@ -427,7 +429,7 @@ func TestPublicRouteFiveStates(t *testing.T) {
 	toStatus(pausedID, "paused")
 
 	// expired
-	expiredID, expiredCode := mk("过期活动", "", "2026-08-01T00:00:00Z", "2026-09-10T00:00:00Z")
+	expiredID, expiredCode := mk("过期活动", "", now.Add(-96*time.Hour).Format(time.RFC3339), now.Add(-1*time.Hour).Format(time.RFC3339))
 	toStatus(expiredID, "active")
 
 	// disabled link on an otherwise-valid campaign
