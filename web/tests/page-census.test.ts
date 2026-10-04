@@ -22,6 +22,10 @@ function rescan(source: string): Marker[] {
   if (/(?:^|[^A-Za-z0-9_])style\s*=/.test(source)) found.push("inline style");
   if (source.includes("接口说明")) found.push("接口说明");
   if (source.includes("架构说明")) found.push("架构说明");
+  if (/(?:^|[^A-Za-z0-9_])<button/.test(source)) found.push("raw button");
+  if (/(?:^|[^A-Za-z0-9_])<input/.test(source)) found.push("raw input");
+  if (/(?:^|[^A-Za-z0-9_])<table/.test(source)) found.push("raw table");
+  if (/(?:^|[^A-Za-z0-9_])#(?:[0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})(?![0-9A-Fa-f])/.test(source)) found.push("bare hex");
   return found;
 }
 
@@ -136,8 +140,18 @@ describe("stack 与未测量字段", () => {
 });
 
 describe("半成品标记", () => {
-  it("只认 TODO、FIXME、inline style 和两个字面量，顺序固定", () => {
-    expect([...markerKindList]).toEqual(["TODO", "FIXME", "inline style", "接口说明", "架构说明"]);
+  it("只认五类旧标记和四类原生标记，顺序固定", () => {
+    expect([...markerKindList]).toEqual([
+      "TODO",
+      "FIXME",
+      "inline style",
+      "接口说明",
+      "架构说明",
+      "raw button",
+      "raw input",
+      "raw table",
+      "bare hex",
+    ]);
     expect(scanMarkers("")).toEqual([]);
     expect(scanMarkers("// TODO: later")).toEqual(["TODO"]);
     expect(scanMarkers("FIXME")).toEqual(["FIXME"]);
@@ -146,7 +160,7 @@ describe("半成品标记", () => {
     expect(scanMarkers("MYTODO")).toEqual([]);
     expect(scanMarkers("FIXMES")).toEqual([]);
     expect(scanMarkers('<main style={{ maxWidth: 960 }}>')).toEqual(["inline style"]);
-    expect(scanMarkers("<button style={btnStyle}>")).toEqual(["inline style"]);
+    expect(scanMarkers("<button style={btnStyle}>")).toEqual(["inline style", "raw button"]);
     expect(scanMarkers("style = {btnStyle}")).toEqual(["inline style"]);
     expect(scanMarkers("lifestyle=1")).toEqual([]);
     expect(scanMarkers("styleName")).toEqual([]);
@@ -155,12 +169,41 @@ describe("半成品标记", () => {
     expect(scanMarkers("架构说明")).toEqual(["架构说明"]);
     expect(scanMarkers("接口")).toEqual([]);
     expect(scanMarkers("架构")).toEqual([]);
-    expect(scanMarkers("架构说明 style={{}} FIXME TODO 接口说明")).toEqual([
+    expect(scanMarkers("<button")).toEqual(["raw button"]);
+    expect(scanMarkers("<Button")).toEqual([]);
+    expect(scanMarkers("x<button")).toEqual([]);
+    expect(scanMarkers("_<button")).toEqual([]);
+    expect(scanMarkers("1<button")).toEqual([]);
+    expect(scanMarkers("</button>")).toEqual([]);
+    expect(scanMarkers("<button></button><button>")).toEqual(["raw button"]);
+    expect(scanMarkers("<input")).toEqual(["raw input"]);
+    expect(scanMarkers("<Input")).toEqual([]);
+    expect(scanMarkers("x<input")).toEqual([]);
+    expect(scanMarkers("<table")).toEqual(["raw table"]);
+    expect(scanMarkers("<Table")).toEqual([]);
+    expect(scanMarkers("x<table")).toEqual([]);
+    expect(scanMarkers("#fff")).toEqual(["bare hex"]);
+    expect(scanMarkers("#112233")).toEqual(["bare hex"]);
+    expect(scanMarkers("#FFF")).toEqual(["bare hex"]);
+    expect(scanMarkers("#ffff")).toEqual([]);
+    expect(scanMarkers("#11223344")).toEqual([]);
+    expect(scanMarkers("#ff")).toEqual([]);
+    expect(scanMarkers("#12345")).toEqual([]);
+    expect(scanMarkers("foo#fff")).toEqual([]);
+    expect(scanMarkers("_#112233")).toEqual([]);
+    expect(scanMarkers("9#fff")).toEqual([]);
+    expect(scanMarkers("color:#fff")).toEqual(["bare hex"]);
+    expect(scanMarkers("#fff #112233")).toEqual(["bare hex"]);
+    expect(scanMarkers("架构说明 style={{}} FIXME TODO 接口说明 <button <input <table #fff")).toEqual([
       "TODO",
       "FIXME",
       "inline style",
       "接口说明",
       "架构说明",
+      "raw button",
+      "raw input",
+      "raw table",
+      "bare hex",
     ]);
     expect(scanMarkers("style={{}}\nstyle={btn}")).toEqual(["inline style"]);
   });
@@ -168,12 +211,12 @@ describe("半成品标记", () => {
   it("记下的命中和重新扫描该页面文件一致", () => {
     const want = new Map<string, Marker[]>([
       ["/", []],
-      ["/admin", ["inline style"]],
+      ["/admin", ["inline style", "raw button", "raw input", "raw table", "bare hex"]],
       ["/admin/preview", ["inline style"]],
-      ["/work/stores", []],
-      ["/work/campaigns", []],
-      ["/work/campaigns/[id]", []],
-      ["/work/materials", []],
+      ["/work/stores", ["raw button", "raw input"]],
+      ["/work/campaigns", ["raw button", "raw input"]],
+      ["/work/campaigns/[id]", ["raw button"]],
+      ["/work/materials", ["raw button", "raw input"]],
       ["/work/rewards", []],
       ["/work/analytics", []],
       ["/c/[code]", []],
@@ -197,7 +240,7 @@ describe("半成品标记", () => {
     const preview = pageCensus().find((page) => page.route === "/admin/preview");
     expect(preview?.file).toBe("src/app/admin/preview/page.tsx");
     const shell = readFileSync(path.join(webRoot, "src/app/admin/preview/preview-shell.tsx"), "utf8");
-    expect(rescan(shell)).toEqual(["inline style"]);
+    expect(rescan(shell)).toEqual(["inline style", "raw button"]);
     expect(preview?.markers).toEqual(rescan(readPage(preview?.file ?? "")));
   });
 });
