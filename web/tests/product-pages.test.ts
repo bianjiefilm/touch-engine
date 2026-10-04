@@ -84,7 +84,9 @@ describe("代表页面是真实路由", () => {
     const source = read("app/c/[code]/public-campaign.tsx");
     expect(source).not.toMatch(/data-testid="lead-outcome"[^>\n]*data-state="success"/);
     expect(source).not.toMatch(/data-tone="confirmed"|data-tone=\{[^}]*"confirmed"/);
-    expect(source).toMatch(/待同步[\s\S]{0,120}"pending"|"pending"[\s\S]{0,120}待同步/);
+    // HUI-2628 r2：pending 判定已抽到 lib/lead-outcome（待同步→pending 由 lead-outcome.test.ts 行为锁定）；
+    // 页面必须委托该纯函数，撤销时用同源 LEAD_REVOKED_COPY。
+    expect(source).toMatch(/leadOutcomeState\(revokeDone\s*\?\s*LEAD_REVOKED_COPY\s*:\s*outcome\)/);
     expect(source).toContain('data-state="revoked"');
     const outcome = source.slice(source.indexOf('data-testid="lead-outcome"'));
     expect(outcome).toContain("tk-ok");
