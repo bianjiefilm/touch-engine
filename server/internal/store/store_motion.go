@@ -51,13 +51,13 @@ func (s *Store) SaveStoreMotion(req storemotion.Request, createdBy string, probe
 	_, err = s.DB.Exec(
 		`INSERT INTO store_motion_requests(
 			id,tenant_id,store_id,campaign_id,version,
-			store_name,activity_time,price,address,offer_copy,cta,
+			store_name,activity_time,price,address,offer_copy,cta,channels,aspect_ratios,
 			origin_app,origin_context_ref,revision_id,verified,status,
 			model_calls,render_calls,unchanged_store_rerun,unchanged_store_note,
 			created_by,created_at)
-		 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,NULL,0,?,0,0,?,?,?,?)`,
+		 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NULL,0,?,0,0,?,?,?,?)`,
 		row.ID, row.TenantID, row.StoreID, row.CampaignID, row.Version,
-		row.Params.StoreName, row.Params.ActivityTime, row.Params.Price, row.Params.Address, row.Params.OfferCopy, row.Params.CTA,
+		row.Params.StoreName, row.Params.ActivityTime, row.Params.Price, row.Params.Address, row.Params.OfferCopy, row.Params.CTA, row.Params.Channels, row.Params.AspectRatios,
 		row.Declaration.OriginApp, row.Declaration.OriginContextRef, row.Declaration.Status,
 		row.Declaration.UnchangedStoreRerun, row.Declaration.UnchangedStoreNote,
 		row.CreatedBy, row.CreatedAt)
@@ -71,10 +71,10 @@ func (s *Store) SaveStoreMotion(req storemotion.Request, createdBy string, probe
 func (s *Store) LatestStoreMotion(tenantID, campaignID string) (StoreMotionRow, error) {
 	row := s.DB.QueryRow(
 		`SELECT id,tenant_id,store_id,campaign_id,version,
-			store_name,activity_time,price,address,offer_copy,cta,
-			origin_app,origin_context_ref,revision_id,verified,status,
-			model_calls,render_calls,unchanged_store_rerun,unchanged_store_note,
-			created_by,created_at
+		store_name,activity_time,price,address,offer_copy,cta,channels,aspect_ratios,
+		origin_app,origin_context_ref,revision_id,verified,status,
+		model_calls,render_calls,unchanged_store_rerun,unchanged_store_note,
+		created_by,created_at
 		 FROM store_motion_requests
 		 WHERE tenant_id=? AND campaign_id=?
 		 ORDER BY version DESC LIMIT 1`, tenantID, campaignID)
@@ -87,7 +87,7 @@ func scanStoreMotion(sc interface{ Scan(...any) error }) (StoreMotionRow, error)
 	var verified, modelCalls, renderCalls int
 	err := sc.Scan(
 		&row.ID, &row.TenantID, &row.StoreID, &row.CampaignID, &row.Version,
-		&row.Params.StoreName, &row.Params.ActivityTime, &row.Params.Price, &row.Params.Address, &row.Params.OfferCopy, &row.Params.CTA,
+		&row.Params.StoreName, &row.Params.ActivityTime, &row.Params.Price, &row.Params.Address, &row.Params.OfferCopy, &row.Params.CTA, &row.Params.Channels, &row.Params.AspectRatios,
 		&row.Declaration.OriginApp, &row.Declaration.OriginContextRef, &revision, &verified, &row.Declaration.Status,
 		&modelCalls, &renderCalls, &row.Declaration.UnchangedStoreRerun, &row.Declaration.UnchangedStoreNote,
 		&row.CreatedBy, &row.CreatedAt)
