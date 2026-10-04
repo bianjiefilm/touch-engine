@@ -51,6 +51,7 @@ func TestOpenCreatesSchema(t *testing.T) {
 		"publish_reward_rules",
 		"publish_reward_subjects",
 		"schema_migrations",
+		"store_motion_requests",
 		"stores",
 		"tenant_exports",
 		"tenants",
