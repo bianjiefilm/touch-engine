@@ -138,3 +138,65 @@ func TestStoreMotionRefusesQRPriceNumberAndPrivacy(t *testing.T) {
 		t.Fatalf("leaked = %d %v", leaked, err)
 	}
 }
+
+func TestStoreMotionChannelsRoundTripFormatAndPrivacy(t *testing.T) {
+	f := newFixture(t, false)
+	sto, err := f.s.St.CreateStore(f.tenA, "南山店", "原地址", f.ownA)
+	mustNoErr(t, err)
+	camp, err := f.s.St.CreateCampaign(store.NewCampaign{TenantID: f.tenA, Title: "国庆", StoreID: sto.ID, CreatedBy: f.ownA})
+	mustNoErr(t, err)
+	path := "/api/v1/campaigns/" + camp.ID + "/store-motion"
+	base := `"store_name":"南山店","activity_time":"10月1日-10月7日","price":"19.9","address":"南山大道1号","offer_copy":"第二杯半价","cta":"进店领取"`
+
+	// 旧六字段客户端：不带新字段，照常 201，新字段回空串。
+	status, _, out := f.do(t, "PUT", path, "sess-owner-a", f.tenA, `{`+base+`}`)
+	if status != 201 {
+		t.Fatalf("legacy body = %d %v", status, out)
+	}
+	params := out["params"].(map[string]any)
+	if params["channels"] != "" || params["aspect_ratios"] != "" {
+		t.Fatalf("legacy params = %v", params)
+	}
+
+	status, _, out = f.do(t, "PUT", path, "sess-owner-a", f.tenA, `{`+base+`,"channels":"wechat_grid,table_tent","aspect_ratios":"9:16"}`)
+	if status != 201 || out["version"] != float64(2) {
+		t.Fatalf("channels body = %d %v", status, out)
+	}
+	params = out["params"].(map[string]any)
+	if params["channels"] != "wechat_grid,table_tent" || params["aspect_ratios"] != "9:16" {
+		t.Fatalf("params = %v", params)
+	}
+	// 八字段全同：幂等 200，不新增版本。
+	status, _, same := f.do(t, "PUT", path, "sess-owner-a", f.tenA, `{`+base+`,"channels":"wechat_grid,table_tent","aspect_ratios":"9:16"}`)
+	if status != 200 || same["version"] != float64(2) {
+		t.Fatalf("replay = %d %v", status, same)
+	}
+	// 只改 channels：出新版本。
+	status, _, next := f.do(t, "PUT", path, "sess-owner-a", f.tenA, `{`+base+`,"channels":"wechat_grid","aspect_ratios":"9:16"}`)
+	if status != 201 || next["version"] != float64(3) {
+		t.Fatalf("channels change = %d %v", status, next)
+	}
+
+	// 非法格式与超长：400 invalid_field。
+	for _, bad := range []string{
+		`"channels":"WeChat"`,
+		`"channels":"wechat grid"`,
+		`"channels":"` + strings.Repeat("a", 121) + `"`,
+		`"aspect_ratios":"9：16"`,
+		`"aspect_ratios":"` + strings.Repeat("a", 41) + `"`,
+	} {
+		status, _, out := f.do(t, "PUT", path, "sess-owner-a", f.tenA, `{`+base+`,`+bad+`}`)
+		if status != 400 || out["error"] != "invalid_field" {
+			t.Fatalf("bad %s = %d %v", bad, status, out)
+		}
+	}
+	// 含手机号的渠道：400 privacy_refused。
+	status, _, out = f.do(t, "PUT", path, "sess-owner-a", f.tenA, `{`+base+`,"channels":"table_tent,13800138000"}`)
+	if status != 400 || out["error"] != "privacy_refused" {
+		t.Fatalf("phone channels = %d %v", status, out)
+	}
+	var rows int
+	if err := f.s.St.DB.QueryRow(`SELECT COUNT(*) FROM store_motion_requests`).Scan(&rows); err != nil || rows != 3 {
+		t.Fatalf("rows = %d %v", rows, err)
+	}
+}
