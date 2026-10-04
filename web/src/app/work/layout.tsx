@@ -7,9 +7,11 @@ import { WorkFrame } from "@/components/work/work-frame";
 
 export default function WorkLayout({ children }: { children: ReactNode }) {
   return (
-    <MerchantGate>
-      <WorkShell>{children}</WorkShell>
-    </MerchantGate>
+    <div data-pn-surface="work.light" data-pn-theme="light">
+      <MerchantGate>
+        <WorkShell>{children}</WorkShell>
+      </MerchantGate>
+    </div>
   );
 }
 

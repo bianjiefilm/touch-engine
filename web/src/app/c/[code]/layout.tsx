@@ -7,5 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function PublicCampaignLayout({ children }: { children: ReactNode }) {
-  return children;
+  return <div data-pn-surface="public.consumer" data-pn-theme="light">{children}</div>;
 }

@@ -1,0 +1,17 @@
+{
+  "source_repo": "github.com/bianjiefilm/public-ai",
+  "source_commit": "d01ec88",
+  "source_path": "docs/contracts/semantic-tokens/v1",
+  "canonical_sha256": "a46310d3a401f0992d346d6c90c1643e84fca4181b990312278d2c7808d581db",
+  "consumed_at": "2026-10-04",
+  "release_state": "upstream releasedAt=null, pinned by commit",
+  "files": {
+    "tokens.css": "1045ef45d7c42e6d6e8ddbb1cfc83c51024aeef299f5f54c80c057363600dbbd",
+    "tokens.scss": "65245ba573e0791fab689e439bfd85c85348140ecf0964c3e2ce597a118f864f",
+    "resolved.json": "ffc8d42d0dfacc37e01a9fcfab3bf978a1686e5fb4e3e62c8ba58ef161d342ce",
+    "token-table.md": "ffd497bd1448e14a944f2e2e377e853f3badf243b2d64c25906b9b05c3a29b6b",
+    "lint-allowlist.json": "7d8750be2b9394b65e1916a8a3cb90616424fa3293e36a418dc2ba082263badc",
+    "aliases.css": "eced0949c8df40d3941ef0c356f5066b0fc8ee4a2c28eabaa12595c3f2ce4deb",
+    "aliases.scss": "d7f45538193b7409746ce5961fc8762837a6d081693130d133f1714bfdecf295"
+  }
+}
