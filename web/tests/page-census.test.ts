@@ -213,7 +213,7 @@ describe("半成品标记", () => {
       ["/", []],
       // HUI-2628 r2：admin/page.tsx 行内样式与裸 hex 清零后账本同步。
       ["/admin", ["raw button", "raw input", "raw table"]],
-      ["/admin/preview", ["inline style"]],
+      ["/admin/preview", []],
       ["/work/stores", ["raw button", "raw input"]],
       ["/work/campaigns", ["raw button", "raw input"]],
       ["/work/campaigns/[id]", ["raw button"]],
@@ -241,7 +241,8 @@ describe("半成品标记", () => {
     const preview = pageCensus().find((page) => page.route === "/admin/preview");
     expect(preview?.file).toBe("src/app/admin/preview/page.tsx");
     const shell = readFileSync(path.join(webRoot, "src/app/admin/preview/preview-shell.tsx"), "utf8");
-    expect(rescan(shell)).toEqual(["inline style", "raw button"]);
+    // HUI-2628 r2：shell 行内样式已清零，仅剩原生 button 标记。
+    expect(rescan(shell)).toEqual(["raw button"]);
     expect(preview?.markers).toEqual(rescan(readPage(preview?.file ?? "")));
   });
 });

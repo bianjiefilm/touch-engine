@@ -93,12 +93,6 @@ export interface WorkbenchCampaign {
   public_content: string;
 }
 
-const cardStyle: React.CSSProperties = {
-  border: "1px solid #e5e7eb",
-  borderRadius: 12,
-  padding: 14,
-  background: "#fff",
-};
 
 export function MerchantWorkbench({
   tenantId,
@@ -199,35 +193,35 @@ export function MerchantWorkbench({
   const leadsApp = model?.apps.find((item) => item.app_id === "leads") ?? null;
 
   return (
-    <section data-testid="merchant-workbench" style={{ display: "grid", gap: 16, marginTop: 16 }}>
+    <section data-testid="merchant-workbench" className="tk-admin-grid-16">
       {workingFor ? (
-        <p data-testid="ops-banner" style={{ margin: 0, padding: "10px 12px", background: "#fff7ed", borderRadius: 10 }}>
+        <p data-testid="ops-banner" className="tk-admin-notice">
           {workingFor}
         </p>
       ) : null}
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-        <h2 style={{ margin: 0 }}>经营工作台</h2>
-        <p data-testid="billing-strip" style={{ margin: 0 }}>
+      <div className="tk-admin-row tk-admin-between tk-admin-wrap tk-admin-gap-12">
+        <h2 className="tk-admin-m-0">经营工作台</h2>
+        <p data-testid="billing-strip" className="tk-admin-m-0">
           费用 {billing.label}
         </p>
       </div>
       {payload.account_separation ? <AccountSeparation view={payload.account_separation} /> : null}
-      <div data-testid="workbench-grid" data-columns={columns} style={{ display: "grid", gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, gap: 12 }}>
+      <div data-testid="workbench-grid" data-columns={columns} className={`tk-admin-grid-cols-${columns}`}>
         {sections.includes("my_tasks") ? (
-          <article style={cardStyle} data-testid="section-my-tasks">
-            <h3 style={{ marginTop: 0 }}>我的事情</h3>
+          <article className="tk-admin-card" data-testid="section-my-tasks">
+            <h3 className="tk-admin-mt-0">我的事情</h3>
             <ul>
               {tasks.map((task) => (
                 <li key={`${task.kind}-${task.object_id}`}>
                   <a href={`#campaign-${task.object_id}`}>{task.title}</a>
-                  <span style={{ color: "#6b7280" }}> · {task.state}</span>
+                  <span className="tk-admin-muted"> · {task.state}</span>
                 </li>
               ))}
             </ul>
           </article>
         ) : null}
-        <article style={cardStyle} data-testid="section-content">
-          <h3 style={{ marginTop: 0 }}>内容</h3>
+        <article className="tk-admin-card" data-testid="section-content">
+          <h3 className="tk-admin-mt-0">内容</h3>
           {contentHonestyLine({ gap, next_step: payload.content?.next_step }) ? (
             <p data-testid={gap === "unknown" ? "content-unknown" : "content-next"}>
               {contentHonestyLine({ gap, next_step: payload.content?.next_step })}
@@ -255,9 +249,9 @@ export function MerchantWorkbench({
           {payload.content?.actions?.some((action) => action.id === "edit_copy" && action.shown) ? (
             <CopyEditor campaigns={campaigns} draft={copyDraft} setDraft={setCopyDraft} onSaveCopy={onSaveCopy} />
           ) : null}
-          <label style={{ display: "block", marginTop: 8 }}>
+          <label className="tk-admin-block tk-admin-mt-8">
             当前内容任务
-            <select value={intent} onChange={(event) => setIntent(event.target.value as ContentToolInput["intent"])} style={{ marginLeft: 8 }}>
+            <select value={intent} onChange={(event) => setIntent(event.target.value as ContentToolInput["intent"])} className="tk-admin-ml-8">
               <option value="operate">用已有素材做活动</option>
               <option value="creative_plan">需要脚本和分镜</option>
               <option value="deep_edit">需要深剪成片</option>
@@ -271,7 +265,7 @@ export function MerchantWorkbench({
                 type="button"
                 data-testid={`offer-${offer.app_id}`}
                 onClick={() => prepareHandoff(offer.app_id, campaigns[0]?.id ?? "", setNotice)}
-                style={{ marginTop: 8, marginRight: 8 }}
+                className="tk-admin-mt-8 tk-admin-mr-8"
               >
                 {offer.label}
               </button>
@@ -283,8 +277,8 @@ export function MerchantWorkbench({
           )}
           {payload.content?.upgrade_note ? <p>{payload.content.upgrade_note}</p> : null}
         </article>
-        <article style={cardStyle} data-testid="section-activities">
-          <h3 style={{ marginTop: 0 }}>活动</h3>
+        <article className="tk-admin-card" data-testid="section-activities">
+          <h3 className="tk-admin-mt-0">活动</h3>
           {payload.activities?.next_step ? (
             <p>
               <a href="#create-campaign">{payload.activities.next_step}</a>
@@ -298,21 +292,21 @@ export function MerchantWorkbench({
           <ActivityGroup label={activityGroupLabel("ended")} items={payload.activities?.ended ?? []} />
           <ActivityGroup label={activityGroupLabel("unclassified")} items={payload.activities?.unclassified ?? []} />
         </article>
-        <article style={cardStyle} data-testid="section-customers">
-          <h3 style={{ marginTop: 0 }}>客户</h3>
+        <article className="tk-admin-card" data-testid="section-customers">
+          <h3 className="tk-admin-mt-0">客户</h3>
           {payload.customers?.available === false ? (
             <p data-testid="customers-degraded">留资摘要未开启（{payload.customers.reason || "未知"}）。活动仍可继续，这里不显示 0。</p>
           ) : (
             (payload.customers?.cards ?? []).map((card) => {
               const enter = enterLeadsPlan({ app: leadsApp, campaignId: card.campaign_id });
               return (
-                <div key={card.campaign_id} style={{ marginBottom: 10 }}>
+                <div key={card.campaign_id} className="tk-admin-mb-10">
                   <a href={`#campaign-${card.campaign_id}`}>{card.title}</a>
-                  <p style={{ margin: "4px 0" }}>{customerCountLine("授权线索", card.authorized)} · {customerCountLine("待同步", card.pending_sync)}</p>
-                  <p style={{ margin: "4px 0" }} data-testid={`sales-reception-${card.campaign_id}`}>
+                  <p className="tk-admin-m-4-0">{customerCountLine("授权线索", card.authorized)} · {customerCountLine("待同步", card.pending_sync)}</p>
+                  <p className="tk-admin-m-4-0" data-testid={`sales-reception-${card.campaign_id}`}>
                     {salesReceptionLine(card)}
                   </p>
-                  <p style={{ margin: "4px 0" }} data-testid={`follow-up-${card.campaign_id}`}>
+                  <p className="tk-admin-m-4-0" data-testid={`follow-up-${card.campaign_id}`}>
                     {followUpLine(card.follow_up)}
                   </p>
                   {(card.open_lead_ids ?? []).map((id) => {
@@ -361,7 +355,7 @@ function ActivityGroup({ label, items }: { label: string; items: ActivityCard[] 
         {items.map((item) => (
           <li key={item.id}>
             <a href={`#campaign-${item.object_id}`}>{item.title}</a>
-            <span style={{ color: "#6b7280" }}> · {item.status}</span>
+            <span className="tk-admin-muted"> · {item.status}</span>
           </li>
         ))}
       </ul>
@@ -389,7 +383,7 @@ function CopyEditor({
         event.preventDefault();
         void onSaveCopy(selected.id, selected.title, selected.copy);
       }}
-      style={{ display: "grid", gap: 6, marginTop: 8 }}
+      className="tk-admin-grid-6 tk-admin-mt-8"
     >
       <select
         value={selected.id}

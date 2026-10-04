@@ -321,6 +321,8 @@
 .tk-admin-grid-6 { display: grid; gap: 6px; }
 .tk-admin-grid-12 { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 .tk-admin-grid-16 { display: grid; gap: 16px; margin-top: 16px; }
+.tk-admin-grid-cols-1 { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
+.tk-admin-grid-cols-2 { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .tk-admin-gap-4 { gap: 4px; }
 .tk-admin-gap-8 { gap: 8px; }
 .tk-admin-gap-12 { gap: 12px; }

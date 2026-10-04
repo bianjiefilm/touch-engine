@@ -11,18 +11,18 @@ const paneStyle: CSSProperties = {
 export function AccountSeparation({ view }: { view: SeparationView }) {
   const presented = presentAccountSeparation(view);
   return (
-    <div data-testid="account-separation" style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+    <div data-testid="account-separation" className="tk-admin-grid-12">
       <article data-testid="account-package" style={paneStyle}>
-        <h3 style={{ marginTop: 0 }}>套餐权限</h3>
-        <p style={{ marginBottom: 0 }}>{presented.packageText}</p>
+        <h3 className="tk-admin-mt-0">套餐权限</h3>
+        <p className="tk-admin-mb-0">{presented.packageText}</p>
       </article>
       <article data-testid="account-ai-fees" style={paneStyle}>
-        <h3 style={{ marginTop: 0 }}>AI 工具费用</h3>
-        <p style={{ marginBottom: 0 }}>{presented.feeText}</p>
+        <h3 className="tk-admin-mt-0">AI 工具费用</h3>
+        <p className="tk-admin-mb-0">{presented.feeText}</p>
       </article>
       <article data-testid="account-rewards" style={paneStyle}>
-        <h3 style={{ marginTop: 0 }}>营销奖励</h3>
-        <p style={{ marginBottom: 0 }}>{presented.rewardText}</p>
+        <h3 className="tk-admin-mt-0">营销奖励</h3>
+        <p className="tk-admin-mb-0">{presented.rewardText}</p>
       </article>
     </div>
   );

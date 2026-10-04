@@ -37,7 +37,7 @@ export default function EcoNavPreviewPage() {
   return (
     <>
       <PreviewShell />
-      <main style={{ maxWidth: 960, margin: "0 auto", padding: "0 20px 40px" }}>
+      <main className="tk-admin-shell">
         <h2>账户分开预览</h2>
         <p>这是本地预览，不是生产账单，也不会扣费。</p>
         <AccountSeparation view={previewSeparation} />
