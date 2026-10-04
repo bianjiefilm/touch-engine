@@ -220,6 +220,7 @@ func (s *Server) Handler() http.Handler {
 	// No public route. Changing a parameter does not render or call a model.
 	mux.Handle("PUT /api/v1/campaigns/{id}/store-motion", s.requireSession(s.handleStoreMotionPut))
 	mux.Handle("GET /api/v1/campaigns/{id}/store-motion", s.requireSession(s.handleStoreMotionGet))
+	mux.Handle("GET /api/v1/campaigns/{id}/motion-handoff", s.requireSession(s.handleMotionHandoffGet))
 
 	// Quote → confirm → generate → select → save. No public route: a guest
 	// tap cannot start a merchant copy job or a paid model call.
