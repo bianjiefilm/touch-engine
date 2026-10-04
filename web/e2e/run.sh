@@ -12,11 +12,13 @@ node e2e/scripts/env.mjs up
 UP=$?
 if [ $UP -ne 0 ]; then
   node e2e/scripts/env.mjs down
-  echo "[run] 环境拉起失败（exit $UP）——按 FAIL 处理"
+  echo "[run] 环境拉起失败（exit ${UP}）——按 FAIL 处理"
   exit $UP
 fi
 
-npx playwright test -c e2e/playwright.config.ts "$@"
+# 用 e2e 本地二进制，不用 npx——机器上有全局 playwright（版本不同）会被 npx 优先选中，
+# runner 与 specs import 的 @playwright/test 版本分裂会报 "test() called here"。
+e2e/node_modules/.bin/playwright test -c e2e/playwright.config.ts "$@"
 PW=$?
 
 node e2e/scripts/env.mjs down
