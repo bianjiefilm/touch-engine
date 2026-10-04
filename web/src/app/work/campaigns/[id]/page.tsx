@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { ExtraJumpPanel } from "@/components/admin/ExtraJumpPanel";
 import { TaskHandoffActions } from "@/components/admin/TaskHandoffActions";
 import { failureText, useSession } from "@/components/work/merchant-session";
+import { StoreMotionNote } from "@/components/work/store-motion-note";
 import { isPastEnd, surfaceLabel } from "@/lib/product-finish";
 
 interface Campaign {
@@ -134,6 +135,11 @@ export default function CampaignDetailPage() {
             {campaign.status === "active" || campaign.status === "paused" ? <button className="tk-quiet" type="button" onClick={() => void transition("ended")}>结束</button> : null}
           </div>
           {error ? <p className="tk-danger">{error}</p> : null}
+          <section id="store-motion" className="tk-section">
+            <h2 className="tk-section-title">门店参数</h2>
+            <p className="tk-note">还没生成成片</p>
+            <StoreMotionNote campaignId={id} />
+          </section>
           <section id="touch" className="tk-section">
             <h2 className="tk-section-title">碰一碰和二维码</h2>
             <p className="tk-note">{leads}。两个数不合成一个转化。</p>
