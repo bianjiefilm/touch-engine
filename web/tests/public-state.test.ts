@@ -4,12 +4,13 @@ import {
   STATE_TEXT,
   classifyEntry,
   failureState,
+  type PublicUiState,
 } from "../src/lib/public-state";
 
 // HUI-1664:五态 + 网络失败/入口不支持 —— 每个状态都有准确文案与可恢复动作。
 
 describe("五态 + 兜底文案", () => {
-  const cases: Array<[string, string, string]> = [
+  const cases: Array<[PublicUiState, string, string]> = [
     // [state, 文案存在, 可恢复动作文案存在]
     ["available", "活动进行中", ""],
     ["link_disabled", "链接已停用", "请联系商家获取最新的活动入口"],

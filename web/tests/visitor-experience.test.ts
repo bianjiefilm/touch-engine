@@ -188,7 +188,7 @@ describe("企微关注导航点评只展示真实地址，点击不是成功", (
       closed: [
         { kind: "navigate", shown: false, reason: "not_configured" },
       ],
-    }));
+    } as Parameters<typeof guestActionsFromPayload>[0]));
     expect(visible).toEqual([{ kind: "wifi", href: "https://shop.example.com/wifi" }]);
   });
 
@@ -203,7 +203,7 @@ describe("企微关注导航点评只展示真实地址，点击不是成功", (
       crm_imported: true,
       reward_triggered: true,
       publish_success: true,
-    })).toEqual({
+    } as Parameters<typeof settleClick>[0])).toEqual({
       recordedAs: "click",
       success: false,
       platformResult: "unknown",

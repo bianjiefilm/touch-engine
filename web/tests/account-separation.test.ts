@@ -55,12 +55,13 @@ describe("套餐、工具费和营销奖励分开", () => {
 
 describe("公共访客不看到企业余额", () => {
   it("浏览、留资、领券文案不带余额，也不创建平台账户", () => {
+    // 夹具故意多传余额字段，证明公共文案忽略它们；断言收窄只为通过 TS 多余属性检查。
     const copy = publicVisitorCopy({
       action: "claim",
       balance: 8800,
       wallet: { value_minor: 8800 },
       org_balance: "88.00",
-    });
+    } as { action?: string });
     expect(copy.showsEnterpriseBalance).toBe(false);
     expect(copy.createsPlatformUser).toBe(false);
     expect(copy.text).not.toContain("88.00");

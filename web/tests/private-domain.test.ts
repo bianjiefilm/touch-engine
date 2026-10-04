@@ -19,7 +19,7 @@ describe("只展示当前渠道打得开的企微或社群", () => {
       ],
       connected: true,
       redemption: "redeemed",
-    }, "web");
+    } as Parameters<typeof presentPrivateDomain>[0], "web");
     expect(guide.entries).toEqual([
       { kind: "wecom", href: "https://work.weixin.qq.com/ca/demo", event: "click_wecom" },
     ]);
@@ -75,7 +75,7 @@ describe("click_wecom 只是点击", () => {
       contact_created: true,
       redemption: "redeemed",
       connected: true,
-    })).toEqual({
+    } as Parameters<typeof settlePrivateDomainClick>[0])).toEqual({
       event: "click_wecom",
       recordedAs: "click",
       success: false,
