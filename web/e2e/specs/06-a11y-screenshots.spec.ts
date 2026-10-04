@@ -27,21 +27,9 @@ async function resolvePath(def: RouteDef, campaignId: string, activeCode: string
 }
 
 test("a11y + screenshots across 8 representative pages", async ({ page }) => {
-  let browserAvailable = true;
-  try {
-    await login(page);
-  } catch (err) {
-    browserAvailable = false;
-    console.log(`BLOCKED: browser unavailable (${String(err)})`);
-  }
-  test.skip(!browserAvailable, "BLOCKED: no browser available — 不算 PASS");
+  // 浏览器不可用必须红（评审 A1）：不再 test.skip——skip 会被 playwright 判 exit 0 造成假绿。
+  await login(page);
   const codes = await seedCodes();
-  const seed = JSON.parse(
-    await import("node:fs/promises").then((f) =>
-      f.readFile(path.resolve(__dirname, "..", "evidence", "seed.json"), "utf8"),
-    ),
-  ) as { activeId?: string };
-  void seed;
 
   const results: Array<{ slug: string; width: number; violations: Array<{ id: string; impact: string | null }> }> = [];
   const widths = [390, 430];
