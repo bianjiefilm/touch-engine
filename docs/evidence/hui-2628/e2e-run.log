@@ -13,7 +13,7 @@
    ▲ Next.js 15.5.25
 
    Creating an optimized production build ...
- ✓ Compiled successfully in 1528ms
+ ✓ Compiled successfully in 2.0s
    Linting and checking validity of types ...
    Collecting page data ...
    Generating static pages (0/14) ...
@@ -37,7 +37,7 @@ Route (app)                                 Size  First Load JS
 ├ ƒ /c/[code]/contact                      251 B         115 kB
 ├ ○ /work/analytics                      3.83 kB         106 kB
 ├ ○ /work/campaigns                       4.4 kB         107 kB
-├ ƒ /work/campaigns/[id]                 6.08 kB         112 kB
+├ ƒ /work/campaigns/[id]                 7.01 kB         113 kB
 ├ ○ /work/materials                      4.02 kB         107 kB
 ├ ○ /work/rewards                        5.07 kB         108 kB
 └ ○ /work/stores                         4.13 kB         107 kB
@@ -50,20 +50,29 @@ Route (app)                                 Size  First Load JS
 ○  (Static)   prerendered as static content
 ƒ  (Dynamic)  server-rendered on demand
 
-[env] provisioned tenant tnt_2e959c9bd008fd0d83d0c69dd5d3aab0
+[env] provisioned tenant tnt_9e7620c6ab67f1ef8447a8cbb002c342
 [env] up complete
 
-Running 6 tests using 1 worker
+Running 7 tests using 1 worker
 
-  ✓  1 e2e/specs/01-merchant-first-entry.spec.ts:5:5 › merchant first entry shows today desk with real data (754ms)
-  ✓  2 e2e/specs/02-public-states.spec.ts:5:5 › public page states (478ms)
-  ✓  3 e2e/specs/03-contact-flow.spec.ts:8:5 › contact flow submit then revoke (467ms)
-  ✓  4 e2e/specs/04-reward-unknown.spec.ts:5:5 › unknown reward never shows success green (295ms)
-  ✓  5 e2e/specs/05-no-eco-nav-on-public.spec.ts:5:5 › no eco nav on public page (325ms)
-  ✓  6 e2e/specs/06-a11y-screenshots.spec.ts:29:5 › a11y + screenshots across 8 representative pages (20.6s)
+  ✓  1 e2e/specs/01-merchant-first-entry.spec.ts:5:5 › merchant first entry shows today desk with real data (1.3s)
+  ✓  2 e2e/specs/02-public-states.spec.ts:8:5 › public page states (731ms)
+  ✓  3 e2e/specs/02-public-states.spec.ts:32:5 › public page loading state while link fetch is pending (450ms)
+  ✓  4 e2e/specs/03-contact-flow.spec.ts:8:5 › contact flow submit then revoke (690ms)
+  ✓  5 e2e/specs/04-reward-unknown.spec.ts:5:5 › unknown reward never shows success green (424ms)
+  ✓  6 e2e/specs/05-no-eco-nav-on-public.spec.ts:5:5 › no eco nav on public page (684ms)
+  ✓  7 e2e/specs/06-a11y-screenshots.spec.ts:29:5 › a11y + screenshots across 8 representative pages (20.4s)
 
-  6 passed (25.1s)
-[env] stopped identity pid 76742 (port 18461)
-[env] stopped identity pid 76822 (port 18461)
-[env] stopped web pid 76826 (port 18462)
+  7 passed (27.6s)
+[env] stopped identity pid 72476 (port 18461)
+[env] stopped identity pid 72538 (port 18461)
+[env] stopped web pid 72542 (port 18462)
 [run] playwright exit=0
+[gate] ---- 证据汇总 ----
+[gate] spec 文件数: 6（01-merchant-first-entry.spec.ts, 02-public-states.spec.ts, 03-contact-flow.spec.ts, 04-reward-unknown.spec.ts, 05-no-eco-nav-on-public.spec.ts, 06-a11y-screenshots.spec.ts）
+[gate] 用例数: 7，passed=7，failed=0，skipped=0
+[gate] 验收截图: 17/17 在 evidence/（missing: 无）
+[gate] axe critical+serious: 0
+[gate] ----------------------
+[gate] 证据门通过
+[run] PASS

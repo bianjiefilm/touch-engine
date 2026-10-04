@@ -1,8 +1,34 @@
-ok  	github.com/bianjiefilm/touch-engine/server/internal/redact	(cached)
-ok  	github.com/bianjiefilm/touch-engine/server/internal/rewardrule	(cached)
-ok  	github.com/bianjiefilm/touch-engine/server/internal/store	(cached)
-ok  	github.com/bianjiefilm/touch-engine/server/internal/storemotion	(cached)
-ok  	github.com/bianjiefilm/touch-engine/server/internal/tagcsv	(cached)
-ok  	github.com/bianjiefilm/touch-engine/server/internal/upload	(cached)
-ok  	github.com/bianjiefilm/touch-engine/server/internal/videotpl	(cached)
-ok  	github.com/bianjiefilm/touch-engine/server/internal/workbench	(cached)
+go: downloading github.com/makiuchi-d/gozxing v0.1.1
+go: downloading golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
+?   	github.com/bianjiefilm/touch-engine/server/cmd/touch-server	[no test files]
+ok  	github.com/bianjiefilm/touch-engine/server/internal/activityspend	13.409s
+ok  	github.com/bianjiefilm/touch-engine/server/internal/assetlib	8.361s
+ok  	github.com/bianjiefilm/touch-engine/server/internal/authz	10.888s
+ok  	github.com/bianjiefilm/touch-engine/server/internal/brandctx	11.737s
+ok  	github.com/bianjiefilm/touch-engine/server/internal/brandhost	14.383s
+ok  	github.com/bianjiefilm/touch-engine/server/internal/campaign	15.434s
+ok  	github.com/bianjiefilm/touch-engine/server/internal/campaignrules	9.360s
+ok  	github.com/bianjiefilm/touch-engine/server/internal/config	12.529s
+ok  	github.com/bianjiefilm/touch-engine/server/internal/copydraft	10.025s
+ok  	github.com/bianjiefilm/touch-engine/server/internal/copyjob	16.440s
+ok  	github.com/bianjiefilm/touch-engine/server/internal/custpublish	13.076s
+ok  	github.com/bianjiefilm/touch-engine/server/internal/dashboard	13.101s
+ok  	github.com/bianjiefilm/touch-engine/server/internal/db	13.937s
+ok  	github.com/bianjiefilm/touch-engine/server/internal/extrajump	13.305s
+ok  	github.com/bianjiefilm/touch-engine/server/internal/httpapi	40.316s
+ok  	github.com/bianjiefilm/touch-engine/server/internal/identity	16.408s
+ok  	github.com/bianjiefilm/touch-engine/server/internal/leads	16.724s
+ok  	github.com/bianjiefilm/touch-engine/server/internal/matrixhandoff	16.807s
+ok  	github.com/bianjiefilm/touch-engine/server/internal/notifytask	16.922s
+ok  	github.com/bianjiefilm/touch-engine/server/internal/privatedomain	17.230s
+?   	github.com/bianjiefilm/touch-engine/server/internal/provision	[no test files]
+ok  	github.com/bianjiefilm/touch-engine/server/internal/publishreward	13.411s
+ok  	github.com/bianjiefilm/touch-engine/server/internal/qrentry	13.780s
+ok  	github.com/bianjiefilm/touch-engine/server/internal/redact	13.206s
+ok  	github.com/bianjiefilm/touch-engine/server/internal/rewardrule	13.840s
+ok  	github.com/bianjiefilm/touch-engine/server/internal/store	21.487s
+ok  	github.com/bianjiefilm/touch-engine/server/internal/storemotion	10.596s
+ok  	github.com/bianjiefilm/touch-engine/server/internal/tagcsv	10.501s
+ok  	github.com/bianjiefilm/touch-engine/server/internal/upload	10.238s
+ok  	github.com/bianjiefilm/touch-engine/server/internal/videotpl	10.069s
+ok  	github.com/bianjiefilm/touch-engine/server/internal/workbench	10.647s
