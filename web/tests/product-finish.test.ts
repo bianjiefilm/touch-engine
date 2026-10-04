@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { planToday, rewardPresentation, surfaceLabel } from "@/lib/product-finish";
+import { pickHandoff, planToday, rewardPresentation, surfaceLabel } from "@/lib/product-finish";
 
 describe("奖励未知不是成功", () => {
   it("status unknown 不成功，也不用成功语气", () => {
@@ -97,5 +97,75 @@ describe("页面状态文案", () => {
     expect(surfaceLabel("ended")).toContain("结束");
     expect(surfaceLabel("error")).not.toContain("成功");
     expect(surfaceLabel("empty")).not.toContain("0");
+  });
+});
+
+describe("pickHandoff 交接选择", () => {
+  const now = "2026-10-04T12:00:00.000Z";
+
+  it("第一个未过期 active → live（跳过前面已过期的 active）", () => {
+    expect(
+      pickHandoff(
+        [
+          { id: "c1", status: "active", ends_at: "2026-10-04T11:00:00.000Z" },
+          { id: "c2", status: "active", ends_at: "2026-10-05T12:00:00.000Z" },
+        ],
+        now,
+      ),
+    ).toEqual({ id: "c2", state: "live" });
+  });
+
+  it("无可交接 active → 第一个 draft → draft", () => {
+    expect(
+      pickHandoff(
+        [
+          { id: "c1", status: "active", ends_at: "2026-10-04T11:00:00.000Z" },
+          { id: "d1", status: "draft" },
+        ],
+        now,
+      ),
+    ).toEqual({ id: "d1", state: "draft" });
+  });
+
+  it("全过期且无 draft → none（不从过期场交接；过期 paused 不进 fallback）", () => {
+    expect(
+      pickHandoff(
+        [
+          { id: "c1", status: "active", ends_at: "2026-10-04T11:00:00.000Z" },
+          { id: "e1", status: "ended", ends_at: "2026-10-04T10:00:00.000Z" },
+          { id: "p1", status: "paused", ends_at: "2026-10-04T09:00:00.000Z" },
+        ],
+        now,
+      ),
+    ).toEqual({ state: "none" });
+  });
+
+  it("无 active 无 draft 时，未过期 paused 作交接目标（行为保持：第三 fallback）", () => {
+    expect(pickHandoff([{ id: "p1", status: "paused", ends_at: "2026-10-05T12:00:00.000Z" }], now)).toEqual({
+      id: "p1",
+      state: "paused_fallback",
+    });
+  });
+
+  it("fallback 排除已过期：过期 paused 不接交接", () => {
+    expect(pickHandoff([{ id: "p1", status: "paused", ends_at: "2026-10-04T11:00:00.000Z" }], now)).toEqual({
+      state: "none",
+    });
+  });
+
+  it("fallback 排除 ended：ended 即使 ends_at 在未来也不接交接", () => {
+    expect(pickHandoff([{ id: "e1", status: "ended", ends_at: "2026-10-06T12:00:00.000Z" }], now)).toEqual({
+      state: "none",
+    });
+  });
+
+  it("空清单 → none", () => {
+    expect(pickHandoff([], now)).toEqual({ state: "none" });
+  });
+
+  it("nowISO 注入决定过期判断", () => {
+    const rows = [{ id: "c1", status: "active", ends_at: "2026-10-04T13:00:00.000Z" }];
+    expect(pickHandoff(rows, now)).toEqual({ id: "c1", state: "live" });
+    expect(pickHandoff(rows, "2026-10-04T14:00:00.000Z")).toEqual({ state: "none" });
   });
 });
