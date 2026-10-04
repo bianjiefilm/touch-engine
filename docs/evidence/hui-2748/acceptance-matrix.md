@@ -1,6 +1,6 @@
 # HUI-2748 验收矩阵（r2 切片记录）
 
-日期：2026-10-04。分支：hui-2748-r2（BASE=1635486）。Linear 不可达，本文件是本仓证据记录；本仓 commit/PR 链接留待 root 收口时填（标 `待填`）。
+日期：2026-10-04。分支：hui-2748-r2（BASE=1635486）。Linear 不可达，本文件是本仓证据记录；本仓 PR：https://github.com/bianjiefilm/touch-engine/pull/38（merge commit db2bcb9，2026-10-04 合入 main）。
 
 上游结论（2026-10-04 已核实）：真实 Motion 消费上游不可用——public-ai 实现在 `internal/motionref`（HUI-2737 已并入 d01ec88，但业务仓不可导入 internal）；`public-ai/sdk/go` 最新 tag `v0.1.3` 无任何 motion 导出且无导出时间表；HUI-2732/2733 在 public-ai 全分支历史无痕迹。依赖 Motion Studio 的验收项保持未满足，不用桩关闭。
 
@@ -10,7 +10,7 @@
 
 - 本域已达成：`GET /api/v1/campaigns/{id}/motion-handoff` 把商家声明全量投影。字段→来源：`campaign.*`←`campaigns`；`store.*`←`stores`；`brand.brand_id`←`tenants.brand_id`；`brand.published_brand_id`/`published_host`←`campaign_links` 铸码戳（0009）；`offer.*`/`cta`/`channels`/`aspect_ratios`/`params_version`←`store_motion_requests` 最新行；`landing.short_code`←`campaign_links`；`landing.extra_jump_kinds`←`extra_jump_actions`（排除 revoked）；`landing.authorized_return`←`authorized_returns`；`assets`←`campaign_assets`；品牌上下文复用 `internal/brandctx` 读取路径（上游不可用→`context_available=false`+reason，不伪造）。FEATURE_BRAND=on 且注册表不可达时由平台 gate fail-closed 503；brief 内 brand_unavailable 为防御路径，实际不可达（见 server_motion_handoff_test.go:248-253）。
 - 未达成：「提交到 Motion 任务」。所需上游：public-ai sdk/go motion 导出、HUI-2732、HUI-2733。
-- 证据：`server/internal/httpapi/handlers_motion_handoff.go`、`server/internal/httpapi/server_motion_handoff_test.go`（commit 待填）。
+- 证据：`server/internal/httpapi/handlers_motion_handoff.go`、`server/internal/httpapi/server_motion_handoff_test.go`（PR #38 分支 hui-2748-r2，HEAD e90bead）。
 
 ### 2. 高频字段更新 0 高价模型调用 — met
 
@@ -56,4 +56,4 @@
 3. HUI-2733（一模板 → 多门店安全派生）。
 4. Motion 侧明确「提交到 Motion 任务」的接收面。
 
-本仓 commit/PR：待填（root 收口）。
+本仓 commit/PR：PR https://github.com/bianjiefilm/touch-engine/pull/38，merge db2bcb9；分支 HEAD e90bead。
