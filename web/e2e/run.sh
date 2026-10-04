@@ -3,7 +3,7 @@
 # 用法：bash web/e2e/run.sh [playwright 额外参数]
 # 前置：web/ 已 npm ci；web/e2e/ 已 npm install；npm run build 已随 env up 前完成由本脚本执行。
 set -u
-cd "$(dirname "$0")/../.."   # web/
+cd "$(dirname "$0")/.."   # web/（本脚本在 web/e2e/ 下，上跳一级即 web/）
 
 echo "[run] next build"
 npm run build || exit 1
