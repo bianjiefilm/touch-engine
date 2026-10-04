@@ -183,7 +183,9 @@
 .tk-button {
   border-color: var(--tk-brand);
   background: var(--tk-brand);
-  color: #fff;
+  /* 品牌底色（painuo token 下是薄荷绿 #6cebdc）配白字对比 1.44:1（axe serious）；
+     墨色文字在品牌底上约 10.7:1。生成 token 不可手改，修在手写层。 */
+  color: var(--tk-ink-main);
 }
 
 .tk-quiet:disabled,
