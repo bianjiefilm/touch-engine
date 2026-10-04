@@ -18,10 +18,6 @@ const KIND_LABEL: Record<string, string> = {
   follow: "关注账号",
 };
 
-const inputStyle: React.CSSProperties = { padding: "8px 10px", border: "1px solid #d1d5db", borderRadius: 6, flex: "1 1 160px" };
-const btnStyle: React.CSSProperties = { padding: "8px 14px", borderRadius: 6, border: "1px solid #2563eb", background: "#2563eb", color: "#fff", cursor: "pointer" };
-const sectionStyle: React.CSSProperties = { background: "#fff", borderRadius: 8, padding: 16, marginTop: 20, border: "1px solid #e5e7eb" };
-
 export function ExtraJumpPanel(props: {
   campaigns: Array<{ id: string; title: string }>;
   role: string;
@@ -87,18 +83,18 @@ export function ExtraJumpPanel(props: {
   };
 
   return (
-    <section style={sectionStyle} data-testid="extra-jump-panel">
-      <h2>跳转</h2>
-      <p style={{ color: "#6b7280", fontSize: 14 }}>
+    <section className="tk-card tk-section" data-testid="extra-jump-panel">
+      <h2 className="tk-section-title">跳转</h2>
+      <p className="tk-note">
         只保存店内和活动的正式地址，以及已登记的返回地址。加企微仍在私域入口配置。原生唤起未验证。
       </p>
       {!owner && <p data-testid="extra-jump-unauthorized">{unauthorizedConfigCopy()}</p>}
-      <label style={{ display: "block", marginBottom: 8 }}>
+      <label className="tk-label">
         活动
         <select
+          className="tk-select"
           value={campaignId}
           onChange={(e) => setCampaignId(e.target.value)}
-          style={{ ...inputStyle, display: "block", marginTop: 4, width: "100%" }}
           disabled={!owner}
         >
           <option value="">选择活动</option>
@@ -108,8 +104,8 @@ export function ExtraJumpPanel(props: {
         </select>
       </label>
       {merchantJumpKinds().map((kind) => (
-        <div key={kind} style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8, alignItems: "center" }}>
-          <strong style={{ flex: "0 0 88px" }}>{KIND_LABEL[kind]}</strong>
+        <div key={kind} className="tk-row">
+          <strong className="tk-inline-label">{KIND_LABEL[kind]}</strong>
           <label>
             <input
               type="checkbox"
@@ -125,7 +121,7 @@ export function ExtraJumpPanel(props: {
             disabled={!owner}
             data-testid={kind === "wifi" ? "extra-jump-wifi-href" : undefined}
             onChange={(e) => patchAction(kind, { href: e.target.value })}
-            style={inputStyle}
+            className="tk-input"
           />
           <label>
             <input
@@ -141,12 +137,12 @@ export function ExtraJumpPanel(props: {
             value={actions[kind]?.expires_at ?? ""}
             disabled={!owner}
             onChange={(e) => patchAction(kind, { expires_at: e.target.value })}
-            style={inputStyle}
+            className="tk-input"
           />
         </div>
       ))}
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8, alignItems: "center" }}>
-        <strong style={{ flex: "0 0 88px" }}>返回</strong>
+      <div className="tk-row">
+        <strong className="tk-inline-label">返回</strong>
         <label>
           <input
             type="checkbox"
@@ -162,7 +158,7 @@ export function ExtraJumpPanel(props: {
           disabled={!owner}
           data-testid="extra-jump-return-href"
           onChange={(e) => setReturnDraft({ ...returnDraft, href: e.target.value })}
-          style={inputStyle}
+          className="tk-input"
         />
         <label>
           <input
@@ -178,12 +174,12 @@ export function ExtraJumpPanel(props: {
           value={returnDraft.expires_at}
           disabled={!owner}
           onChange={(e) => setReturnDraft({ ...returnDraft, expires_at: e.target.value })}
-          style={inputStyle}
+          className="tk-input"
         />
       </div>
-      {error && <p style={{ color: "#b91c1c" }}>{error}</p>}
-      {note && <p style={{ color: "#374151" }}>{note}</p>}
-      <button type="button" data-testid="extra-jump-save" style={btnStyle} disabled={!owner || !campaignId || saving} onClick={() => void save()}>
+      {error && <p className="tk-danger">{error}</p>}
+      {note && <p className="tk-note">{note}</p>}
+      <button type="button" data-testid="extra-jump-save" className="tk-button" disabled={!owner || !campaignId || saving} onClick={() => void save()}>
         {saving ? "保存中…" : "保存跳转"}
       </button>
     </section>

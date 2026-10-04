@@ -23,7 +23,7 @@ export function TaskHandoffActions({
 }) {
   const kinds: TaskKind[] = ["make_campaign_image", "make_campaign_video", "view_campaign_leads"];
   return (
-    <span style={{ display: "inline-flex", gap: 6, flexWrap: "wrap" }}>
+    <span className="tk-row">
       {kinds.map((kind) => {
         const plan = planTaskHandoff(kind, campaignId);
         return (
@@ -58,7 +58,7 @@ export function TaskHandoffActions({
                 })
                 .catch(() => onPlanned("产品图没有创建或恢复工程"));
             }}
-            style={{ padding: "8px 10px", borderRadius: 6, border: "1px solid #2563eb", background: "#fff", color: "#2563eb", cursor: "pointer" }}
+            className="tk-quiet"
           >
             {LABEL[kind]}
           </button>
