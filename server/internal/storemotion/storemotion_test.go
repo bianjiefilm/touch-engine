@@ -152,10 +152,10 @@ func TestUnchangedStoreRerunIsNotClaimed(t *testing.T) {
 
 func TestPriceStaysAString(t *testing.T) {
 	typ := reflect.TypeOf(Params{})
-	if typ.NumField() != 6 {
-		t.Fatalf("fields = %d, want the six merchant parameters", typ.NumField())
+	if typ.NumField() != 8 {
+		t.Fatalf("fields = %d, want the eight merchant parameters", typ.NumField())
 	}
-	want := []string{"StoreName", "ActivityTime", "Price", "Address", "OfferCopy", "CTA"}
+	want := []string{"StoreName", "ActivityTime", "Price", "Address", "OfferCopy", "CTA", "Channels", "AspectRatios"}
 	for i, name := range want {
 		f := typ.Field(i)
 		if f.Name != name {
@@ -175,6 +175,65 @@ func TestPriceStaysAString(t *testing.T) {
 	}
 	if got.Price != "到店询价" {
 		t.Fatalf("price = %q", got.Price)
+	}
+}
+
+func TestChannelsAndAspectRatiosValidate(t *testing.T) {
+	ok := sample("19.9")
+	ok.Params.Channels = "wechat_grid,table_tent"
+	ok.Params.AspectRatios = "9:16,1:1"
+	got, err := Normalize(ok)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Channels != "wechat_grid,table_tent" || got.AspectRatios != "9:16,1:1" {
+		t.Fatalf("got = %+v", got)
+	}
+
+	cases := []struct{ name, channels, ratios string }{
+		{"uppercase", "WeChat", "9:16"},
+		{"space", "wechat grid", "9:16"},
+		{"non-ascii", "微信群", "9:16"},
+		{"fullwidth colon", "", "9：16"},
+		{"channels too long", strings.Repeat("a", 121), ""},
+		{"ratios too long", "", strings.Repeat("a", 41)},
+	}
+	for _, c := range cases {
+		req := sample("19.9")
+		req.Params.Channels = c.channels
+		req.Params.AspectRatios = c.ratios
+		if _, err := Normalize(req); !errors.Is(err, ErrFormat) {
+			t.Fatalf("%s: err = %v, want ErrFormat", c.name, err)
+		}
+	}
+}
+
+func TestChannelsPrivacyRefused(t *testing.T) {
+	probe := &Probe{}
+	req := sample("19.9")
+	req.Params.Channels = "table_tent,13800138000"
+	if _, err := Apply(req, probe); !errors.Is(err, ErrPrivacy) {
+		t.Fatalf("err = %v, want privacy", err)
+	}
+	if probe.ModelCalls != 0 || probe.RenderCalls != 0 || len(probe.Payloads) != 0 {
+		t.Fatalf("privacy reached the model: %+v", probe)
+	}
+}
+
+func TestOmittedChannelsDefaultEmpty(t *testing.T) {
+	got, err := Normalize(sample("19.9"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Channels != "" || got.AspectRatios != "" {
+		t.Fatalf("omitted fields = %q %q", got.Channels, got.AspectRatios)
+	}
+}
+
+func TestContextRefHelper(t *testing.T) {
+	want := "touch:tenant/tnt_a/store/sto_a/activity/cmp_a"
+	if ContextRef("tnt_a", "sto_a", "cmp_a") != want {
+		t.Fatalf("ContextRef = %q", ContextRef("tnt_a", "sto_a", "cmp_a"))
 	}
 }
 

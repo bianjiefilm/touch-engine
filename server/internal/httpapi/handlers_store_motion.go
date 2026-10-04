@@ -22,6 +22,8 @@ type storeMotionBody struct {
 	Address      string          `json:"address"`
 	OfferCopy    string          `json:"offer_copy"`
 	CTA          string          `json:"cta"`
+	Channels     string          `json:"channels"`
+	AspectRatios string          `json:"aspect_ratios"`
 }
 
 type storeMotionView struct {
@@ -73,6 +75,7 @@ func (s *Server) handleStoreMotionPut(w http.ResponseWriter, r *http.Request) {
 		Params: storemotion.Params{
 			StoreName: body.StoreName, ActivityTime: body.ActivityTime, Price: price,
 			Address: body.Address, OfferCopy: body.OfferCopy, CTA: body.CTA,
+			Channels: body.Channels, AspectRatios: body.AspectRatios,
 		},
 	}
 	row, created, err := s.St.SaveStoreMotion(req, c.Member.PrincipalRef, s.StoreMotionProbe)
@@ -118,6 +121,8 @@ func writeStoreMotionErr(w http.ResponseWriter, err error) {
 		fail(w, http.StatusBadRequest, "price_not_string", "价格必须是字符串，这里不做结算。")
 	case errors.Is(err, storemotion.ErrPrivacy):
 		fail(w, http.StatusBadRequest, "privacy_refused", "二维码和客户资料不能写入，也没有发给模型。")
+	case errors.Is(err, storemotion.ErrFormat):
+		fail(w, http.StatusBadRequest, "invalid_field", "投放渠道和画幅比例只能是逗号分隔的小写字母、数字、冒号、斜杠、横线和下划线。")
 	case errors.Is(err, storemotion.ErrInvalid):
 		fail(w, http.StatusBadRequest, "invalid_params", "门店名、活动时间、价格、地址、优惠文案和 CTA 都要是一段文字。")
 	default:

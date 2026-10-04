@@ -35,6 +35,9 @@ const (
 	maxCTA          = 80
 	maxID           = 128
 	maxContextRef   = 256
+
+	maxChannels     = 120
+	maxAspectRatios = 40
 )
 
 // ErrInvalid means a required field is missing, too long, or not a plain string.
@@ -47,6 +50,12 @@ var ErrPrice = errors.New("storemotion: price must be a string")
 // Those values are not stored and are not placed on a model request.
 var ErrPrivacy = errors.New("storemotion: privacy refused")
 
+// ErrFormat means channels or aspect_ratios carried characters outside the
+// lowercase token whitelist or exceeded the length cap. These two fields are
+// merchant-declared placement metadata for the handoff brief, not Motion
+// state, and nothing here executes them.
+var ErrFormat = errors.New("storemotion: invalid channels or aspect ratios format")
+
 // Params is the merchant parameter set. Every field is text. There is no
 // amount in minor units and no currency code.
 type Params struct {
@@ -56,6 +65,8 @@ type Params struct {
 	Address      string `json:"address"`
 	OfferCopy    string `json:"offer_copy"`
 	CTA          string `json:"cta"`
+	Channels     string `json:"channels"`
+	AspectRatios string `json:"aspect_ratios"`
 }
 
 // Request points at one store activity and the parameters to record for it.
@@ -109,10 +120,11 @@ func (p *Probe) CallRender(payload []byte) {
 }
 
 var (
-	idRe    = regexp.MustCompile(`^[A-Za-z0-9._:-]+$`)
-	phoneRe = regexp.MustCompile(`(?:^|[^\d])1[3-9]\d{9}(?:[^\d]|$)`)
-	emailRe = regexp.MustCompile(`[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}`)
-	idCard  = regexp.MustCompile(`(?:^|[^\d])\d{17}[\dXx](?:[^\d]|$)`)
+	idRe        = regexp.MustCompile(`^[A-Za-z0-9._:-]+$`)
+	tokenListRe = regexp.MustCompile(`^$|^(?:[a-z0-9_:/-]+)(?:,[a-z0-9_:/-]+)*$`)
+	phoneRe     = regexp.MustCompile(`(?:^|[^\d])1[3-9]\d{9}(?:[^\d]|$)`)
+	emailRe     = regexp.MustCompile(`[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}`)
+	idCard      = regexp.MustCompile(`(?:^|[^\d])\d{17}[\dXx](?:[^\d]|$)`)
 )
 
 // Apply checks the request and returns the unverified declaration.
@@ -128,7 +140,7 @@ func Apply(req Request, probe *Probe) (Declaration, error) {
 func declarationFor(tenantID, storeID, activityID string) Declaration {
 	return Declaration{
 		OriginApp:           OriginApp,
-		OriginContextRef:    contextRef(tenantID, storeID, activityID),
+		OriginContextRef:    ContextRef(tenantID, storeID, activityID),
 		RevisionID:          nil,
 		Verified:            false,
 		Status:              StatusNotRendered,
@@ -139,7 +151,9 @@ func declarationFor(tenantID, storeID, activityID string) Declaration {
 	}
 }
 
-func contextRef(tenantID, storeID, activityID string) string {
+// ContextRef is the touch origin context reference for one store activity.
+// The motion handoff brief projects the same reference the declaration carries.
+func ContextRef(tenantID, storeID, activityID string) string {
 	return "touch:tenant/" + tenantID + "/store/" + storeID + "/activity/" + activityID
 }
 
@@ -147,7 +161,7 @@ func validate(req Request) error {
 	if !validID(req.TenantID) || !validID(req.StoreID) || !validID(req.ActivityID) {
 		return ErrInvalid
 	}
-	ref := contextRef(req.TenantID, req.StoreID, req.ActivityID)
+	ref := ContextRef(req.TenantID, req.StoreID, req.ActivityID)
 	if len(ref) > maxContextRef {
 		return ErrInvalid
 	}
@@ -176,7 +190,15 @@ func validate(req Request) error {
 	if err := plain(p.CTA, maxCTA); err != nil {
 		return err
 	}
-	for _, v := range []string{p.StoreName, p.ActivityTime, p.Price, p.Address, p.OfferCopy, p.CTA} {
+	p.Channels = strings.TrimSpace(p.Channels)
+	p.AspectRatios = strings.TrimSpace(p.AspectRatios)
+	if err := tokenList(p.Channels, maxChannels); err != nil {
+		return err
+	}
+	if err := tokenList(p.AspectRatios, maxAspectRatios); err != nil {
+		return err
+	}
+	for _, v := range []string{p.StoreName, p.ActivityTime, p.Price, p.Address, p.OfferCopy, p.CTA, p.Channels, p.AspectRatios} {
 		if private(v) {
 			return ErrPrivacy
 		}
@@ -197,6 +219,8 @@ func Normalize(req Request) (Params, error) {
 		Address:      strings.TrimSpace(req.Params.Address),
 		OfferCopy:    strings.TrimSpace(req.Params.OfferCopy),
 		CTA:          strings.TrimSpace(req.Params.CTA),
+		Channels:     strings.TrimSpace(req.Params.Channels),
+		AspectRatios: strings.TrimSpace(req.Params.AspectRatios),
 	}, nil
 }
 
@@ -212,6 +236,17 @@ func plain(s string, max int) error {
 		if r < 0x20 || r == 0x7f {
 			return ErrInvalid
 		}
+	}
+	return nil
+}
+
+// tokenList accepts an empty string or comma-separated lowercase tokens.
+func tokenList(s string, max int) error {
+	if s == "" {
+		return nil
+	}
+	if len(s) > max || !utf8.ValidString(s) || !tokenListRe.MatchString(s) {
+		return ErrFormat
 	}
 	return nil
 }

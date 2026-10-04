@@ -26,7 +26,11 @@ describe("商家活动页记下门店参数", () => {
     expect(note).toContain("记下门店参数");
     expect(note).toContain("还没有记下门店参数。");
     expect(note).toContain("unchanged_store_note");
-    expect(note).toContain("{recorded.status}");
+    expect(note).toContain("presentDeclaration(recorded.status)");
+    expect(note).toContain('data-field="declaration-status"');
+    expect(note).toContain("data-state={statusView.tone}");
+    expect(note).not.toContain("{recorded.status}");
+    expect(note).not.toContain("tk-ok");
     expect(note).toMatch(/session\.api\(\s*"GET",\s*`campaigns\/\$\{campaignId\}\/store-motion`\s*\)/);
     expect(note).toMatch(/session\.api\(\s*"PUT",\s*`campaigns\/\$\{campaignId\}\/store-motion`/);
     expect(note).toMatch(/price:\s*params\.price/);
