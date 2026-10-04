@@ -1,0 +1,8 @@
+ok  	github.com/bianjiefilm/touch-engine/server/internal/redact	(cached)
+ok  	github.com/bianjiefilm/touch-engine/server/internal/rewardrule	(cached)
+ok  	github.com/bianjiefilm/touch-engine/server/internal/store	(cached)
+ok  	github.com/bianjiefilm/touch-engine/server/internal/storemotion	(cached)
+ok  	github.com/bianjiefilm/touch-engine/server/internal/tagcsv	(cached)
+ok  	github.com/bianjiefilm/touch-engine/server/internal/upload	(cached)
+ok  	github.com/bianjiefilm/touch-engine/server/internal/videotpl	(cached)
+ok  	github.com/bianjiefilm/touch-engine/server/internal/workbench	(cached)
