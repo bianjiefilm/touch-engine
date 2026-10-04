@@ -1,0 +1,230 @@
+#!/usr/bin/env node
+// HUI-2628 r2 E2E 环境编排（抄 guanlan-order/web/harness run.sh 模式的 node 版）。
+// up: identity stub(18461) -> go server(18460, 临时库) -> provision -> HTTP seed -> next start(18462)
+// down: 按 spawn 记录逆序回收并删临时库。UNKNOWN 不算绿由 run.sh 判定。
+import { execFileSync, spawn } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const webDir = path.resolve(here, "..", "..");
+const repoDir = path.resolve(webDir, "..");
+const serverDir = path.join(repoDir, "server");
+const evidenceDir = path.join(webDir, "e2e", "evidence");
+const artDir = path.join(webDir, "e2e", "_art");
+
+const PORTS = { go: 18460, identity: 18461, web: 18462 };
+const GO_URL = `http://127.0.0.1:${PORTS.go}`;
+const INTERNAL_TOKEN = "e2e-internal-token";
+const EMAIL = "owner@e2e.test";
+const PASSWORD = "e2e-pass-123";
+const PRINCIPAL = "usr_e2e_owner";
+const TENANT_NAME = "磁石科技";
+
+const procs = [];
+const state = { db: "", session: "", tenantId: "", urls: {} };
+
+function spawnProc(name, cmd, args, opts = {}) {
+  const child = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"], ...opts });
+  child.stdout.on("data", (d) => process.stdout.write(`[${name}] ${d}`));
+  child.stderr.on("data", (d) => process.stdout.write(`[${name}!] ${d}`));
+  procs.push({ name, child });
+  return child;
+}
+
+async function waitReady(url, label, tries = 120) {
+  for (let i = 0; i < tries; i++) {
+    try {
+      const res = await fetch(url);
+      if (res.ok || res.status === 404) return;
+    } catch {
+      /* not up yet */
+    }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  throw new Error(`[env] ${label} not ready at ${url}`);
+}
+
+async function goApi(method, path, body, extra = {}) {
+  const res = await fetch(GO_URL + path, {
+    method,
+    headers: {
+      "x-internal-token": INTERNAL_TOKEN,
+      ...(state.session ? { cookie: state.session } : {}),
+      ...(state.tenantId ? { "x-tenant-id": state.tenantId } : {}),
+      ...(body ? { "content-type": "application/json" } : {}),
+      ...extra,
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const setCookie = res.headers.get("set-cookie");
+  if (setCookie) state.session = setCookie.split(";")[0];
+  let data = null;
+  try {
+    data = await res.json();
+  } catch {
+    /* empty body */
+  }
+  if (!res.ok) throw new Error(`[env] ${method} ${path} -> ${res.status} ${JSON.stringify(data)}`);
+  return data;
+}
+
+function relDays(days) {
+  return new Date(Date.now() + days * 86400_000).toISOString();
+}
+
+async function seed() {
+  // 登录拿 session cookie（requireInternal + handleLogin）
+  await fetch(`${GO_URL}/api/v1/auth/login`, {
+    method: "POST",
+    headers: { "x-internal-token": INTERNAL_TOKEN, "content-type": "application/json" },
+    body: JSON.stringify({ email: EMAIL, password: PASSWORD }),
+  }).then(async (res) => {
+    if (!res.ok) throw new Error(`[env] seed login failed: ${res.status}`);
+    const setCookie = res.headers.get("set-cookie");
+    if (setCookie) state.session = setCookie.split(";")[0];
+  });
+  const who = await goApi("GET", "/api/v1/whoami");
+  state.tenantId = who.tenant_id;
+  if (!state.tenantId) throw new Error(`[env] whoami missing tenant_id: ${JSON.stringify(who)}`);
+
+  // 门店 1 家
+  const store = await goApi("POST", "/api/v1/stores", { name: "旗舰旗舰店", address: "北京市东城区" });
+
+  // 活动 4 场：active 未过期 / expired / paused / ended，各配 1 条短码
+  const mkCampaign = async (title, startsAt, endsAt) => {
+    const c = await goApi("POST", "/api/v1/campaigns", {
+      title,
+      public_content: "到店有礼",
+      starts_at: startsAt,
+      ends_at: endsAt,
+    });
+    const link = await goApi("POST", `/api/v1/campaigns/${c.id}/links`, {});
+    return { id: c.id, code: link.code };
+  };
+  const active = await mkCampaign("E2E 进行中活动", relDays(-1), relDays(2));
+  const expired = await mkCampaign("E2E 过期活动", relDays(-10), relDays(-1));
+  const paused = await mkCampaign("E2E 暂停活动", relDays(-1), relDays(2));
+  const ended = await mkCampaign("E2E 结束活动", relDays(-10), relDays(-5));
+  await goApi("POST", `/api/v1/campaigns/${active.id}/status`, { status: "active" });
+  await goApi("POST", `/api/v1/campaigns/${expired.id}/status`, { status: "active" });
+  await goApi("POST", `/api/v1/campaigns/${paused.id}/status`, { status: "paused" });
+  await goApi("POST", `/api/v1/campaigns/${ended.id}/status`, { status: "ended" });
+
+  // 留资表单（FEATURE_LEADS_CAPTURE=on 时可配；notice v1 与 leads.CurrentNotice 同源）
+  await goApi("POST", `/api/v1/campaigns/${active.id}/lead-form`, { notice_version: "v1", marketing_optin_enabled: true });
+
+  // tenantId：/admin 登录表单要求手填租户 ID（helpers.login 消费）；
+  // activeId：E2E 06 spec 的 /work/campaigns/[id] 代表页需要（Task 12 配套）。
+  state.urls = {
+    activeCode: active.code,
+    expiredCode: expired.code,
+    pausedCode: paused.code,
+    endedCode: ended.code,
+    storeId: store.id,
+    activeId: active.id,
+    tenantId: state.tenantId,
+  };
+  writeFileSync(path.join(evidenceDir, "seed.json"), JSON.stringify(state.urls, null, 2));
+}
+
+function provision(goBin, dbPath, goEnv) {
+  // provision-tenant 把租户 id 打到 stdout（cmdProvisionTenant -> fmt.Println(id)）。
+  // provision-member 必须拿真实 tenant id，所以先捕获解析，再建 member。
+  const out = execFileSync(goBin, ["provision-tenant", "-db", dbPath, "-name", TENANT_NAME], {
+    env: goEnv,
+    encoding: "utf8",
+  });
+  const tenantId = out.split("\n").map((l) => l.trim()).find((l) => l.startsWith("tnt_"));
+  if (!tenantId) {
+    throw new Error(`[env] provision-tenant stdout 未解析出 tnt_* id: ${JSON.stringify(out)}`);
+  }
+  state.tenantId = tenantId;
+  console.log(`[env] provisioned tenant ${tenantId}`);
+  execFileSync(
+    goBin,
+    ["provision-member", "-db", dbPath, "-tenant", tenantId, "-principal", PRINCIPAL, "-role", "owner", "-name", "E2E 店长"],
+    { env: goEnv },
+  );
+}
+
+async function up() {
+  rmSync(artDir, { recursive: true, force: true });
+  rmSync(evidenceDir, { recursive: true, force: true });
+  mkdirSync(evidenceDir, { recursive: true });
+  mkdirSync(artDir, { recursive: true });
+
+  spawnProc("identity", process.execPath, [path.join(here, "identity-stub.mjs"), String(PORTS.identity)]);
+  await waitReady(`http://127.0.0.1:${PORTS.identity}/healthz`, "identity stub");
+
+  state.db = mkdtempSync(path.join(tmpdir(), "touch-e2e-"));
+  const dbPath = path.join(state.db, "touch.db");
+  const go = "go";
+  const goEnv = {
+    ...process.env,
+    GOWORK: "off",
+    TOUCH_HTTP_ADDR: `127.0.0.1:${PORTS.go}`,
+    TOUCH_DB_PATH: dbPath,
+    TOUCH_INTERNAL_TOKEN: INTERNAL_TOKEN,
+    PLATFORM_IDENTITY_BASE_URL: `http://127.0.0.1:${PORTS.identity}`,
+    PLATFORM_IDENTITY_TOKEN: "e2e-identity-token",
+    FEATURE_LEADS_CAPTURE: "on",
+    // FEATURE_LEADS_CAPTURE=on 的 Gate 要求（哑值即可：forwarder 是后台轮询，不阻塞请求）
+    PLATFORM_NOTIFY_BASE_URL: `http://127.0.0.1:${PORTS.identity}`,
+    PLATFORM_NOTIFY_TOKEN: "e2e-notify-token",
+    LEADS_TARGET_APP_ID: "e2e-crm-app",
+    LEADS_PHONE_PEPPER: "e2e-phone-pepper",
+    FEATURE_DASHBOARD: "on",
+  };
+
+  execFileSync(go, ["build", "-o", path.join(artDir, "touch-server"), "./cmd/touch-server"], { cwd: serverDir, env: goEnv });
+  provision(path.join(artDir, "touch-server"), dbPath, goEnv);
+  spawnProc("go", path.join(artDir, "touch-server"), [], { env: goEnv });
+  await waitReady(`${GO_URL}/healthz`, "go server");
+
+  await seed();
+
+  spawnProc("web", process.execPath, [path.join(webDir, "node_modules", "next", "dist", "bin", "next"), "start", "-p", String(PORTS.web)], {
+    cwd: webDir,
+    env: { ...process.env, TOUCH_SERVER_URL: GO_URL, TOUCH_INTERNAL_TOKEN: INTERNAL_TOKEN },
+  });
+  await waitReady(`http://127.0.0.1:${PORTS.web}/login`, "next start");
+
+  writeFileSync(path.join(evidenceDir, "env.json"), JSON.stringify({ ports: PORTS, email: EMAIL, ...state.urls }, null, 2));
+  console.log("[env] up complete");
+}
+
+async function down() {
+  for (const { name, child } of procs.reverse()) {
+    try {
+      child.kill("SIGTERM");
+      console.log(`[env] stopped ${name}`);
+    } catch {
+      /* already gone */
+    }
+  }
+  if (state.db) {
+    try {
+      rmSync(state.db, { recursive: true, force: true });
+    } catch {
+      /* best effort */
+    }
+  }
+}
+
+const cmd = process.argv[2] || "";
+if (cmd === "up") {
+  up()
+    .then(() => process.exit(0))
+    .catch((err) => {
+      console.error(String(err));
+      down().finally(() => process.exit(1));
+    });
+} else if (cmd === "down") {
+  down().finally(() => process.exit(0));
+} else {
+  console.error("usage: node env.mjs up|down");
+  process.exit(2);
+}

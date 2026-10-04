@@ -1,0 +1,12 @@
+{
+  "name": "touch-engine-web-e2e",
+  "private": true,
+  "scripts": {
+    "test": "playwright test -c playwright.config.ts"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.10.2",
+    "@playwright/test": "^1.49.1",
+    "@types/node": "^22.10.2"
+  }
+}
