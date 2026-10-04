@@ -62,8 +62,11 @@ func TestMotionHandoffProjectsAndDigestStable(t *testing.T) {
 	if _, err := f.s.St.AddCampaignAsset(f.tenA, campID, "ast_good", "v3", f.ownA); err != nil {
 		t.Fatal(err)
 	}
+	// 两个非 revoked kind 乱序插入（review 字典序在 wifi 之前），brief 必须按
+	// 字典序输出；revoked 的 navigate 不得泄漏。
 	if err := f.s.St.ReplaceExtraJumps(f.tenA, campID, []extrajump.Configured{
 		{Kind: extrajump.KindWifi, Enabled: true},
+		{Kind: extrajump.KindReview, Enabled: true},
 		{Kind: extrajump.KindNavigate, Enabled: true, Revoked: true},
 	}); err != nil {
 		t.Fatal(err)
@@ -114,8 +117,8 @@ func TestMotionHandoffProjectsAndDigestStable(t *testing.T) {
 		t.Fatalf("short_code missing: %v", landing)
 	}
 	kinds, ok := landing["extra_jump_kinds"].([]any)
-	if !ok || len(kinds) != 1 || kinds[0] != "wifi" {
-		t.Fatalf("revoked jump leaked: %v", landing["extra_jump_kinds"])
+	if !ok || len(kinds) != 2 || kinds[0] != "review" || kinds[1] != "wifi" {
+		t.Fatalf("extra_jump_kinds not dictionary-ordered or revoked leaked: %v", landing["extra_jump_kinds"])
 	}
 	ret, ok := landing["authorized_return"].(map[string]any)
 	if !ok || ret["href"] != "https://shop.example.com/back" {
@@ -160,6 +163,55 @@ func TestMotionHandoffProjectsAndDigestStable(t *testing.T) {
 	status, _, again := f.do(t, "GET", path, "sess-owner-a", f.tenA, "")
 	if status != 200 || again["digest"] != digest {
 		t.Fatalf("digest not stable: %v vs %v", again["digest"], digest)
+	}
+}
+
+// digest 是纯函数级契约：generated_at（服务时刻）与 digest 自身不进哈希，
+// 内容字段变了 digest 必须变。端到端的同秒盲区在这里钉死。
+func TestMotionHandoffDigestIgnoresGeneratedAt(t *testing.T) {
+	base := motionHandoffBrief{
+		Version:          motionHandoffVersion,
+		OriginContextRef: "touch:tenant/ten_a/store/sto_a/camp_a",
+		GeneratedAt:      "2026-10-04T08:00:00Z",
+		Campaign:         motionHandoffCampaign{ID: "camp_a", Title: "国庆档", PublicContent: "第二杯半价", Status: "draft"},
+		Store:            motionHandoffStore{ID: "sto_a", Name: "南山店", Address: "南山大道1号", Status: "active"},
+		Brand:            motionHandoffBrand{BrandID: "brd_a"},
+		Offer:            motionHandoffOffer{OfferCopy: "第二杯半价", Price: "19.9"},
+		CTA:              "进店领取",
+		Channels:         []string{"wechat_grid", "table_tent"},
+		AspectRatios:     []string{"9:16"},
+		Landing: motionHandoffLanding{
+			ShortCode:        "ab12cd",
+			ExtraJumpKinds:   []string{"navigate", "wifi"},
+			AuthorizedReturn: &motionHandoffReturn{Href: "https://shop.example.com/back"},
+		},
+		Assets:        []motionHandoffAsset{{AssetID: "ast_good", Version: "v3"}},
+		ParamsVersion: 1,
+		Disposition: motionHandoffDisposition{
+			MotionConsumable: false,
+			ReasonCode:       "upstream_unavailable",
+			Required:         []string{"public-ai sdk/go motion export", "HUI-2732", "HUI-2733"},
+		},
+	}
+	d1, err := motionHandoffDigest(base)
+	mustNoErr(t, err)
+
+	// 仅 GeneratedAt 不同：digest 相同。
+	later := base
+	later.GeneratedAt = "2027-01-01T00:00:00Z"
+	d2, err := motionHandoffDigest(later)
+	mustNoErr(t, err)
+	if d2 != d1 {
+		t.Fatalf("digest followed generated_at: %s vs %s", d1, d2)
+	}
+
+	// 内容字段不同：digest 不同。
+	changed := base
+	changed.Offer.Price = "29.9"
+	d3, err := motionHandoffDigest(changed)
+	mustNoErr(t, err)
+	if d3 == d1 {
+		t.Fatal("digest ignored a content change")
 	}
 }
 

@@ -26,7 +26,7 @@ describe("declaration 状态不能照画", () => {
   it("任何输入都不产生成功语气", () => {
     for (const raw of [undefined, "", "还没生成成片", "已生成"]) {
       const view = presentDeclaration(raw);
-      expect(view.tone).not.toBe("success");
+      expect(["pending", "unknown"]).toContain(view.tone);
       expect(view.copy).not.toContain("已生成");
       expect(view.copy).not.toContain("成功");
     }
