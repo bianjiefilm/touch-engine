@@ -815,10 +815,6 @@ function elementContext(src: string, idx: number): string {
   return src.slice(start, end);
 }
 
-function isMainSurfaceText(src: string): boolean {
-  return src.includes('data-uifinish-surface="main"');
-}
-
 // ---- 杂项 -------------------------------------------------------------------
 
 function lineOf(src: string, idx: number): number {
@@ -863,6 +859,3 @@ export function scanFiles(files: string[]): UifinishFileFinding[] {
   }
   return out;
 }
-
-// isMainSurfaceText 保留给未来按标记升级文件级三态检查；当前文件级按 fragment 语义。
-void isMainSurfaceText;

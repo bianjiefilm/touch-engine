@@ -124,6 +124,7 @@ async function seed() {
 
   // tenantId：/admin 登录表单要求手填租户 ID（helpers.login 消费）；
   // activeId：E2E 06 spec 的 /work/campaigns/[id] 代表页需要（Task 12 配套）。
+  // email/password/tenantName：owner 凭据唯一真实来源（helpers.login 只读这里，不再各自硬编码）。
   state.urls = {
     activeCode: active.code,
     expiredCode: expired.code,
@@ -132,6 +133,9 @@ async function seed() {
     storeId: store.id,
     activeId: active.id,
     tenantId: state.tenantId,
+    email: EMAIL,
+    password: PASSWORD,
+    tenantName: TENANT_NAME,
   };
   writeFileSync(path.join(evidenceDir, "seed.json"), JSON.stringify(state.urls, null, 2));
 }
