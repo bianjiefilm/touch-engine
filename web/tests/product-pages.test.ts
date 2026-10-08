@@ -194,4 +194,11 @@ describe("错误态有恢复动作", () => {
       expect(read(rel), rel).not.toMatch(/style=\{\{/);
     }
   });
+
+  it("MerchantGate 登录态错误相有可点的重试入口（fix2：离线/断服恢复闭环）", () => {
+    const src = read("components/work/merchant-session.tsx");
+    expect(src).toMatch(/data-state="error"[\s\S]{0,80}?\{session\.error\}/);
+    expect(src, "Gate 错误相缺重试控件").toContain('data-action="retry"');
+    expect(src).toContain("retryConnection");
+  });
 });
