@@ -30,7 +30,7 @@
 | `bash web/e2e/run.sh`（全量模式） | 8 spec 10 用例全 pass，skipped=0，证据门 exit 0 | e2e-run.log |
 | 证据门全量：25 张验收截图 + axe | 25/25 在 evidence/，axe critical+serious = 0 | e2e-run.log + axe-summary.json |
 | `grep -rn 'style={{' web/src --include='*.tsx'` | 0 行 | 生成时执行，计数 0 |
-| `cd server && GOWORK=off go test ./... -p 2` | 本轮 web-only 零 server/ 改动，SKIP（r2 30 包 ok 为基线）；origin/main 新增 HUI-2981 提交属他人工作不在本 PR | — |
+| `cd server && GOWORK=off go test ./... -p 2` | 30 包全 ok，0 FAIL（防御性实跑留痕；本分支 web-only 零 server/ 改动） | go test exit 0（DECISIONS.md B7.3） |
 
 ## viewport × 页面 × 状态矩阵（r3）
 
@@ -82,5 +82,5 @@
 - HUI-2625 Gate Passed()：false（恒 false，Gate 所有者维护）
 - 生产部署：未做
 - 跨仓（Leads/Matrix）联动开发：未做（措辞级对齐 0 改动项）
-- server/ go test：本轮未触碰 server/，未重跑（r2 30 包 ok 基线；HUI-2981 属并行工作）
+- server/ go test：本分支未触碰 server/，防御性实跑 30 包 ok 留痕；origin/main 的 HUI-2981 属并行工作
 - PR 合并 / Linear 票状态 / Linear 评论：归 root

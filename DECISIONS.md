@@ -64,4 +64,6 @@
 
 1. **e2e 全量真跑通过**：8 spec 10 用例全 pass（01 首屏/02 公共五态/03 留资/04 未知奖励/05 公共无导航/06 a11y+25 截图矩阵/07 390 探针/08 blind 材料），skipped=0，证据门全量模式 exit 0（25/25 截图 + axe critical+serious=0）。目检 work-stores-390（顶栏单行省略号，碎片带消除）与 work-stores-1440（全标签无截断）。
 2. **证据包归档** docs/audits/hui-2628/finish-r3/：finish-r3.md（票面验收逐条对照，如实写「2625 门未过，不标 Done」）+ 17 张矩阵精选（8×{390,1440}+home-1920）+ blind-family/（4 张去 Logo 材料，verdict not_run）+ vitest-final.txt（302 绿）+ e2e-run.log + axe-summary.json。
-3. **go test SKIP 留痕**：本轮 web-only 零 server/ 改动，沿用 r2 30 包 ok 基线；origin/main 的 HUI-2981 属并行工作不在本 PR 账内。
+3. **go test 防御性实跑留痕**：本轮 web-only 零 server/ 改动，仍按 plan Task 5 跑一次留痕——30 包全 ok、0 FAIL、exit 0；origin/main 的 HUI-2981 属并行工作不在本 PR 账内。
+4. **code-review 两轴自审（接棒裁决：不派并行子代理**——任务书明令控制请求频率、禁止孙代理，前任死于账户级限流 1302；两轴由本代理逐项直审，范围=184d0fc..HEAD 全 diff）。Standards 轴：禁区文件 0 触碰、inline style 0、无新增裸 hex、CSS-only 窄修带注释、重试钮两种模式（load()/attempt+1）全分支一致、`<button>` 位于 `<p>` 内合法（phrasing content）。Spec 轴：票面验收五条逐条对照过（见 finish-r3.md 表），公共页红线（unknown 非绿/无 EcoTopNav/无 SaaS 宣传）经 E2E 02/04/05 + layout/文面复核全守。
+5. **验证四层全绿**：vitest 302/302；e2e 8 spec 10 用例+证据门 exit 0（25/25 截图、axe blocking=0）；go test 30 包 ok；目检 390（碎片带消除）与 1440（无截断）截图。
