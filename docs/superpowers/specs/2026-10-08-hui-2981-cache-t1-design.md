@@ -255,3 +255,27 @@ redis-benchmark 100k ops,单客户端,流水线 1:
 - **生产启用状态:未启用(默认 off;本票零生产改动、零生产压测)**。启用
   建议顺序:预发开 `FEATURE_PUBLIC_CACHE` 观察 → 开 `FEATURE_DASHBOARD_CACHE`
   → 生产按同顺序,任一异常先 Disable 再关 flag。
+
+## 失效边界（机器审计，HUI-2981 后续加固 2026-10-09）
+
+缓存 payload（`ResolvedRows`）消费且仅消费四张表：**campaign_links / campaign /
+stores / tenants**（`LoadResolvedRows` 的行集，字段与表一一对应）。这四张表的
+每一条 SQL 写路径必须触发 `bumpEpoch`——该纪律由
+`server/internal/store/epoch_audit_test.go` 机器执行：AST 扫描 store 包全部写
+语句（词边界匹配表名），写点所属函数（含一跳被调链）无 bump 即红；写点总数
+设下限金丝雀，表改名/正则失配导致审计空转同样红。
+
+**有意不 bump 的写（不属缓存 payload，显式登记于此而非豁免清单）**：
+
+- `campaign_rules` / `campaign_rule_revisions`（store_campaign_rules.go）：规则
+  仅约束领取/核销等**动作许可**，票面要求此类操作写路径强制回源重核验；规则
+  数据不进入公开页缓存 payload，故无陈旧展示面。
+- `copy_jobs`（store_copy_jobs.go）：内部生成任务状态，不出现在公开 payload。
+- `lead_forms` 表单、`nfc_tags` 标签的写**在 bump 清单内**（store.go:26 注释），
+  不属本条。
+- 事实性追加写（public_view_stats / lead_submissions，store.go:29 注释）不
+  bump：它们只增不改、且不是五态裁决输入；看板缓存按（租户，权限域，窗口）
+  键控并以 as_of 表达陈旧，不依赖 epoch。
+
+未来任何把上述表数据加入公开 payload 的改动，必须同步：cachedTables 真源 →
+bump（或豁免清单+本节登记）。
