@@ -241,7 +241,7 @@ export function EcoTopNav({
 
       <div className={styles.spacer} />
 
-      <div className={styles.context}>
+      <div className={styles.context} data-testid="eco-nav-context">
         {banner ? (
           <span data-testid="eco-agent-banner" title={banner}>
             {banner}

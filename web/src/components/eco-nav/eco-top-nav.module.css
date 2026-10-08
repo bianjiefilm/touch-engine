@@ -115,6 +115,21 @@
   max-width: 220px;
 }
 
+/* HUI-2628 r3：390 碎片带窄修——.context 子元素禁文本换行，挤压时单行省略号截断。
+   r2 known-issue 实证：390 下「额度需确认」「预览上下文·未接公共身份」等在按钮/span
+   内换行成多行（探针实测子元素高 66px），被 56px 条高裁切成碎片带。
+   只收紧行为不动结构：children 全部 nowrap+ellipsis+min-width:0，宽屏无感。 */
+.context {
+  overflow: hidden;
+}
+
+.context > * {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
 .popover {
   position: relative;
 }

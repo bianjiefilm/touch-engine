@@ -87,7 +87,12 @@ export default function MaterialsPage() {
       <h1 className="tk-title">素材</h1>
       <p className="tk-lead">这里引用已经存在的素材，不复制文件，也不把未知数量写成 0。</p>
       {phase === "loading" ? <p className="tk-state" data-state="loading">{surfaceLabel("loading")}</p> : null}
-      {phase === "error" ? <p className="tk-state tk-danger" data-state="error">{error || surfaceLabel("error")}</p> : null}
+      {phase === "error" ? (
+        <p className="tk-state tk-danger" data-state="error">
+          {error || surfaceLabel("error")}
+          <button className="tk-quiet" type="button" data-action="retry" onClick={() => void load()}>重试</button>
+        </p>
+      ) : null}
       {phase === "empty" ? <p className="tk-state" data-state="empty">还没有可挂的活动素材。先有活动，再添加引用。</p> : null}
       {libraryNote ? <p className="tk-unknown">{libraryNote}</p> : null}
       {error && phase !== "error" ? <p className="tk-danger">{error}</p> : null}

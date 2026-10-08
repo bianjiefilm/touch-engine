@@ -1,0 +1,8 @@
+ ✓ tests/store-notice.test.ts (3 tests) 3ms
+ ✓ tests/campaign-detail.test.ts (5 tests) 2ms
+
+ Test Files  29 passed (29)
+      Tests  302 passed (302)
+   Start at  18:56:13
+   Duration  2.29s (transform 1.82s, setup 0ms, collect 3.20s, tests 916ms, environment 4ms, prepare 4.37s)
+

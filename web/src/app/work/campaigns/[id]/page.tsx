@@ -117,7 +117,12 @@ export default function CampaignDetailPage() {
   return (
     <main>
       {phase === "loading" ? <p className="tk-state" data-state="loading">{surfaceLabel("loading")}</p> : null}
-      {phase === "error" ? <p className="tk-state tk-danger" data-state="error">{error || surfaceLabel("error")}</p> : null}
+      {phase === "error" ? (
+        <p className="tk-state tk-danger" data-state="error">
+          {error || surfaceLabel("error")}
+          <button className="tk-quiet" type="button" data-action="retry" onClick={() => void load()}>重试</button>
+        </p>
+      ) : null}
       {phase === "ready" && campaign ? (
         <>
           <p className="tk-kicker"><a href="/work/campaigns">全部活动</a></p>
@@ -153,7 +158,12 @@ export default function CampaignDetailPage() {
                 {QR_SIZES.map((size) => <option key={size} value={size}>{size}px</option>)}
               </select>
             </label>
-            {linkPhase === "error" ? <p className="tk-state tk-danger" data-list="links" data-state="error">短码没有读到。这不是还没有短码。</p> : null}
+            {linkPhase === "error" ? (
+              <p className="tk-state tk-danger" data-list="links" data-state="error">
+                短码没有读到。这不是还没有短码。
+                <button className="tk-quiet" type="button" data-action="retry" onClick={() => void load()}>重试</button>
+              </p>
+            ) : null}
             {linkPhase === "empty" ? <p className="tk-state" data-list="links" data-state="empty">还没有短码。生成之后才能下载二维码。</p> : null}
             <ul className="tk-list">
               {links.map((link) => (
@@ -165,7 +175,12 @@ export default function CampaignDetailPage() {
               ))}
             </ul>
             <h3 className="tk-section-title">标签</h3>
-            {tagPhase === "error" ? <p className="tk-state tk-danger" data-list="tags" data-state="error">标签没有读到。这不是还没有标签。</p> : null}
+            {tagPhase === "error" ? (
+              <p className="tk-state tk-danger" data-list="tags" data-state="error">
+                标签没有读到。这不是还没有标签。
+                <button className="tk-quiet" type="button" data-action="retry" onClick={() => void load()}>重试</button>
+              </p>
+            ) : null}
             {tagPhase === "empty" ? <p className="tk-note" data-list="tags" data-state="empty">这个活动还没有标签。批量写入仍走标签操作。</p> : null}
             <ul className="tk-list">
               {tags.map((tag) => (
