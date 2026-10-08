@@ -1,0 +1,27 @@
+{
+  "surface": "/ (TodayDesk)",
+  "viewport": "1440x900",
+  "tabsToPrimary": 12,
+  "firstFocus": {
+    "text": "门店",
+    "tag": "A"
+  },
+  "primaryFocus": {
+    "text": "为本活动制作图片",
+    "tag": "BUTTON",
+    "cls": "tk-button"
+  },
+  "focusVisible": {
+    "outline": {
+      "width": "2px",
+      "style": "solid",
+      "color": "rgb(108, 235, 220)"
+    },
+    "rule": "touch.css :focus-visible（全局 2px solid var(--tk-brand)）"
+  },
+  "afterEnter": {
+    "noticeVisible": true,
+    "noticeText": "测试品牌未打开，不会向产品图提交交接",
+    "focusRetained": true
+  }
+}

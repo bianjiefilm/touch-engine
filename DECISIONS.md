@@ -67,3 +67,20 @@
 3. **go test 防御性实跑留痕**：本轮 web-only 零 server/ 改动，仍按 plan Task 5 跑一次留痕——30 包全 ok、0 FAIL、exit 0；origin/main 的 HUI-2981 属并行工作不在本 PR 账内。
 4. **code-review 两轴自审（接棒裁决：不派并行子代理**——任务书明令控制请求频率、禁止孙代理，前任死于账户级限流 1302；两轴由本代理逐项直审，范围=184d0fc..HEAD 全 diff）。Standards 轴：禁区文件 0 触碰、inline style 0、无新增裸 hex、CSS-only 窄修带注释、重试钮两种模式（load()/attempt+1）全分支一致、`<button>` 位于 `<p>` 内合法（phrasing content）。Spec 轴：票面验收五条逐条对照过（见 finish-r3.md 表），公共页红线（unknown 非绿/无 EcoTopNav/无 SaaS 宣传）经 E2E 02/04/05 + layout/文面复核全守。
 5. **验证四层全绿**：vitest 302/302；e2e 8 spec 10 用例+证据门 exit 0（25/25 截图、axe blocking=0）；go test 30 包 ok；目检 390（碎片带消除）与 1440（无截断）截图。
+
+## B8 fix2 轮决策（2026-10-08，第三任，gate-r2 修复轮）
+
+依据：public-ai `docs/audits/hui-2625/gate-r2/fix-lists.md`「→ HUI-2628」6 条（origin/main fdbdb8c 基线起步，分支 codex/20261008-hui2628-fix2）。证据落 docs/audits/hui-2628/fix2/。
+
+1. **B8.1 错误文案词表收口**：新建 `web/src/lib/failure-copy.ts` `failureText(status, data)` 把机器响应映射为产品语句+下一步（store_required→「先到门店添加或选好门店再操作一次」；401/403/404/5xx/兜底各一条）。MerchantSession 错误改走 failureText；admin `whoStatusText`（17 处）同源替换。**后端原文不透传**是硬线：vitest 用例锁「无三位状态码/机器码/后端 message 原文」。
+2. **B8.2 detector raw 锚点清零方式**：r2 点名的 6 处 raw_json_or_http_error = admin 4×`JSON.stringify` 字面 + campaigns 2×`statusText` 词界。处置：admin 指纹复制改 `[...].join("|")`（语义等价）；fetch body 收口 `lib/http-json.ts toJsonBody()`；交接资料 textarea 改 8 字段列表化呈现（`data-testid="professional-handoff"`，非 dump）；campaigns `statusText`→`statusLabel`（改名即消失，无行为变化）。admin 内 L867 POI 录入 textarea 是真实表单输入，保留（录入型≠机器 dump）。
+3. **B8.3 Home 主行动收敛**：`TaskHandoffActions` 以 `make_campaign_image`（唯一真实执行动作）为实心主行动（`tk-button`+`data-primary-action="true"`），其余次级 `tk-quiet`。/admin 壳同组件自动收敛，/work/campaigns/[id] 无重复实心。
+4. **B8.4 三态静态声明口径**：missing_loading_empty_error 3 处按 2625 现行 detector 口径补页面文件源字面 `data-state="loading|empty|error"`（三页各 3 行 `<p hidden>`，hidden 不参与渲染，运行时真三态在组件内且 E2E 02/10 已证）。**声明≠渲染**的口径分歧如实注记，改口径议题归 HUI-2619，本轮不改 detector。
+5. **B8.5 视口矩阵腿定义 48 张**：9 面（8 代表 + List 独立腿 work-campaigns）×{390,430,1024,1440}（36）+ 9×1920 补齐（9）+ /admin 3 张（390/1440 登录视图如实呈现手填租户表单 + 1440 登录后壳）。axe 阻断面保持 r3 的 8 代表页（work-campaigns 记录性跑，实测 0 critical+serious；admin 不入阻断面，风险已留档）。
+6. **B8.6 a11y 四项证据形态**（对标 leads keyboard-focus.json/touch-targets.json）：keyboard-focus.json=真实 Tab 走查 12 步直达 `[data-primary-action]` + Enter 后焦点保持；focus-visible.json=`:focus-visible` 匹配 + outline 2px 实测（`kb-focus-ring.png`/`kb-after-enter.png`）；reduced-motion.json=仿 reduce + 全仓 @keyframes/transition 动效账=0；touch-targets.json=390 三面逐控件命中盒测量，button/input/select/textarea ≥44×44 硬断言，checkbox 测包裹 label 命中区（leads 同款语义）。EcoTopNav 顶栏 36px 记账豁免（既定暂态裁决不变，r2 B5.1 结构性窄修留后续票，不在本票翻案）。
+7. **B8.7 ≤430 真实 CSS 补齐**：`.tk-nav a/.tk-row > a` padding 0.7/0.4rem、按钮类 `min-height:44px`、`.tk-check min-height:44px`（带 fix2 注释；桌面无感，非仅测试造假）。
+8. **B8.8 offline 两层口径**：真实断网（context.setOffline，SPA 已加载→应用内「网络异常，请稍后再试」文案）为产品证据；route-abort fixture 为页面级 degraded-state + 重试闭环驱动（网络层等价）；整页加载断网=浏览器边界，如实留档（`state-offline-browser-boundary.png`）不计产品证据。MerchantGate 补 `retryConnection`（attempt+1 重跑 whoami，与既有 disabled 重试同模式）。
+9. **B8.9 partial fixture 语义**：子请求 HTTP 500/404（`route.fulfill`）而非 `route.abort`——abort 令 fetch reject 把 `Promise.all` 整体打翻成主 error，不是产品 partial 语义；fulfill 500 造出「主体可用+短码/标签/留资统计单独失败」真 partial，留资统计 404 呈「未开通」而非错误红。
+10. **B8.10 disabled 场景全产品 UI 驱动**：建关联门店活动+生成短码→停用门店→工作台 `tk-unknown` 已停用徽章+公共页「门店暂不可用」→复位启用，不级联改已有活动（E2E 14 用例闭环）。
+11. **B8.11 执行纪律教训**：(a) `env.mjs up` 会 rmSync 整个 evidence/——定向补截后必须重跑全量再归档（本轮实际发生，evidence 曾被清空后重建）；(b) env 运行中重建 `.next` 会混用构建（focus-visible 探针 `--tk-brand` 空值实锤），确立 down→build→fresh up 流程；(c) 两次 commit 带红（324174e/8fd2e69 提交时测试未绿）当轮即补提交修正（3a9f8c8/057e428 前后文见 git log），后续坚持 vitest 与 commit 分开跑。
+12. **B8.12 验证基线只增不破**：vitest 302→311（+9：failure-copy 3、三态声明/主行动/产品文案/retry 断言 6）；e2e 10→15 用例（+5：06 拆 admin 独立 test、09 a11y 四项 1、10 三态 3）、验收截图 25→48、go test 30→31 包（B2981 并行票并入 main 使包数 +1，全 ok）。

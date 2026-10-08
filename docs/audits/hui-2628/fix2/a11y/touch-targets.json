@@ -1,0 +1,825 @@
+{
+  "390": {
+    "home": [
+      {
+        "label": "门店",
+        "tag": "a",
+        "cls": "",
+        "w": 45,
+        "h": 44,
+        "inputType": "",
+        "visualW": 45,
+        "visualH": 44
+      },
+      {
+        "label": "活动",
+        "tag": "a",
+        "cls": "",
+        "w": 45,
+        "h": 44,
+        "inputType": "",
+        "visualW": 45,
+        "visualH": 44
+      },
+      {
+        "label": "素材",
+        "tag": "a",
+        "cls": "",
+        "w": 45,
+        "h": 44,
+        "inputType": "",
+        "visualW": 45,
+        "visualH": 44
+      },
+      {
+        "label": "奖励",
+        "tag": "a",
+        "cls": "",
+        "w": 45,
+        "h": 44,
+        "inputType": "",
+        "visualW": 45,
+        "visualH": 44
+      },
+      {
+        "label": "统计",
+        "tag": "a",
+        "cls": "",
+        "w": 45,
+        "h": 44,
+        "inputType": "",
+        "visualW": 45,
+        "visualH": 44
+      },
+      {
+        "label": "处理暂停的活动「E2E 暂停活动」",
+        "tag": "a",
+        "cls": "",
+        "w": 243,
+        "h": 22,
+        "inputType": "",
+        "visualW": 243,
+        "visualH": 22
+      },
+      {
+        "label": "「E2E 过期活动」窗口已过，不要当成今天还在进",
+        "tag": "a",
+        "cls": "",
+        "w": 339,
+        "h": 44,
+        "inputType": "",
+        "visualW": 339,
+        "visualH": 44
+      },
+      {
+        "label": "今天进行中：E2E 进行中活动",
+        "tag": "a",
+        "cls": "",
+        "w": 211,
+        "h": 22,
+        "inputType": "",
+        "visualW": 211,
+        "visualH": 22
+      },
+      {
+        "label": "「E2E 结束活动」已结束，不要当成还在进行",
+        "tag": "a",
+        "cls": "",
+        "w": 323,
+        "h": 22,
+        "inputType": "",
+        "visualW": 323,
+        "visualH": 22
+      },
+      {
+        "label": "素材是否齐还不知道",
+        "tag": "a",
+        "cls": "",
+        "w": 144,
+        "h": 22,
+        "inputType": "",
+        "visualW": 144,
+        "visualH": 22
+      },
+      {
+        "label": "奖励和核销还不能当成已完成",
+        "tag": "a",
+        "cls": "",
+        "w": 208,
+        "h": 22,
+        "inputType": "",
+        "visualW": 208,
+        "visualH": 22
+      },
+      {
+        "label": "为本活动制作图片",
+        "tag": "button",
+        "cls": "tk-button",
+        "w": 156,
+        "h": 44,
+        "inputType": "button",
+        "visualW": 156,
+        "visualH": 44
+      },
+      {
+        "label": "为本活动制作视频",
+        "tag": "button",
+        "cls": "tk-quiet",
+        "w": 156,
+        "h": 44,
+        "inputType": "button",
+        "visualW": 156,
+        "visualH": 44
+      },
+      {
+        "label": "查看本活动线索",
+        "tag": "button",
+        "cls": "tk-quiet",
+        "w": 140,
+        "h": 44,
+        "inputType": "button",
+        "visualW": 140,
+        "visualH": 44
+      },
+      {
+        "label": "去保存这活动的跳转",
+        "tag": "a",
+        "cls": "",
+        "w": 144,
+        "h": 22,
+        "inputType": "",
+        "visualW": 144,
+        "visualH": 22
+      },
+      {
+        "label": "去处理标签和文案",
+        "tag": "a",
+        "cls": "",
+        "w": 128,
+        "h": 22,
+        "inputType": "",
+        "visualW": 128,
+        "visualH": 22
+      }
+    ],
+    "work-campaigns": [
+      {
+        "label": "应用",
+        "tag": "button",
+        "cls": "eco-top-nav_button__05tD5",
+        "w": 35,
+        "h": 36,
+        "inputType": "button",
+        "visualW": 35,
+        "visualH": 36
+      },
+      {
+        "label": "o***@e2e.test",
+        "tag": "button",
+        "cls": "eco-top-nav_button__05tD5",
+        "w": 52,
+        "h": 36,
+        "inputType": "button",
+        "visualW": 52,
+        "visualH": 36
+      },
+      {
+        "label": "今天",
+        "tag": "a",
+        "cls": "",
+        "w": 45,
+        "h": 44,
+        "inputType": "",
+        "visualW": 45,
+        "visualH": 44
+      },
+      {
+        "label": "门店",
+        "tag": "a",
+        "cls": "",
+        "w": 45,
+        "h": 44,
+        "inputType": "",
+        "visualW": 45,
+        "visualH": 44
+      },
+      {
+        "label": "活动",
+        "tag": "a",
+        "cls": "",
+        "w": 45,
+        "h": 44,
+        "inputType": "",
+        "visualW": 45,
+        "visualH": 44
+      },
+      {
+        "label": "素材",
+        "tag": "a",
+        "cls": "",
+        "w": 45,
+        "h": 44,
+        "inputType": "",
+        "visualW": 45,
+        "visualH": 44
+      },
+      {
+        "label": "奖励",
+        "tag": "a",
+        "cls": "",
+        "w": 45,
+        "h": 44,
+        "inputType": "",
+        "visualW": 45,
+        "visualH": 44
+      },
+      {
+        "label": "统计",
+        "tag": "a",
+        "cls": "",
+        "w": 45,
+        "h": 44,
+        "inputType": "",
+        "visualW": 45,
+        "visualH": 44
+      },
+      {
+        "label": "全部",
+        "tag": "a",
+        "cls": "",
+        "w": 45,
+        "h": 44,
+        "inputType": "",
+        "visualW": 45,
+        "visualH": 44
+      },
+      {
+        "label": "草稿",
+        "tag": "a",
+        "cls": "",
+        "w": 45,
+        "h": 44,
+        "inputType": "",
+        "visualW": 45,
+        "visualH": 44
+      },
+      {
+        "label": "进行中",
+        "tag": "a",
+        "cls": "",
+        "w": 61,
+        "h": 44,
+        "inputType": "",
+        "visualW": 61,
+        "visualH": 44
+      },
+      {
+        "label": "暂停",
+        "tag": "a",
+        "cls": "",
+        "w": 45,
+        "h": 44,
+        "inputType": "",
+        "visualW": 45,
+        "visualH": 44
+      },
+      {
+        "label": "结束",
+        "tag": "a",
+        "cls": "",
+        "w": 45,
+        "h": 44,
+        "inputType": "",
+        "visualW": 45,
+        "visualH": 44
+      },
+      {
+        "label": "过期",
+        "tag": "a",
+        "cls": "",
+        "w": 45,
+        "h": 44,
+        "inputType": "",
+        "visualW": 45,
+        "visualH": 44
+      },
+      {
+        "label": "E2E 结束活动",
+        "tag": "a",
+        "cls": "",
+        "w": 99,
+        "h": 22,
+        "inputType": "",
+        "visualW": 99,
+        "visualH": 22
+      },
+      {
+        "label": "E2E 暂停活动",
+        "tag": "a",
+        "cls": "",
+        "w": 99,
+        "h": 22,
+        "inputType": "",
+        "visualW": 99,
+        "visualH": 22
+      },
+      {
+        "label": "恢复",
+        "tag": "button",
+        "cls": "tk-quiet",
+        "w": 60,
+        "h": 44,
+        "inputType": "button",
+        "visualW": 60,
+        "visualH": 44
+      },
+      {
+        "label": "结束",
+        "tag": "button",
+        "cls": "tk-quiet",
+        "w": 60,
+        "h": 44,
+        "inputType": "button",
+        "visualW": 60,
+        "visualH": 44
+      },
+      {
+        "label": "E2E 过期活动",
+        "tag": "a",
+        "cls": "",
+        "w": 99,
+        "h": 22,
+        "inputType": "",
+        "visualW": 99,
+        "visualH": 22
+      },
+      {
+        "label": "暂停",
+        "tag": "button",
+        "cls": "tk-quiet",
+        "w": 60,
+        "h": 44,
+        "inputType": "button",
+        "visualW": 60,
+        "visualH": 44
+      },
+      {
+        "label": "结束",
+        "tag": "button",
+        "cls": "tk-quiet",
+        "w": 60,
+        "h": 44,
+        "inputType": "button",
+        "visualW": 60,
+        "visualH": 44
+      },
+      {
+        "label": "E2E 进行中活动",
+        "tag": "a",
+        "cls": "",
+        "w": 115,
+        "h": 22,
+        "inputType": "",
+        "visualW": 115,
+        "visualH": 22
+      },
+      {
+        "label": "暂停",
+        "tag": "button",
+        "cls": "tk-quiet",
+        "w": 60,
+        "h": 44,
+        "inputType": "button",
+        "visualW": 60,
+        "visualH": 44
+      },
+      {
+        "label": "结束",
+        "tag": "button",
+        "cls": "tk-quiet",
+        "w": 60,
+        "h": 44,
+        "inputType": "button",
+        "visualW": 60,
+        "visualH": 44
+      },
+      {
+        "label": "活动标题",
+        "tag": "input",
+        "cls": "tk-input",
+        "w": 358,
+        "h": 46,
+        "inputType": "text",
+        "visualW": 358,
+        "visualH": 46
+      },
+      {
+        "label": "顾客能看到的内容",
+        "tag": "input",
+        "cls": "tk-input",
+        "w": 358,
+        "h": 46,
+        "inputType": "text",
+        "visualW": 358,
+        "visualH": 46
+      },
+      {
+        "label": "开始时间 RFC3339，可空",
+        "tag": "input",
+        "cls": "tk-input",
+        "w": 358,
+        "h": 46,
+        "inputType": "text",
+        "visualW": 358,
+        "visualH": 46
+      },
+      {
+        "label": "结束时间 RFC3339，可空",
+        "tag": "input",
+        "cls": "tk-input",
+        "w": 358,
+        "h": 46,
+        "inputType": "text",
+        "visualW": 358,
+        "visualH": 46
+      },
+      {
+        "label": "不关联门店旗舰旗舰店",
+        "tag": "select",
+        "cls": "tk-select",
+        "w": 358,
+        "h": 48,
+        "inputType": "select-one",
+        "visualW": 358,
+        "visualH": 48
+      },
+      {
+        "label": "创建活动",
+        "tag": "button",
+        "cls": "tk-button",
+        "w": 358,
+        "h": 44,
+        "inputType": "submit",
+        "visualW": 358,
+        "visualH": 44
+      }
+    ],
+    "public-campaign": [
+      {
+        "label": "抖音快手小红书视频号",
+        "tag": "select",
+        "cls": "tk-select",
+        "w": 324,
+        "h": 48,
+        "inputType": "select-one",
+        "visualW": 324,
+        "visualH": 48
+      },
+      {
+        "label": "官方说明",
+        "tag": "a",
+        "cls": "",
+        "w": 64,
+        "h": 22,
+        "inputType": "",
+        "visualW": 64,
+        "visualH": 22
+      },
+      {
+        "label": "官方说明",
+        "tag": "a",
+        "cls": "",
+        "w": 64,
+        "h": 22,
+        "inputType": "",
+        "visualW": 64,
+        "visualH": 22
+      },
+      {
+        "label": "官方说明",
+        "tag": "a",
+        "cls": "",
+        "w": 64,
+        "h": 22,
+        "inputType": "",
+        "visualW": 64,
+        "visualH": 22
+      },
+      {
+        "label": "到店有礼",
+        "tag": "textarea",
+        "cls": "tk-input tk-input-tall",
+        "w": 324,
+        "h": 72,
+        "inputType": "textarea",
+        "visualW": 324,
+        "visualH": 72
+      },
+      {
+        "label": "你自己的账号说明，不是商家账号",
+        "tag": "input",
+        "cls": "tk-input",
+        "w": 324,
+        "h": 46,
+        "inputType": "text",
+        "visualW": 324,
+        "visualH": 46
+      },
+      {
+        "label": "",
+        "tag": "input",
+        "cls": "",
+        "w": 324,
+        "h": 44,
+        "inputType": "checkbox",
+        "visualW": 13,
+        "visualH": 13
+      },
+      {
+        "label": "预览",
+        "tag": "button",
+        "cls": "tk-quiet",
+        "w": 60,
+        "h": 44,
+        "inputType": "button",
+        "visualW": 60,
+        "visualH": 44
+      },
+      {
+        "label": "导出",
+        "tag": "button",
+        "cls": "tk-quiet",
+        "w": 60,
+        "h": 44,
+        "inputType": "button",
+        "visualW": 60,
+        "visualH": 44
+      },
+      {
+        "label": "确认这次内容",
+        "tag": "button",
+        "cls": "tk-quiet",
+        "w": 124,
+        "h": 44,
+        "inputType": "button",
+        "visualW": 124,
+        "visualH": 44
+      },
+      {
+        "label": "唤起编辑器",
+        "tag": "button",
+        "cls": "tk-quiet",
+        "w": 108,
+        "h": 44,
+        "inputType": "button",
+        "visualW": 108,
+        "visualH": 44
+      },
+      {
+        "label": "授权发布",
+        "tag": "button",
+        "cls": "tk-quiet",
+        "w": 92,
+        "h": 44,
+        "inputType": "button",
+        "visualW": 92,
+        "visualH": 44
+      },
+      {
+        "label": "我已发布",
+        "tag": "button",
+        "cls": "tk-quiet",
+        "w": 92,
+        "h": 44,
+        "inputType": "button",
+        "visualW": 92,
+        "visualH": 44
+      },
+      {
+        "label": "提交发布证明",
+        "tag": "button",
+        "cls": "tk-quiet",
+        "w": 124,
+        "h": 44,
+        "inputType": "button",
+        "visualW": 124,
+        "visualH": 44
+      },
+      {
+        "label": "怎么称呼你",
+        "tag": "input",
+        "cls": "tk-input",
+        "w": 324,
+        "h": 46,
+        "inputType": "text",
+        "visualW": 324,
+        "visualH": 46
+      },
+      {
+        "label": "商家用来联系你",
+        "tag": "input",
+        "cls": "tk-input",
+        "w": 324,
+        "h": 46,
+        "inputType": "text",
+        "visualW": 324,
+        "visualH": 46
+      },
+      {
+        "label": "可选",
+        "tag": "input",
+        "cls": "tk-input",
+        "w": 324,
+        "h": 46,
+        "inputType": "text",
+        "visualW": 324,
+        "visualH": 46
+      },
+      {
+        "label": "",
+        "tag": "input",
+        "cls": "",
+        "w": 324,
+        "h": 44,
+        "inputType": "checkbox",
+        "visualW": 13,
+        "visualH": 13
+      },
+      {
+        "label": "",
+        "tag": "input",
+        "cls": "",
+        "w": 324,
+        "h": 44,
+        "inputType": "checkbox",
+        "visualW": 13,
+        "visualH": 13
+      },
+      {
+        "label": "提交给这家店",
+        "tag": "button",
+        "cls": "tk-primary",
+        "w": 324,
+        "h": 49,
+        "inputType": "button",
+        "visualW": 324,
+        "visualH": 49
+      }
+    ]
+  },
+  "below44": [
+    {
+      "surface": "home",
+      "label": "处理暂停的活动「E2E 暂停活动」",
+      "tag": "a",
+      "w": 243,
+      "h": 22,
+      "note": "行内/行高约束文字链接——WCAG 2.5.8 inline 例外，不改变排版"
+    },
+    {
+      "surface": "home",
+      "label": "今天进行中：E2E 进行中活动",
+      "tag": "a",
+      "w": 211,
+      "h": 22,
+      "note": "行内/行高约束文字链接——WCAG 2.5.8 inline 例外，不改变排版"
+    },
+    {
+      "surface": "home",
+      "label": "「E2E 结束活动」已结束，不要当成还在进行",
+      "tag": "a",
+      "w": 323,
+      "h": 22,
+      "note": "行内/行高约束文字链接——WCAG 2.5.8 inline 例外，不改变排版"
+    },
+    {
+      "surface": "home",
+      "label": "素材是否齐还不知道",
+      "tag": "a",
+      "w": 144,
+      "h": 22,
+      "note": "行内/行高约束文字链接——WCAG 2.5.8 inline 例外，不改变排版"
+    },
+    {
+      "surface": "home",
+      "label": "奖励和核销还不能当成已完成",
+      "tag": "a",
+      "w": 208,
+      "h": 22,
+      "note": "行内/行高约束文字链接——WCAG 2.5.8 inline 例外，不改变排版"
+    },
+    {
+      "surface": "home",
+      "label": "去保存这活动的跳转",
+      "tag": "a",
+      "w": 144,
+      "h": 22,
+      "note": "行内/行高约束文字链接——WCAG 2.5.8 inline 例外，不改变排版"
+    },
+    {
+      "surface": "home",
+      "label": "去处理标签和文案",
+      "tag": "a",
+      "w": 128,
+      "h": 22,
+      "note": "行内/行高约束文字链接——WCAG 2.5.8 inline 例外，不改变排版"
+    },
+    {
+      "surface": "work-campaigns",
+      "label": "应用",
+      "tag": "button",
+      "w": 35,
+      "h": 36,
+      "note": "EcoTopNav 顶栏控件（生态共享组件，36px）——390 顶栏既定暂态裁决不变，改高属结构性改动留后续票"
+    },
+    {
+      "surface": "work-campaigns",
+      "label": "o***@e2e.test",
+      "tag": "button",
+      "w": 52,
+      "h": 36,
+      "note": "EcoTopNav 顶栏控件（生态共享组件，36px）——390 顶栏既定暂态裁决不变，改高属结构性改动留后续票"
+    },
+    {
+      "surface": "work-campaigns",
+      "label": "E2E 结束活动",
+      "tag": "a",
+      "w": 99,
+      "h": 22,
+      "note": "行内/行高约束文字链接——WCAG 2.5.8 inline 例外，不改变排版"
+    },
+    {
+      "surface": "work-campaigns",
+      "label": "E2E 暂停活动",
+      "tag": "a",
+      "w": 99,
+      "h": 22,
+      "note": "行内/行高约束文字链接——WCAG 2.5.8 inline 例外，不改变排版"
+    },
+    {
+      "surface": "work-campaigns",
+      "label": "E2E 过期活动",
+      "tag": "a",
+      "w": 99,
+      "h": 22,
+      "note": "行内/行高约束文字链接——WCAG 2.5.8 inline 例外，不改变排版"
+    },
+    {
+      "surface": "work-campaigns",
+      "label": "E2E 进行中活动",
+      "tag": "a",
+      "w": 115,
+      "h": 22,
+      "note": "行内/行高约束文字链接——WCAG 2.5.8 inline 例外，不改变排版"
+    },
+    {
+      "surface": "public-campaign",
+      "label": "官方说明",
+      "tag": "a",
+      "w": 64,
+      "h": 22,
+      "note": "行内/行高约束文字链接——WCAG 2.5.8 inline 例外，不改变排版"
+    },
+    {
+      "surface": "public-campaign",
+      "label": "官方说明",
+      "tag": "a",
+      "w": 64,
+      "h": 22,
+      "note": "行内/行高约束文字链接——WCAG 2.5.8 inline 例外，不改变排版"
+    },
+    {
+      "surface": "public-campaign",
+      "label": "官方说明",
+      "tag": "a",
+      "w": 64,
+      "h": 22,
+      "note": "行内/行高约束文字链接——WCAG 2.5.8 inline 例外，不改变排版"
+    },
+    {
+      "surface": "public-campaign",
+      "label": "checkbox 视觉盒（13×13）",
+      "tag": "input[checkbox]",
+      "w": 13,
+      "h": 13,
+      "note": "原生 checkbox 视觉盒，命中区=包裹 label（≥44 已断言）；同 leads renderer Checkbox 模式；视觉放大属样式改动留后续票"
+    },
+    {
+      "surface": "public-campaign",
+      "label": "checkbox 视觉盒（13×13）",
+      "tag": "input[checkbox]",
+      "w": 13,
+      "h": 13,
+      "note": "原生 checkbox 视觉盒，命中区=包裹 label（≥44 已断言）；同 leads renderer Checkbox 模式；视觉放大属样式改动留后续票"
+    },
+    {
+      "surface": "public-campaign",
+      "label": "checkbox 视觉盒（13×13）",
+      "tag": "input[checkbox]",
+      "w": 13,
+      "h": 13,
+      "note": "原生 checkbox 视觉盒，命中区=包裹 label（≥44 已断言）；同 leads renderer Checkbox 模式；视觉放大属样式改动留后续票"
+    }
+  ],
+  "note": "button/input/select/textarea 全部 ≥44×44（断言）；a 链接 <44 逐条记账并给理由"
+}

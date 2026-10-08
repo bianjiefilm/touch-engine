@@ -1,0 +1,7 @@
+{
+  "emulated": "playwright emulateMedia reducedMotion=reduce",
+  "matches": true,
+  "appCssAnimationTransitionKeyframesCount": 0,
+  "reduceMediaBlockPresent": true,
+  "note": "产品无非必要动效（CSS 动效/过渡/关键帧计数为 0）：reduce 块已内建（scroll-behavior:auto），无可减项即账为零；截图无可比对的运动差异，不出图。"
+}
