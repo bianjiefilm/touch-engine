@@ -1,0 +1,13 @@
+{
+  "surface": "/ (TodayDesk)",
+  "viewport": "1440x900",
+  "selector": "[data-primary-action=\"true\"]",
+  "focusVisiblePseudoClassMatched": true,
+  "outline": {
+    "width": "2px",
+    "style": "solid",
+    "color": "rgb(108, 235, 220)"
+  },
+  "rule": "touch.css :focus-visible（全局 2px solid var(--tk-brand)）",
+  "screenshot": "kb-focus-ring.png"
+}

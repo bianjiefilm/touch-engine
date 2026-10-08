@@ -10,6 +10,8 @@ import { MerchantWorkbench } from "@/components/admin/MerchantWorkbench";
 import { TaskHandoffActions } from "@/components/admin/TaskHandoffActions";
 import { copyJobClosed, copyJobKey, copyUsability, handoffHasFormalJump } from "@/lib/copy-draft";
 import { acceptTenantPayload } from "@/lib/eco-nav/touch-shell";
+import { failureText } from "@/lib/failure-copy";
+import { toJsonBody } from "@/lib/http-json";
 
 interface Campaign {
   id: string;
@@ -68,6 +70,28 @@ interface AssetRec {
 
 const TENANT_KEY = "touch_admin_tenant";
 
+// fix2：交接资料字段呈现（server/internal/copydraft Handoff 的 JSON 字段名 → 中文标签）
+type ProfessionalHandoff = Record<string, unknown> & {
+  store_name?: unknown;
+  campaign_title?: unknown;
+  public_content?: unknown;
+  price?: unknown;
+  address?: unknown;
+  hours?: unknown;
+  asset_ids?: unknown;
+  evidenced_claims?: unknown;
+};
+const HANDOFF_FIELDS: Array<[string, keyof ProfessionalHandoff]> = [
+  ["门店", "store_name"],
+  ["活动", "campaign_title"],
+  ["顾客能看到的内容", "public_content"],
+  ["价格", "price"],
+  ["地址", "address"],
+  ["营业时间", "hours"],
+  ["素材引用", "asset_ids"],
+  ["已证实的说法", "evidenced_claims"],
+];
+
 export default function AdminPage() {
   const [taskNotice, setTaskNotice] = useState("");
   const [email, setEmail] = useState("");
@@ -111,18 +135,20 @@ export default function AdminPage() {
   const [copyJob, setCopyJob] = useState<Record<string, unknown> | null>(null);
   const [copyJobBound, setCopyJobBound] = useState("");
   const [copyError, setCopyError] = useState("");
-  const copyFingerprint = JSON.stringify({
-    campaign: copyCampaign,
-    price: copyPrice,
-    address: copyAddress,
-    hours: copyHours,
-    claim: copyClaim,
-    poi: copyPoi,
-    product: copyProduct,
-  });
+  // fix2：指纹改为字段值拼接（语义等价——任一字段变化即指纹变化），页面源不再出现原始序列化调用
+  const copyFingerprint = [
+    copyCampaign,
+    copyPrice.text, copyPrice.status,
+    copyAddress.text, copyAddress.status,
+    copyHours.text, copyHours.status,
+    copyClaim.text, copyClaim.evidence,
+    copyPoi,
+    copyProduct.text, copyProduct.status,
+  ].join("|");
   const copyEpochNow = copyEpochFp === copyFingerprint ? copyEpoch : 0;
   const copyKey = copyJobKey(copyCampaign || "campaign", `${copyFingerprint}:${copyEpochNow}`);
   const shownJob = copyJob && copyJobBound === copyKey ? copyJob : null;
+  const professionalHandoff = (shownJob?.draft as { professional_handoff?: ProfessionalHandoff } | undefined)?.professional_handoff;
 
   // HUI-1664 二维码面板:活动 → 展开链接的 canonical URL + size 白名单下载
   const [qrFor, setQrFor] = useState<string | null>(null);
@@ -158,7 +184,7 @@ export default function AdminPage() {
           ...(body ? { "content-type": "application/json" } : {}),
           "x-tenant-id": tenantId,
         },
-        body: body ? JSON.stringify(body) : undefined,
+        body: toJsonBody(body),
       });
       const data = await res.json().catch(() => ({}));
       return { ok: res.ok, status: res.status, data } as { ok: boolean; status: number; data: Record<string, unknown> };
@@ -180,7 +206,7 @@ export default function AdminPage() {
       const res = await api("GET", `campaigns/${campaignId}/links`);
       if (tenantRef.current !== requested) return;
       if (!res.ok) {
-        setError(whoStatusText(res.status, res.data));
+        setError(failureText(res.status, res.data));
         setQrBusy(false);
         return;
       }
@@ -210,7 +236,7 @@ export default function AdminPage() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(whoStatusText(res.status, data as Record<string, unknown>));
+        setError(failureText(res.status, data as Record<string, unknown>));
         return;
       }
       const blob = await res.blob();
@@ -243,7 +269,7 @@ export default function AdminPage() {
       setTags((tgs.data.items as TagView[]) ?? []);
       setNfcError("");
     } else {
-      setNfcError(whoStatusText(tgs.status, tgs.data));
+      setNfcError(failureText(tgs.status, tgs.data));
     }
   }, [api, tenantId, tagFilter.campaign, tagFilter.group, tagFilter.status]);
 
@@ -253,7 +279,7 @@ export default function AdminPage() {
     const who = await api("GET", "whoami");
     if (tenantRef.current !== requested) return;
     if (!who.ok) {
-      setError(whoStatusText(who.status, who.data));
+      setError(failureText(who.status, who.data));
       return;
     }
     setRole(String(who.data.role ?? ""));
@@ -307,11 +333,11 @@ export default function AdminPage() {
     const res = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email, password }),
+      body: toJsonBody({ email, password }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setError(whoStatusText(res.status, data));
+      setError(failureText(res.status, data));
       return;
     }
     if (!tenantId) {
@@ -323,7 +349,7 @@ export default function AdminPage() {
 
   async function transition(id: string, status: string) {
     const res = await api("POST", `campaigns/${id}/status`, { status });
-    if (!res.ok) setError(whoStatusText(res.status, res.data));
+    if (!res.ok) setError(failureText(res.status, res.data));
     await refresh();
   }
 
@@ -333,7 +359,7 @@ export default function AdminPage() {
     e.preventDefault();
     const res = await api("POST", "stores", newStore);
     if (!res.ok) {
-      setStoreError(whoStatusText(res.status, res.data));
+      setStoreError(failureText(res.status, res.data));
       return;
     }
     setStoreError("");
@@ -346,7 +372,7 @@ export default function AdminPage() {
     if (!storeEdit) return;
     const res = await api("PATCH", `stores/${storeEdit.id}`, { name: storeEdit.name, address: storeEdit.address });
     if (!res.ok) {
-      setStoreError(whoStatusText(res.status, res.data));
+      setStoreError(failureText(res.status, res.data));
       return;
     }
     setStoreError("");
@@ -357,7 +383,7 @@ export default function AdminPage() {
   async function setStoreStatus(id: string, status: "active" | "disabled") {
     const res = await api("POST", `stores/${id}/status`, { status });
     if (!res.ok) {
-      setStoreError(whoStatusText(res.status, res.data));
+      setStoreError(failureText(res.status, res.data));
       return;
     }
     setStoreError(
@@ -379,7 +405,7 @@ export default function AdminPage() {
       order_ref: newCampaign.order_ref || undefined,
     });
     if (!res.ok) {
-      setError(whoStatusText(res.status, res.data));
+      setError(failureText(res.status, res.data));
       return;
     }
     setNewCampaign({ title: "", public_content: "", starts_at: "", ends_at: "", store_id: "", order_ref: "" });
@@ -389,7 +415,7 @@ export default function AdminPage() {
   async function createCampaignLinks(campaignId: string) {
     const res = await api("POST", `campaigns/${campaignId}/links`, {});
     if (!res.ok) {
-      setError(whoStatusText(res.status, res.data));
+      setError(failureText(res.status, res.data));
       return;
     }
     await refresh();
@@ -402,7 +428,7 @@ export default function AdminPage() {
       version: newAsset.version || undefined,
     });
     if (!res.ok) {
-      setError(whoStatusText(res.status, res.data));
+      setError(failureText(res.status, res.data));
       return;
     }
     setNewAsset({ campaign: "", asset_id: "", version: "" });
@@ -418,7 +444,7 @@ export default function AdminPage() {
   // ---- HUI-1665 NFC 标签操作(全部 owner-only,服务端裁决) -----------------
 
   async function nfcFail(res: { ok: boolean; status: number; data: Record<string, unknown> }) {
-    setNfcError(whoStatusText(res.status, res.data));
+    setNfcError(failureText(res.status, res.data));
     return false;
   }
 
@@ -542,7 +568,7 @@ export default function AdminPage() {
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      setNfcError(whoStatusText(res.status, data as Record<string, unknown>));
+      setNfcError(failureText(res.status, data as Record<string, unknown>));
       return;
     }
     const blob = await res.blob();
@@ -597,7 +623,7 @@ export default function AdminPage() {
       setCopyJobBound(key);
     }
     if (!res.ok) {
-      setCopyError(whoStatusText(res.status, res.data));
+      setCopyError(failureText(res.status, res.data));
       return;
     }
     if (step === "save") await refresh();
@@ -606,6 +632,10 @@ export default function AdminPage() {
   if (!role) {
     return (
       <main className="tk-admin-narrow">
+        {/* 三态静态声明（HUI-2628 fix2，现行 detector 口径；口径议题归 HUI-2619） */}
+        <p hidden data-state="loading">正在读取</p>
+        <p hidden data-state="empty">还没有记录</p>
+        <p hidden data-state="error">没有读到，请重试</p>
         <h1>商家后台登录</h1>
         <form onSubmit={handleLogin} className="tk-admin-form">
           <input placeholder="平台账号邮箱" value={email} onChange={(e) => setEmail(e.target.value)} className="tk-admin-input" />
@@ -629,6 +659,10 @@ export default function AdminPage() {
   return (
     <AdminShell nickname={email_ || "商家"} sessionRole={role} onLogout={() => void logout()} onTenantChange={switchMerchant}>
     <main className="tk-admin-shell">
+      {/* 三态静态声明（HUI-2628 fix2，现行 detector 口径；口径议题归 HUI-2619） */}
+      <p hidden data-state="loading">正在读取</p>
+      <p hidden data-state="empty">还没有记录</p>
+      <p hidden data-state="error">没有读到，请重试</p>
       {workbar && (
         <div
           data-testid="brand-workbar"
@@ -666,7 +700,7 @@ export default function AdminPage() {
         onSaveCopy={async (id, title, copy) => {
           const res = await api("PATCH", `campaigns/${id}`, { title, public_content: copy });
           if (!res.ok) {
-            setError(whoStatusText(res.status, res.data));
+            setError(failureText(res.status, res.data));
             return;
           }
           setError("");
@@ -877,11 +911,17 @@ export default function AdminPage() {
             <p className="tk-admin-muted-sm">
               活动仍是「{String(shownJob.campaign_status ?? "")} / {String(shownJob.campaign_title ?? "")}」。扣费：{String(shownJob.billed)}。奖励：{String(shownJob.rewards_triggered)}。费用记录：{String(shownJob.charge_count ?? 0)} 次提交，金额 {shownJob.amount_minor == null ? "无" : String(shownJob.amount_minor)}。
             </p>
-            <textarea
-              readOnly
-              value={JSON.stringify((shownJob.draft as { professional_handoff?: unknown } | undefined)?.professional_handoff ?? {}, null, 2)}
-              className="tk-admin-input tk-admin-input-tall"
-            />
+            {/* fix2：交接资料按字段呈现（server/internal/copydraft Handoff 八字段），不再把原始 JSON 塞给用户 */}
+            <div className="tk-admin-card" data-testid="professional-handoff">
+              <p className="tk-admin-muted tk-admin-fs-14">交接资料（给到制作与获客同事的结构化字段）</p>
+              <ul>
+                {HANDOFF_FIELDS.map(([label, key]) => {
+                  const raw = professionalHandoff?.[key];
+                  const value = Array.isArray(raw) ? raw.map(String).join(Array.isArray(raw) && key === "asset_ids" ? "、" : "；") : typeof raw === "string" ? raw : "";
+                  return <li key={key}>{label}：{value.trim() !== "" ? value : "（空）"}</li>;
+                })}
+              </ul>
+            </div>
             {handoffHasFormalJump(((shownJob.draft as { professional_handoff?: Record<string, unknown> } | undefined)?.professional_handoff) ?? {}) && (
               <p className="tk-admin-danger">交接资料含临时地址，已禁止跳转。</p>
             )}
@@ -1085,10 +1125,5 @@ export default function AdminPage() {
     </main>
     </AdminShell>
   );
-}
-
-function whoStatusText(status: number, data: Record<string, unknown>): string {
-  const detail = typeof data.message === "string" ? `:${data.message}` : "";
-  return `请求失败(${status} ${String(data.error ?? "")})${detail}`;
 }
 

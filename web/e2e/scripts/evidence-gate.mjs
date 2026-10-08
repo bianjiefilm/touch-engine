@@ -3,7 +3,8 @@
 // 防「BLOCKED 假绿」与「证据缺失也算过」：
 //   1. stats.skipped > 0 → fail（skip 不是 PASS）；
 //   2. 报告里任何用例非全 passed → fail；
-//   3. 全量模式（run.sh 未带过滤参数）：25 张验收截图必须齐全（8 代表页 × 390/430/1440 + home-1920），
+//   3. 全量模式（run.sh 未带过滤参数）：48 张验收截图必须齐全
+//      （9 代表页 × 390/430/1024/1440/1920 + admin 3 张；fix2 矩阵补腿），
 //      axe-summary.json 必须存在且 blocking=[]；
 //   4. 收尾打印证据汇总：spec 数 / 用例数 / 截图计数 / axe critical+serious 数。
 // 用法：node evidence-gate.mjs [--partial]（--partial 只盘点不设全集门）
@@ -15,16 +16,17 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const evidenceDir = path.resolve(here, "..", "evidence");
 const partial = process.argv.includes("--partial");
 
-// 25 张验收截图全集（spec 06 的 ROUTES × widths + home-1920；r3 增 1440）
+// 48 张验收截图全集（spec 06：9 页 × 390/430/1024/1440 + 9 页 1920 + admin 3 张）。
+// r3：全集 17→25（+1440）；fix2（gate-r2 矩阵缺口）：25→48——1024 整腿、1920 补齐 9 页、
+// work-campaigns（List）独立截图、/admin（Home）登录视图+登录后壳。
+const MATRIX_SLUGS = [
+  "home", "work-stores", "work-campaigns", "work-campaign-detail",
+  "work-materials", "work-rewards", "work-analytics", "public-campaign", "public-contact",
+];
 const EXPECTED_SHOTS = [
-  "home-390", "home-430", "home-1440", "home-1920",
-  "work-stores-390", "work-stores-430", "work-stores-1440",
-  "work-campaign-detail-390", "work-campaign-detail-430", "work-campaign-detail-1440",
-  "work-materials-390", "work-materials-430", "work-materials-1440",
-  "work-rewards-390", "work-rewards-430", "work-rewards-1440",
-  "work-analytics-390", "work-analytics-430", "work-analytics-1440",
-  "public-campaign-390", "public-campaign-430", "public-campaign-1440",
-  "public-contact-390", "public-contact-430", "public-contact-1440",
+  ...MATRIX_SLUGS.flatMap((slug) => [`${slug}-390`, `${slug}-430`, `${slug}-1024`, `${slug}-1440`]),
+  ...MATRIX_SLUGS.map((slug) => `${slug}-1920`),
+  "admin-390", "admin-1440", "admin-shell-1440",
 ];
 
 const failures = [];

@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { failureText } from "@/lib/failure-copy";
 import { surfaceLabel } from "@/lib/product-finish";
 
 const TENANT_KEY = "touch_admin_tenant";
@@ -22,6 +23,7 @@ export interface MerchantSession {
   logout: () => Promise<void>;
   switchTenant: (tenantId: string) => void;
   api: (method: string, path: string, body?: unknown) => Promise<MerchantResult>;
+  retryConnection: () => void;
 }
 
 const SessionContext = createContext<MerchantSession | null>(null);
@@ -32,10 +34,8 @@ export function useSession(): MerchantSession {
   return value;
 }
 
-function failureText(status: number, data: Record<string, unknown>): string {
-  const detail = typeof data.message === "string" ? `：${data.message}` : "";
-  return `没有完成（${status} ${String(data.error ?? "")}）${detail}`;
-}
+// failureText 已收口到 lib/failure-copy（fix2：错误面产品语句，不泄漏状态码/机器码）。
+// 这里 re-export 保持页面既有 import 路径不变。
 
 export function MerchantGate({ children }: { children: ReactNode }) {
   const session = useMerchantSession();
@@ -49,7 +49,11 @@ export function MerchantGate({ children }: { children: ReactNode }) {
   if (session.phase === "error") {
     return (
       <main className="tk-page">
-        <p className="tk-state tk-danger" data-state="error">{session.error}</p>
+        <p className="tk-state tk-danger" data-state="error">
+          {session.error}
+          {/* fix2：连接类错误（断网/断服）也走「应用内恢复动作」——attempt+1 重跑 whoami（r3 同型） */}
+          <button className="tk-quiet" type="button" data-action="retry" onClick={session.retryConnection}>重试</button>
+        </p>
       </main>
     );
   }
@@ -104,6 +108,7 @@ function useMerchantSession(): MerchantSession {
   const [tenantName, setTenantName] = useState("");
   const [phase, setPhase] = useState<MerchantSession["phase"]>("loading");
   const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
 
   const applyWho = useCallback(async (nextTenant: string) => {
     const res = await fetch("/api/whoami", { headers: { "x-tenant-id": nextTenant } });
@@ -130,7 +135,13 @@ function useMerchantSession(): MerchantSession {
       setError("没有连上服务。登录状态未知，没有把它当成已登录。");
       setPhase("error");
     });
-  }, [applyWho]);
+  }, [applyWho, attempt]);
+
+  const retryConnection = useCallback(() => {
+    setPhase("loading");
+    setError("");
+    setAttempt((a) => a + 1);
+  }, []);
 
   const api = useCallback(async (method: string, path: string, body?: unknown) => {
     const res = await fetch("/api/" + path.replace(/^\//, ""), {
@@ -187,7 +198,8 @@ function useMerchantSession(): MerchantSession {
     logout,
     switchTenant,
     api,
-  }), [api, email, error, login, logout, phase, role, switchTenant, tenantId, tenantName]);
+    retryConnection,
+  }), [api, email, error, login, logout, phase, retryConnection, role, switchTenant, tenantId, tenantName]);
 }
 
 export { failureText };

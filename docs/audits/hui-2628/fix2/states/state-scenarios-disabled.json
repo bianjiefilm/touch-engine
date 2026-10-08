@@ -1,0 +1,15 @@
+{
+  "disabled": {
+    "scenario": "门店停用：工作台「已停用」徽章 + 公共活动页「门店暂不可用」标注 + 新建被拒语义",
+    "driver": "产品 UI fixture（停用/启用按钮）",
+    "assertions": [
+      "已停用 徽章可见",
+      "公共页 data-state=available 且 门店暂不可用 可见",
+      "复位后 已停用 清零"
+    ],
+    "screenshots": [
+      "state-disabled-stores.png",
+      "state-disabled-public.png"
+    ]
+  }
+}

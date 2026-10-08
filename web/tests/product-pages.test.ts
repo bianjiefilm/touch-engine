@@ -118,6 +118,49 @@ describe("顾客页没有生态导航和平台宣传", () => {
   });
 });
 
+// HUI-2628 fix2（gate-r2 missing_loading_empty_error 现行口径）：三个主页面源
+// 需含 loading/empty/error 三态静态声明（运行时态在组件内渲染并有 E2E 断言；
+// 扫描器按页面源静态读取——口径分歧归 HUI-2619 终审）。
+describe("主页面三态静态声明", () => {
+  it("页面源各自带 data-state loading/empty/error 字面量声明", () => {
+    for (const rel of ["app/page.tsx", "app/admin/page.tsx", "app/c/[code]/contact/page.tsx"]) {
+      const src = read(rel);
+      for (const state of ["loading", "empty", "error"]) {
+        expect(src, `${rel} 缺 data-state=${state}`).toContain(`data-state="${state}"`);
+      }
+    }
+  });
+});
+
+// HUI-2628 fix2（gate-r2 盲评 fail 项）：Home 交接三动作原为三枚等权描边钮——
+// 「至多一个可执行主行动」收敛：唯一真执行动作（创建/恢复产品图工程）实心，其余次级。
+describe("交接动作有唯一实心主行动", () => {
+  it("make_campaign_image 实心且带 data-primary-action，其余次级", () => {
+    const src = read("components/admin/TaskHandoffActions.tsx");
+    expect(src).toMatch(/const primary = kind === "make_campaign_image";/);
+    expect(src).toMatch(/className=\{primary \? "tk-button" : "tk-quiet"\}/);
+    expect(src).toMatch(/data-primary-action=\{primary \? "true" : undefined\}/);
+  });
+});
+
+// HUI-2628 fix2（gate-r2 detector raw_json_or_http_error 口径）：页面源不出现
+// statusText 词形（\bstatusText\b 词界命中）与 JSON.stringify。
+describe("错误面与原始序列化不上页面源（fix2）", () => {
+  it("活动列表页不再出现 statusText 词形", () => {
+    expect(read("app/work/campaigns/page.tsx")).not.toMatch(/\bstatusText\b/);
+  });
+
+  it("admin 页面源不再出现 JSON.stringify，交接资料改字段呈现", () => {
+    const admin = read("app/admin/page.tsx");
+    expect(admin).not.toContain("JSON.stringify");
+    expect(admin).toContain("交接资料");
+    // 原始 JSON 不再整块塞给用户（fix2）：readOnly 展示型 textarea 是 dump 模式；
+    // 录入型 textarea（POI 名单粘贴）不在此列。
+    expect(admin).not.toMatch(/<textarea[^>]*readOnly/);
+    expect(admin).toContain('data-testid="professional-handoff"');
+  });
+});
+
 // HUI-2628 r3：票面「Empty/Loading/Error/Expired/Paused/Ended 状态完整」+ 2626 红线
 // 「只有文字的 loading/empty」——错误态必须带可点的恢复动作（重试），不能只写「请重试」。
 describe("错误态有恢复动作", () => {
@@ -150,5 +193,12 @@ describe("错误态有恢复动作", () => {
     ]) {
       expect(read(rel), rel).not.toMatch(/style=\{\{/);
     }
+  });
+
+  it("MerchantGate 登录态错误相有可点的重试入口（fix2：离线/断服恢复闭环）", () => {
+    const src = read("components/work/merchant-session.tsx");
+    expect(src).toMatch(/data-state="error"[\s\S]{0,80}?\{session\.error\}/);
+    expect(src, "Gate 错误相缺重试控件").toContain('data-action="retry"');
+    expect(src).toContain("retryConnection");
   });
 });

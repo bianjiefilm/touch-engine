@@ -1,0 +1,24 @@
+{
+  "offline": {
+    "real_browser_offline": {
+      "scenario": "SPA 已加载后断网提交留资 → 应用内「网络异常，请稍后再试」（非浏览器错误页）",
+      "driver": "context.setOffline(true)",
+      "screenshot": "state-offline-public-submit.png"
+    },
+    "page_level_retry": {
+      "scenario": "路由中止数据请求 → 页面级 network_error + 应用内「重试」入口",
+      "driver": "page.route abort fixture（网络层等价断开）",
+      "screenshot": "state-offline-public-network-error.png"
+    },
+    "merchant_gate_retry": {
+      "scenario": "whoami 断开 → MerchantGate「没有连上服务」+ 重试 → 点重试恢复今日台",
+      "driver": "page.route abort fixture + retryConnection（attempt+1 重跑 whoami）",
+      "screenshot": "state-offline-merchant-inapp.png"
+    },
+    "browser_boundary": {
+      "scenario": "整页加载遇真断网 → 浏览器错误页",
+      "note": "浏览器层边界，非应用内态；任何 web 应用首屏 HTML 依赖网络。只留档不计入产品证据。",
+      "screenshot": "state-offline-browser-boundary.png"
+    }
+  }
+}
