@@ -22,15 +22,19 @@ export function TaskHandoffActions({
   onPlanned: (message: string) => void;
 }) {
   const kinds: TaskKind[] = ["make_campaign_image", "make_campaign_video", "view_campaign_leads"];
+  // fix2 主行动收敛（gate-r2 盲评 fail 项）：make_campaign_image 是唯一真执行动作
+  // （POST 创建/恢复产品图工程），其余两个是说明性交接。页面至多一个可执行主行动。
   return (
     <span className="tk-row">
       {kinds.map((kind) => {
         const plan = planTaskHandoff(kind, campaignId);
+        const primary = kind === "make_campaign_image";
         return (
           <button
             key={kind}
             type="button"
             data-testid={`task-${kind}`}
+            data-primary-action={primary ? "true" : undefined}
             data-nav-intent={plan.nav_intent}
             data-creates-handoff="true"
             data-creates-project={plan.creates_or_restores_project ? "true" : "false"}
@@ -58,7 +62,7 @@ export function TaskHandoffActions({
                 })
                 .catch(() => onPlanned("产品图没有创建或恢复工程"));
             }}
-            className="tk-quiet"
+            className={primary ? "tk-button" : "tk-quiet"}
           >
             {LABEL[kind]}
           </button>

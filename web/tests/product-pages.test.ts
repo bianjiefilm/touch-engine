@@ -118,6 +118,16 @@ describe("顾客页没有生态导航和平台宣传", () => {
   });
 });
 
+// HUI-2628 fix2（gate-r2 盲评 fail 项）：Home 交接三动作原为三枚等权描边钮——
+// 「至多一个可执行主行动」收敛：唯一真执行动作（创建/恢复产品图工程）实心，其余次级。
+describe("交接动作有唯一实心主行动", () => {
+  it("make_campaign_image 实心且带 data-primary-action，其余次级", () => {
+    const src = read("components/admin/TaskHandoffActions.tsx");
+    expect(src).toMatch(/kind === "make_campaign_image" \? "tk-button" : "tk-quiet"/);
+    expect((src.match(/data-primary-action="true"/g) ?? []).length).toBe(1);
+  });
+});
+
 // HUI-2628 fix2（gate-r2 detector raw_json_or_http_error 口径）：页面源不出现
 // statusText 词形（\bstatusText\b 词界命中）与 JSON.stringify。
 describe("错误面与原始序列化不上页面源（fix2）", () => {
