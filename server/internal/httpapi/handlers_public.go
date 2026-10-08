@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bianjiefilm/touch-engine/server/internal/campaign"
 	"github.com/bianjiefilm/touch-engine/server/internal/store"
 )
 
@@ -70,7 +71,29 @@ func (s *Server) handlePublicLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	code := strings.TrimSpace(r.PathValue("code"))
-	res := s.St.ResolveLink(code, time.Now())
+
+	// HUI-2981 option C (FEATURE_PUBLIC_CACHE, default off): pure display
+	// reads may come from the bounded local cache. The five-state outcome is
+	// RE-DERIVED from the cached rows at time.Now() on every hit (windows are
+	// never frozen into an entry), and the epoch check makes any admin edit
+	// visible to the very next request. Names attach from the cached rows so
+	// a hit costs zero SQL. Everything else (flag off, cache machinery
+	// failure) resolves exactly as before.
+	var res store.ResolvedLink
+	var rows *store.ResolvedRows
+	if s.Cfg.FeaturePublicCache && s.PubCache != nil && !s.PubCache.Disabled() && campaign.ValidShortcode(code) {
+		// malformed codes never enter the cache (probe floods cannot evict
+		// real entries with junk); they resolve by shape, exactly as before.
+		if loaded, _, err := s.PubCache.GetOrLoad(code, func() (store.ResolvedRows, error) {
+			return s.St.LoadResolvedRows(code), nil
+		}); err == nil {
+			rows = &loaded
+			res = store.DecideLink(loaded, time.Now())
+		}
+	}
+	if rows == nil {
+		res = s.St.ResolveLink(code, time.Now())
+	}
 
 	if s.Cfg.FeatureBrand {
 		if done := s.writeBrandedPublic(w, r, code, res); done {
@@ -83,7 +106,11 @@ func (s *Server) handlePublicLink(w http.ResponseWriter, r *http.Request) {
 		view.PublicContent = res.Campaign.PublicContent
 		view.StartsAt = res.Campaign.StartsAt
 		view.EndsAt = res.Campaign.EndsAt
-		s.attachPublicNames(&view, res)
+		if rows != nil {
+			attachNamesFromRows(&view, *rows)
+		} else {
+			s.attachPublicNames(&view, res)
+		}
 		if res.StoreUnavailable {
 			view.StoreNotice = storeNoticeUnavailable
 		}
@@ -92,4 +119,15 @@ func (s *Server) handlePublicLink(w http.ResponseWriter, r *http.Request) {
 	}
 	// every non-available state: uniform 404 + state-specific text
 	writeJSON(w, http.StatusNotFound, view)
+}
+
+// attachNamesFromRows is the zero-SQL twin of attachPublicNames: same fields,
+// same swallow-on-missing semantics, fed from the cached rows.
+func attachNamesFromRows(view *publicLinkView, rows store.ResolvedRows) {
+	if rows.HasTenant {
+		view.MerchantName = rows.Tenant.Name
+		if rows.Campaign.StoreID != "" && rows.HasStore {
+			view.StoreName = rows.Store.Name
+		}
+	}
 }

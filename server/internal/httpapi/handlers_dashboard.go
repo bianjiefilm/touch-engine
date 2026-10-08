@@ -13,6 +13,8 @@ package httpapi
 
 import (
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/bianjiefilm/touch-engine/server/internal/authz"
 	"github.com/bianjiefilm/touch-engine/server/internal/dashboard"
@@ -52,6 +54,34 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "invalid_window", err.Error())
 		return
 	}
+
+	// HUI-2981 option C (FEATURE_DASHBOARD_CACHE, default off): the
+	// aggregation layer is cached per (tenant, actual authorization scope,
+	// window). The key can never cross tenants or scopes — it is built from
+	// the server-resolved membership only, never from request input. Hits
+	// carry as_of (the moment the facts were computed); admin-structural
+	// changes invalidate via the store epoch, factual counters are bounded by
+	// the 10s±2s TTL. Loader errors pass through uncached into the same
+	// handling as the direct path below (never swallowed into zero metrics).
+	if s.Cfg.FeatureDashboardCache && s.DashCache != nil && !s.DashCache.Disabled() {
+		key := strings.Join([]string{
+			c.Member.TenantID, scope,
+			win.Start.UTC().Format(time.RFC3339), win.End.UTC().Format(time.RFC3339),
+		}, "\x1f")
+		if entry, _, err := s.DashCache.GetOrLoad(key, func() (dashboardEntry, error) {
+			facts, dims, ferr := s.St.DashboardFacts(c.Member.TenantID, scope, win.Start, win.End)
+			if ferr != nil {
+				return dashboardEntry{}, ferr
+			}
+			return dashboardEntry{facts: facts, dims: dims, asOf: time.Now()}, nil
+		}); err == nil {
+			resp := dashboard.Build(win, dashboard.Scope{TenantID: c.Member.TenantID, StoreScope: scope}, entry.facts, entry.dims)
+			resp.AsOf = entry.asOf.UTC().Format(time.RFC3339)
+			writeJSON(w, http.StatusOK, resp)
+			return
+		}
+	}
+
 	facts, dims, err := s.St.DashboardFacts(c.Member.TenantID, scope, win.Start, win.End)
 	if err != nil {
 		fail(w, http.StatusInternalServerError, "internal", "dashboard aggregation failed")

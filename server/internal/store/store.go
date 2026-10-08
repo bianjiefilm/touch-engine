@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/bianjiefilm/touch-engine/server/internal/campaign"
@@ -18,9 +19,25 @@ import (
 var ErrNotFound = errors.New("store: not found")
 
 // Store wraps the sqlite handle.
-type Store struct{ DB *sql.DB }
+type Store struct {
+	DB *sql.DB
+	// epoch is the structural generation (HUI-2981): every management write
+	// to a table the cached read model consumes (tenants, stores, campaigns,
+	// campaign_links, lead_forms, nfc_tags) bumps it. Cache entries carry the
+	// epoch they were loaded under, so an admin edit deterministically
+	// invalidates every affected entry before the next request is served.
+	// Factual writes (public_view_stats, lead_submissions) never bump it:
+	// their staleness is bounded by cache TTL instead.
+	epoch atomic.Uint64
+}
 
 func New(db *sql.DB) *Store { return &Store{DB: db} }
+
+// Epoch is the current structural generation.
+func (s *Store) Epoch() uint64 { return s.epoch.Load() }
+
+// bumpEpoch advances the structural generation after a successful write.
+func (s *Store) bumpEpoch() { s.epoch.Add(1) }
 
 func newID(prefix string) string {
 	var b [16]byte
@@ -46,6 +63,9 @@ type Tenant struct {
 func (s *Store) CreateTenant(name string) (Tenant, error) {
 	t := Tenant{ID: newID("tnt_"), Name: name, CreatedAt: now(), Lifecycle: "active"}
 	_, err := s.DB.Exec(`INSERT INTO tenants(id,name,created_at) VALUES(?,?,?)`, t.ID, t.Name, t.CreatedAt)
+	if err == nil {
+		s.bumpEpoch()
+	}
 	return t, err
 }
 
@@ -206,6 +226,9 @@ func (s *Store) CreateStore(tenantID, name, address, createdBy string) (StoreRec
 	_, err := s.DB.Exec(
 		`INSERT INTO stores(`+storeCols+`) VALUES(?,?,?,?,?,?,?,?)`,
 		r.ID, r.TenantID, r.Name, r.Address, r.Status, r.CreatedBy, r.CreatedAt, r.UpdatedAt)
+	if err == nil {
+		s.bumpEpoch()
+	}
 	return r, err
 }
 
@@ -234,6 +257,9 @@ func (s *Store) UpdateStore(id, tenantID string, name, address *string) (StoreRe
 	cur.UpdatedAt = now()
 	_, err = s.DB.Exec(`UPDATE stores SET name=?,address=?,updated_at=? WHERE id=? AND tenant_id=?`,
 		cur.Name, cur.Address, cur.UpdatedAt, id, tenantID)
+	if err == nil {
+		s.bumpEpoch()
+	}
 	return cur, err
 }
 
@@ -251,6 +277,7 @@ func (s *Store) SetStoreStatus(id, tenantID string, status string) (StoreRecord,
 	if err != nil {
 		return StoreRecord{}, err
 	}
+	s.bumpEpoch()
 	return s.GetStore(id, tenantID)
 }
 
@@ -325,6 +352,9 @@ func (s *Store) CreateCampaign(n NewCampaign) (Campaign, error) {
 		`INSERT INTO campaigns(`+campaignCols+`) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
 		c.ID, c.TenantID, c.Title, c.PublicContent, c.Status, c.StartsAt, c.EndsAt,
 		nullable(c.StoreID), nullable(n.OrderRef), c.CreatedBy, c.CreatedAt, c.UpdatedAt)
+	if err == nil {
+		s.bumpEpoch()
+	}
 	return c, err
 }
 
@@ -409,6 +439,9 @@ func (s *Store) UpdateCampaign(id, tenantID string, p CampaignPatch) (Campaign, 
 	_, err = s.DB.Exec(
 		`UPDATE campaigns SET title=?,public_content=?,starts_at=?,ends_at=?,store_id=?,updated_at=? WHERE id=? AND tenant_id=?`,
 		cur.Title, cur.PublicContent, cur.StartsAt, cur.EndsAt, nullable(cur.StoreID), cur.UpdatedAt, id, tenantID)
+	if err == nil {
+		s.bumpEpoch()
+	}
 	return cur, err
 }
 
@@ -427,6 +460,9 @@ func (s *Store) TransitionCampaign(id, tenantID string, to campaign.Status) (Cam
 	cur.UpdatedAt = now()
 	_, err = s.DB.Exec(`UPDATE campaigns SET status=?,updated_at=? WHERE id=? AND tenant_id=?`,
 		cur.Status, cur.UpdatedAt, id, tenantID)
+	if err == nil {
+		s.bumpEpoch()
+	}
 	return cur, err
 }
 
@@ -471,6 +507,9 @@ func (s *Store) CreateLink(tenantID, campaignID, createdBy string) (CampaignLink
 	_, err = s.DB.Exec(
 		`INSERT INTO campaign_links(`+linkCols+`) VALUES(?,?,?,?,?,?,?,?)`,
 		l.ID, l.TenantID, l.CampaignID, l.Code, boolInt(l.Enabled), l.CreatedBy, l.CreatedAt, l.UpdatedAt)
+	if err == nil {
+		s.bumpEpoch()
+	}
 	return l, err
 }
 
@@ -513,6 +552,9 @@ func (s *Store) SetLinkEnabled(id, tenantID string, enabled bool) (CampaignLink,
 	cur.UpdatedAt = now()
 	_, err = s.DB.Exec(`UPDATE campaign_links SET enabled=?,updated_at=? WHERE id=? AND tenant_id=?`,
 		boolInt(enabled), cur.UpdatedAt, id, tenantID)
+	if err == nil {
+		s.bumpEpoch()
+	}
 	return cur, err
 }
 

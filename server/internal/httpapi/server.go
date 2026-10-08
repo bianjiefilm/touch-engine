@@ -33,6 +33,7 @@ import (
 	"github.com/bianjiefilm/touch-engine/server/internal/db"
 	"github.com/bianjiefilm/touch-engine/server/internal/identity"
 	"github.com/bianjiefilm/touch-engine/server/internal/leads"
+	"github.com/bianjiefilm/touch-engine/server/internal/readcache"
 	"github.com/bianjiefilm/touch-engine/server/internal/redact"
 	"github.com/bianjiefilm/touch-engine/server/internal/store"
 	"github.com/bianjiefilm/touch-engine/server/internal/storemotion"
@@ -64,6 +65,37 @@ type Server struct {
 	// LeadsLimiter gates the public lead-write surface per client IP
 	// (single-process sliding window; not distributed by design for T1).
 	LeadsLimiter *leads.RateLimiter
+
+	// PubCache / DashCache (HUI-2981 option C) are the bounded local read
+	// caches behind FEATURE_PUBLIC_CACHE / FEATURE_DASHBOARD_CACHE. They are
+	// always constructed (so the Disable() kill switch exists regardless) but
+	// only consulted when the corresponding flag is on. flag off = handlers
+	// never touch them = byte-identical legacy paths. Tests may replace them
+	// with short-TTL instances.
+	PubCache  *readcache.Cache[store.ResolvedRows]
+	DashCache *readcache.Cache[dashboardEntry]
+}
+
+// Frozen cache budgets (HUI-2981 comparison report §2.1 — do not tune without
+// re-running the same-load comparison): public page entries 3s±1s (staleness
+// bound 4s), dashboard entries 10s±2s (bound 12s, carried as as_of), with
+// hard entry-count caps and epoch validation on every hit.
+const (
+	publicCacheCapacity = 10_000
+	publicCacheTTL      = 3 * time.Second
+	publicCacheJitter   = 2 * time.Second
+	dashCacheCapacity   = 512
+	dashCacheTTL        = 10 * time.Second
+	dashCacheJitter     = 4 * time.Second
+)
+
+// dashboardEntry is one cached dashboard aggregation (facts + reference
+// dimensions), stamped with the moment it was computed. Responses built from
+// it carry as_of; the entry is valid only under the epoch it loaded under.
+type dashboardEntry struct {
+	facts store.DashboardFacts
+	dims  store.DashboardDimensions
+	asOf  time.Time
 }
 
 // leadsRatePerMinute bounds the public lead-write surface per client IP.
@@ -76,9 +108,18 @@ func New(cfg config.Config, database *sql.DB, idc *identity.Client, upc *upload.
 	if logger == nil {
 		logger = log.Default()
 	}
+	st := store.New(database)
 	return &Server{
-		Cfg: cfg, St: store.New(database), ID: idc, Upload: upc, Log: logger,
+		Cfg: cfg, St: st, ID: idc, Upload: upc, Log: logger,
 		LeadsLimiter: leads.NewRateLimiter(leadsRatePerMinute, time.Minute),
+		PubCache: readcache.New[store.ResolvedRows](readcache.Options{
+			Capacity: publicCacheCapacity, TTL: publicCacheTTL, Jitter: publicCacheJitter,
+			Epoch: st.Epoch,
+		}),
+		DashCache: readcache.New[dashboardEntry](readcache.Options{
+			Capacity: dashCacheCapacity, TTL: dashCacheTTL, Jitter: dashCacheJitter,
+			Epoch: st.Epoch,
+		}),
 	}
 }
 

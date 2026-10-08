@@ -37,6 +37,17 @@ const (
 	// off = 不解析品牌主机、不改公共页/登录/短码既有行为。
 	// on = 只读消费 public-ai Brand Registry 的展示契约,不在本库自建品牌库。
 	EnvFeatureBrand = "FEATURE_BRAND"
+	// EnvFeaturePublicCache (HUI-2981 缓存收益 T1): 登记制开关,默认 off。
+	// off = 公共短码页路径逐字节回到现状(直查 DB)。
+	// on = 纯展示读(公共页点查+名称附挂)走本地有界缓存:epoch 结构失效
+	// (管理变更 0 请求陈旧)+ TTL 3s±1s 兜底 + singleflight + 容量上限;
+	// 一切带动作/写能力的公共路径不进缓存,写路径永远回源核验。
+	EnvFeaturePublicCache = "FEATURE_PUBLIC_CACHE"
+	// EnvFeatureDashboardCache (HUI-2981): 登记制开关,默认 off。
+	// off = 看板聚合逐字节回源直查。
+	// on = (租户,门店作用域,窗口) 维度的聚合层本地缓存,TTL 10s±2s,响应带
+	// as_of(可重建口径);key 含调用者实际权限范围,绝不跨租户/跨作用域。
+	EnvFeatureDashboardCache = "FEATURE_DASHBOARD_CACHE"
 )
 
 // Config is the resolved server configuration.
@@ -104,6 +115,8 @@ type Config struct {
 	FeatureVideoTemplates bool
 	FeatureAgency         bool
 	FeatureBrand          bool
+	FeaturePublicCache    bool
+	FeatureDashboardCache bool
 
 	// Brand registry read client (HUI-2049). Touch never writes this registry
 	// and never treats a brand host as a tenant or a payer.
@@ -161,6 +174,8 @@ func Load(get func(string) string) Config {
 		FeatureVideoTemplates: isTruthy(get(EnvFeatureVideoTemplates)),
 		FeatureAgency:         isTruthy(get(EnvFeatureAgency)),
 		FeatureBrand:          isTruthy(get(EnvFeatureBrand)),
+		FeaturePublicCache:    isTruthy(get(EnvFeaturePublicCache)),
+		FeatureDashboardCache: isTruthy(get(EnvFeatureDashboardCache)),
 		BrandBaseURL:          strings.TrimSpace(get("PLATFORM_BRAND_BASE_URL")),
 		BrandToken:            get("PLATFORM_BRAND_TOKEN"),
 		SubscriptionStatus:    firstNonEmpty(get("TOUCH_SUBSCRIPTION_STATUS"), "unconfirmed"),

@@ -106,7 +106,11 @@ func (s *Store) DeleteTagGroup(id, tenantID string) error {
 	if n, _ := res.RowsAffected(); n == 0 {
 		return ErrNotFound
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	s.bumpEpoch()
+	return nil
 }
 
 // ---- tags ---------------------------------------------------------------------
@@ -297,6 +301,7 @@ func (s *Store) CreateTagsBatch(n NewTagBatch) ([]NfcTagView, error) {
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
+	s.bumpEpoch()
 	return created, nil
 }
 
@@ -328,6 +333,7 @@ func (s *Store) SetTagStatus(id, tenantID string, status string) (NfcTagView, er
 	if err := tx.Commit(); err != nil {
 		return NfcTagView{}, err
 	}
+	s.bumpEpoch()
 	return s.GetTagView(id, tenantID)
 }
 
@@ -389,6 +395,7 @@ func (s *Store) PatchTag(id, tenantID string, p TagPatch) (NfcTagView, error) {
 	if err != nil {
 		return NfcTagView{}, err
 	}
+	s.bumpEpoch()
 	return s.GetTagView(id, tenantID)
 }
 
@@ -402,5 +409,6 @@ func (s *Store) DeleteTag(id, tenantID string) error {
 	if n, _ := res.RowsAffected(); n == 0 {
 		return ErrNotFound
 	}
+	s.bumpEpoch()
 	return nil
 }
