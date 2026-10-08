@@ -93,8 +93,9 @@ const markerBook: readonly { route: string; markers: readonly Marker[] }[] = [
   { route: "/work/campaigns", markers: ["raw button", "raw input"] },
   { route: "/work/campaigns/[id]", markers: ["raw button"] },
   { route: "/work/materials", markers: ["raw button", "raw input"] },
-  { route: "/work/rewards", markers: [] },
-  { route: "/work/analytics", markers: [] },
+  // HUI-2628 r3：错误态补「重试」钮后各记 1 个 raw button（账本同步，命中只记账）。
+  { route: "/work/rewards", markers: ["raw button"] },
+  { route: "/work/analytics", markers: ["raw button"] },
   { route: "/c/[code]", markers: [] },
   { route: "/c/[code]/contact", markers: [] },
 ];
