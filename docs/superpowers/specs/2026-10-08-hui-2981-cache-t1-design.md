@@ -1,0 +1,127 @@
+# HUI-2981【缓存收益 T1】碰一碰热点活动与统计读取——设计与对照裁决
+
+日期:2026-10-08 · 主仓:touch-engine · 分支:hui-2981-cache(base=origin/main@184d0fc)
+状态:设计冻结(阈值见 §2,依首轮测量设定;此后不改口挑指标)
+
+## 0. 背景与归属
+
+touch-engine 拥有活动公开展示与本租户经营读模型。热点结构:同一活动的短码被
+重复访问(90/10 热点分布),公共页一次浏览要打三类接口;经营侧看板一次拉取
+做 18 组窗口聚合。当前持久层是**单进程 Go + SQLite(modernc,MaxOpenConns=1)**:
+所有读写串行过同一条连接——这是「单实例不要为共享不存在而增加远端网络跳转」
+裁决的物理依据。
+
+本票不重做 HUI-1677 看板与 HUI-1676 活动规则功能;生产零改动零压测。
+
+## 1. 对照矩阵(业主冻结,统计聚合与公开页分别裁决)
+
+| 案 | 内容 | 裁决方式 |
+|----|------|----------|
+| A | 现状 + 索引审计 | EXPLAIN QUERY PLAN 全量点查(已做,见 §3.1) |
+| B | SQL 优化/汇总表 | 仅当 A 证明有缺失索引/冗余查询才实施 |
+| C | 本地有界 TTL 缓存(singleflight+TTL 抖动+容量上限) | 与 A 同负载对照,达标即胜 |
+| D | 本地独立 Redis | 仅当 C 不达标且 Redis 有可测增量才接入;满足 HUI-2979 契约前不接共享实例 |
+| E | 公开页 HTTP/CDN 缓存 | 仅设计+裁决,无生产授权,标「设计未实测」 |
+
+获胜方案 = 最小增量实施 + feature flag(默认 off)+ 一键禁用回退。
+C 胜出 → 明确「不接 Redis」裁决并以此完成本票(合法完成态)。
+
+## 2. 成功阈值与允许陈旧时间(首轮测量后冻结)
+
+<!-- FROZEN-THRESHOLDS -->
+
+## 3. 首轮测量(方案 A)结果
+
+### 3.1 索引审计(已测,EXPLAIN QUERY PLAN,迁移全量建库)
+
+- `ResolveLink` 点查:campaign_links(code) 走 UNIQUE 自动索引;campaigns(id)、
+  stores(id,tenant_id) 走主键/索引。**无缺失索引,无全表扫描。**
+- 看板聚合:public_view_stats 走 (code,day) 主键前缀,campaigns 走
+  idx_campaigns_tenant,lead_submissions 走 idx_lead_submissions_campaign;
+  GROUP BY 有一条 TEMP B-TREE(维基数=短码数,可接受)。
+- 结论:**A 无可加索引 → B(索引类)无可实施项;B 剩余选项仅「合并语句数」,
+  归入与 C 的对照中一并裁决。**
+
+<!-- MEASURE-BASELINE -->
+
+## 4. 获胜方案设计(C:本地有界 TTL 缓存)
+
+### 4.1 范围(最小增量)
+
+只缓存两类**纯展示读**:
+1. `GET /api/v1/public/links/{code}`(公共活动页,ResolveLink + 名称附挂);
+2. `GET /api/v1/dashboard`(经营看板 facts,dashboard.Build 之前的聚合层)。
+
+**一切带动作能力/写能力的路径不碰缓存**:lead-form GET、lead-submissions、
+lead-status、lead-revocations、view-events(beacon 是写)、customer-publish、
+activity-spend 等仍走 DB 直查——写路径重新核验数据库与权限,缓存展示
+永不授予动作许可。
+
+### 4.2 数据与 key 语义
+
+- 公共页缓存条目 = {link 行, campaign 行, store 行(状态+名称), tenant 行
+  (名称+lifecycle)},key=`code`,**不含**用户/租户私密上下文(白名单字段
+  在响应层不变;order_ref/内部 id 永不进缓存条目)。
+- 命中时用缓存行**重新推导**五态结局(available/expired/...):开始/结束窗口
+  按 `time.Now()` 现判,不缓存「available 永久有效」。
+- 看板缓存条目 = DashboardFacts+Dimensions,key=(tenant, storeScope,
+  window_start, window_end),响应追加 `as_of`(缓存计算时刻,可重建口径)。
+  原始事件与 CRM 回执仍落权威存储,HUI-1677 真实/未知口径零改动。
+
+### 4.3 失效与传播界限(确定性)
+
+- **epoch(代)失效**:store 层所有结构性管理写(活动建/改/转态、短码停用、
+  门店建/改/停用、租户改名/lifecycle、表单挂载变更)同步 bump 一个原子代数;
+  缓存条目携带代数,命中时校验。同进程内管理员修改 → 下一个请求立即看到新值,
+  **管理变更陈旧 = 0 个请求**。
+- **TTL 有界陈旧**(事实性数据:浏览计数、留资/CRM 计数):公开页 TTL 3s±1s
+  抖动;看板 TTL 10s±2s 抖动 + as_of。允许陈旧时间即此,报告如实标注。
+- brand suspend/retire:品牌壳不进缓存(每次请求现读 registry),传播即即时;
+  tenant lifecycle 进缓存条目但受 epoch 管(改 lifecycle 即 bump)。
+
+### 4.4 防击穿与可用性
+
+- miss 并发合并(singleflight):同 key 并发 miss 只回源一次;
+- TTL 抖动防集中过期;容量上限(条目数)+ 简单 LRU 驱逐,防内存无界;
+- 回源失败:有界回源(直接把 DB 错误如实上抛,维持现有 5xx 语义),
+  **绝不把错误吞成空活动或 0 指标**;
+- 一键禁用:feature flag off = 路径逐字节回到现状(仓库既有 flag 纪律);
+  缓存层另设 Disable(),测试与运维可显式关断。
+
+### 4.5 不变量(测试逐条覆盖)
+
+1. flag off → 全部既有测试逐字节不变;
+2. 无串租户/品牌/成员权限(key 只含 code/租户/门店/窗口/权限范围);
+3. 暂停/过期/下线/改版本/短码停用/门店变化 → 确定失效(0 陈旧请求);
+4. available 按当前时间判定(缓存行 + 现判窗口);
+5. 写路径全部 DB 直查(缓存不授动作许可);
+6. 已知事件集重算 == 缓存结果(同窗口口径,带 as_of);
+7. Redis 不可达/清空/高并发 miss 不适用(C 无 Redis;D 的演练以探针记录)。
+
+### 4.6 E(公开页 HTTP/CDN)设计裁决——设计未实测
+
+公共页响应 `GET /api/v1/public/links/{code}` 是匿名白名单载荷,理论上可
+`Cache-Control: public, max-age=3, stale-while-revalidate=30` + 短码 URL 作
+CDN key,状态字段按现判时间短 TTL。**不实施**的裁决依据:
+(a) 响应含 state 404 语义,CDN 缓存 404 会把「暂停/停用」钉住,失效传播要
+CDN purge 管道(生产无授权,跨越本票边界);
+(b) 收益上界 = 公共页 3-5 条点查,而 C 已把该成本降为命中 0 条;
+(c) 票面明示公开 CDN 不得缓存带私密上下文内容——本响应虽匿名,但
+`?entry=` 类查询参数进 CDN key 会放大缓存面。维持「设计+裁决」结项。
+
+## 5. 交付物
+
+- `internal/readcache`(新包):有界 TTL 缓存 + singleflight + epoch 校验;
+- store 层:ResolveLink 拆出纯函数 decision(rows, at);管理写 bump epoch;
+- httpapi:公共页 GET / 看板 GET 接缓存(flag 默认 off);
+- 看板响应追加 as_of(仅 cache on 时出现);
+- 测量夹具 cache_measure_test.go(A/C 同负载对照)+ D 的本地 Redis 探针记录;
+- 本对照报告(§2/§3/§7)。
+
+## 6. D(本地独立 Redis)探针与裁决
+
+<!-- REDIS-PROBE -->
+
+## 7. 对照结论(四案矩阵终版)
+
+<!-- FINAL-MATRIX -->
