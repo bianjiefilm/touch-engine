@@ -63,7 +63,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	// changes invalidate via the store epoch, factual counters are bounded by
 	// the 10s±2s TTL. Loader errors pass through uncached into the same
 	// handling as the direct path below (never swallowed into zero metrics).
-	if s.Cfg.FeatureDashboardCache && s.DashCache != nil {
+	if s.Cfg.FeatureDashboardCache && s.DashCache != nil && !s.DashCache.Disabled() {
 		key := strings.Join([]string{
 			c.Member.TenantID, scope,
 			win.Start.UTC().Format(time.RFC3339), win.End.UTC().Format(time.RFC3339),

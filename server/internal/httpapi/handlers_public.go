@@ -80,7 +80,7 @@ func (s *Server) handlePublicLink(w http.ResponseWriter, r *http.Request) {
 	// failure) resolves exactly as before.
 	var res store.ResolvedLink
 	var rows *store.ResolvedRows
-	if s.Cfg.FeaturePublicCache && s.PubCache != nil {
+	if s.Cfg.FeaturePublicCache && s.PubCache != nil && !s.PubCache.Disabled() {
 		if loaded, _, err := s.PubCache.GetOrLoad(code, func() (store.ResolvedRows, error) {
 			return s.St.LoadResolvedRows(code), nil
 		}); err == nil {
