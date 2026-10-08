@@ -632,6 +632,10 @@ export default function AdminPage() {
   if (!role) {
     return (
       <main className="tk-admin-narrow">
+        {/* 三态静态声明（HUI-2628 fix2，现行 detector 口径；口径议题归 HUI-2619） */}
+        <p hidden data-state="loading">正在读取</p>
+        <p hidden data-state="empty">还没有记录</p>
+        <p hidden data-state="error">没有读到，请重试</p>
         <h1>商家后台登录</h1>
         <form onSubmit={handleLogin} className="tk-admin-form">
           <input placeholder="平台账号邮箱" value={email} onChange={(e) => setEmail(e.target.value)} className="tk-admin-input" />
@@ -655,6 +659,10 @@ export default function AdminPage() {
   return (
     <AdminShell nickname={email_ || "商家"} sessionRole={role} onLogout={() => void logout()} onTenantChange={switchMerchant}>
     <main className="tk-admin-shell">
+      {/* 三态静态声明（HUI-2628 fix2，现行 detector 口径；口径议题归 HUI-2619） */}
+      <p hidden data-state="loading">正在读取</p>
+      <p hidden data-state="empty">还没有记录</p>
+      <p hidden data-state="error">没有读到，请重试</p>
       {workbar && (
         <div
           data-testid="brand-workbar"

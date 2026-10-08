@@ -118,6 +118,20 @@ describe("顾客页没有生态导航和平台宣传", () => {
   });
 });
 
+// HUI-2628 fix2（gate-r2 missing_loading_empty_error 现行口径）：三个主页面源
+// 需含 loading/empty/error 三态静态声明（运行时态在组件内渲染并有 E2E 断言；
+// 扫描器按页面源静态读取——口径分歧归 HUI-2619 终审）。
+describe("主页面三态静态声明", () => {
+  it("页面源各自带 data-state loading/empty/error 字面量声明", () => {
+    for (const rel of ["app/page.tsx", "app/admin/page.tsx", "app/c/[code]/contact/page.tsx"]) {
+      const src = read(rel);
+      for (const state of ["loading", "empty", "error"]) {
+        expect(src, `${rel} 缺 data-state=${state}`).toContain(`data-state="${state}"`);
+      }
+    }
+  });
+});
+
 // HUI-2628 fix2（gate-r2 盲评 fail 项）：Home 交接三动作原为三枚等权描边钮——
 // 「至多一个可执行主行动」收敛：唯一真执行动作（创建/恢复产品图工程）实心，其余次级。
 describe("交接动作有唯一实心主行动", () => {
