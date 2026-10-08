@@ -10,6 +10,7 @@ import { MerchantWorkbench } from "@/components/admin/MerchantWorkbench";
 import { TaskHandoffActions } from "@/components/admin/TaskHandoffActions";
 import { copyJobClosed, copyJobKey, copyUsability, handoffHasFormalJump } from "@/lib/copy-draft";
 import { acceptTenantPayload } from "@/lib/eco-nav/touch-shell";
+import { failureText } from "@/lib/failure-copy";
 
 interface Campaign {
   id: string;
@@ -180,7 +181,7 @@ export default function AdminPage() {
       const res = await api("GET", `campaigns/${campaignId}/links`);
       if (tenantRef.current !== requested) return;
       if (!res.ok) {
-        setError(whoStatusText(res.status, res.data));
+        setError(failureText(res.status, res.data));
         setQrBusy(false);
         return;
       }
@@ -210,7 +211,7 @@ export default function AdminPage() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(whoStatusText(res.status, data as Record<string, unknown>));
+        setError(failureText(res.status, data as Record<string, unknown>));
         return;
       }
       const blob = await res.blob();
@@ -243,7 +244,7 @@ export default function AdminPage() {
       setTags((tgs.data.items as TagView[]) ?? []);
       setNfcError("");
     } else {
-      setNfcError(whoStatusText(tgs.status, tgs.data));
+      setNfcError(failureText(tgs.status, tgs.data));
     }
   }, [api, tenantId, tagFilter.campaign, tagFilter.group, tagFilter.status]);
 
@@ -253,7 +254,7 @@ export default function AdminPage() {
     const who = await api("GET", "whoami");
     if (tenantRef.current !== requested) return;
     if (!who.ok) {
-      setError(whoStatusText(who.status, who.data));
+      setError(failureText(who.status, who.data));
       return;
     }
     setRole(String(who.data.role ?? ""));
@@ -311,7 +312,7 @@ export default function AdminPage() {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setError(whoStatusText(res.status, data));
+      setError(failureText(res.status, data));
       return;
     }
     if (!tenantId) {
@@ -323,7 +324,7 @@ export default function AdminPage() {
 
   async function transition(id: string, status: string) {
     const res = await api("POST", `campaigns/${id}/status`, { status });
-    if (!res.ok) setError(whoStatusText(res.status, res.data));
+    if (!res.ok) setError(failureText(res.status, res.data));
     await refresh();
   }
 
@@ -333,7 +334,7 @@ export default function AdminPage() {
     e.preventDefault();
     const res = await api("POST", "stores", newStore);
     if (!res.ok) {
-      setStoreError(whoStatusText(res.status, res.data));
+      setStoreError(failureText(res.status, res.data));
       return;
     }
     setStoreError("");
@@ -346,7 +347,7 @@ export default function AdminPage() {
     if (!storeEdit) return;
     const res = await api("PATCH", `stores/${storeEdit.id}`, { name: storeEdit.name, address: storeEdit.address });
     if (!res.ok) {
-      setStoreError(whoStatusText(res.status, res.data));
+      setStoreError(failureText(res.status, res.data));
       return;
     }
     setStoreError("");
@@ -357,7 +358,7 @@ export default function AdminPage() {
   async function setStoreStatus(id: string, status: "active" | "disabled") {
     const res = await api("POST", `stores/${id}/status`, { status });
     if (!res.ok) {
-      setStoreError(whoStatusText(res.status, res.data));
+      setStoreError(failureText(res.status, res.data));
       return;
     }
     setStoreError(
@@ -379,7 +380,7 @@ export default function AdminPage() {
       order_ref: newCampaign.order_ref || undefined,
     });
     if (!res.ok) {
-      setError(whoStatusText(res.status, res.data));
+      setError(failureText(res.status, res.data));
       return;
     }
     setNewCampaign({ title: "", public_content: "", starts_at: "", ends_at: "", store_id: "", order_ref: "" });
@@ -389,7 +390,7 @@ export default function AdminPage() {
   async function createCampaignLinks(campaignId: string) {
     const res = await api("POST", `campaigns/${campaignId}/links`, {});
     if (!res.ok) {
-      setError(whoStatusText(res.status, res.data));
+      setError(failureText(res.status, res.data));
       return;
     }
     await refresh();
@@ -402,7 +403,7 @@ export default function AdminPage() {
       version: newAsset.version || undefined,
     });
     if (!res.ok) {
-      setError(whoStatusText(res.status, res.data));
+      setError(failureText(res.status, res.data));
       return;
     }
     setNewAsset({ campaign: "", asset_id: "", version: "" });
@@ -418,7 +419,7 @@ export default function AdminPage() {
   // ---- HUI-1665 NFC 标签操作(全部 owner-only,服务端裁决) -----------------
 
   async function nfcFail(res: { ok: boolean; status: number; data: Record<string, unknown> }) {
-    setNfcError(whoStatusText(res.status, res.data));
+    setNfcError(failureText(res.status, res.data));
     return false;
   }
 
@@ -542,7 +543,7 @@ export default function AdminPage() {
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      setNfcError(whoStatusText(res.status, data as Record<string, unknown>));
+      setNfcError(failureText(res.status, data as Record<string, unknown>));
       return;
     }
     const blob = await res.blob();
@@ -597,7 +598,7 @@ export default function AdminPage() {
       setCopyJobBound(key);
     }
     if (!res.ok) {
-      setCopyError(whoStatusText(res.status, res.data));
+      setCopyError(failureText(res.status, res.data));
       return;
     }
     if (step === "save") await refresh();
@@ -666,7 +667,7 @@ export default function AdminPage() {
         onSaveCopy={async (id, title, copy) => {
           const res = await api("PATCH", `campaigns/${id}`, { title, public_content: copy });
           if (!res.ok) {
-            setError(whoStatusText(res.status, res.data));
+            setError(failureText(res.status, res.data));
             return;
           }
           setError("");
@@ -1085,10 +1086,5 @@ export default function AdminPage() {
     </main>
     </AdminShell>
   );
-}
-
-function whoStatusText(status: number, data: Record<string, unknown>): string {
-  const detail = typeof data.message === "string" ? `:${data.message}` : "";
-  return `请求失败(${status} ${String(data.error ?? "")})${detail}`;
 }
 

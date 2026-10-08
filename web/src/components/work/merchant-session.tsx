@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { failureText } from "@/lib/failure-copy";
 import { surfaceLabel } from "@/lib/product-finish";
 
 const TENANT_KEY = "touch_admin_tenant";
@@ -32,10 +33,8 @@ export function useSession(): MerchantSession {
   return value;
 }
 
-function failureText(status: number, data: Record<string, unknown>): string {
-  const detail = typeof data.message === "string" ? `：${data.message}` : "";
-  return `没有完成（${status} ${String(data.error ?? "")}）${detail}`;
-}
+// failureText 已收口到 lib/failure-copy（fix2：错误面产品语句，不泄漏状态码/机器码）。
+// 这里 re-export 保持页面既有 import 路径不变。
 
 export function MerchantGate({ children }: { children: ReactNode }) {
   const session = useMerchantSession();
