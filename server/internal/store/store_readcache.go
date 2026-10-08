@@ -11,8 +11,6 @@
 package store
 
 import (
-	"errors"
-	"database/sql"
 	"time"
 
 	"github.com/bianjiefilm/touch-engine/server/internal/campaign"
@@ -86,10 +84,7 @@ func (s *Store) LoadResolvedRows(code string) ResolvedRows {
 		return rows // malformed is indistinguishable from unknown (NotFound)
 	}
 	l, err := scanLink(s.DB.QueryRow(`SELECT `+linkCols+` FROM campaign_links WHERE code=?`, code))
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return rows // failed lookup must never look available
-	}
-	if errors.Is(err, sql.ErrNoRows) {
+	if err != nil { // ErrNoRows OR real error: both fail closed to NotFound
 		return rows
 	}
 	rows.Found, rows.Link = true, l

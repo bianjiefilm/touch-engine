@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bianjiefilm/touch-engine/server/internal/campaign"
 	"github.com/bianjiefilm/touch-engine/server/internal/store"
 )
 
@@ -80,7 +81,9 @@ func (s *Server) handlePublicLink(w http.ResponseWriter, r *http.Request) {
 	// failure) resolves exactly as before.
 	var res store.ResolvedLink
 	var rows *store.ResolvedRows
-	if s.Cfg.FeaturePublicCache && s.PubCache != nil && !s.PubCache.Disabled() {
+	if s.Cfg.FeaturePublicCache && s.PubCache != nil && !s.PubCache.Disabled() && campaign.ValidShortcode(code) {
+		// malformed codes never enter the cache (probe floods cannot evict
+		// real entries with junk); they resolve by shape, exactly as before.
 		if loaded, _, err := s.PubCache.GetOrLoad(code, func() (store.ResolvedRows, error) {
 			return s.St.LoadResolvedRows(code), nil
 		}); err == nil {

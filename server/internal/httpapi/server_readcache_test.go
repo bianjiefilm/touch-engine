@@ -460,9 +460,12 @@ func TestCacheRecomputeConsistencyAndBoundedStaleness(t *testing.T) {
 		mustNoErr(t, f.st.IncrementViewStat(code, today, "qr"))
 	}
 
-	// 换短 TTL 缓存(80ms,零抖动)观察有界陈旧;先装载,再制造晚到事实
+	// 换手工时钟缓存(TTL 80ms,零抖动)观察有界陈旧:时钟推进完全受控,
+	// 不依赖 sleep,可并行负载下确定性复现
+	now := time.Now()
+	clock := func() time.Time { return now }
 	f.s.DashCache = readcache.New[dashboardEntry](readcache.Options{
-		Capacity: 16, TTL: 80 * time.Millisecond, Epoch: f.st.Epoch,
+		Capacity: 16, TTL: 80 * time.Millisecond, Epoch: f.st.Epoch, Now: clock,
 	})
 	st, cached := f.dash(t, "sess-owner-a", f.tenA)
 	if st != 200 || metricValue(t, cached, "touch_triggers") != 7 {
@@ -475,11 +478,12 @@ func TestCacheRecomputeConsistencyAndBoundedStaleness(t *testing.T) {
 
 	// 晚到事实在 TTL 内不可见(有界陈旧),TTL 后必须如实出现
 	mustNoErr(t, f.st.IncrementViewStat(code, today, "qr")) // +1 晚到
+	now = now.Add(40 * time.Millisecond)                    // 仍在 TTL 内
 	st, within := f.dash(t, "sess-owner-a", f.tenA)
 	if st != 200 || metricValue(t, within, "touch_triggers") != 7 {
 		t.Fatalf("within-TTL dash must stay 7, got %d %v", st, within)
 	}
-	time.Sleep(150 * time.Millisecond)
+	now = now.Add(120 * time.Millisecond) // 越过 TTL 上界
 	st, after := f.dash(t, "sess-owner-a", f.tenA)
 	if st != 200 || metricValue(t, after, "touch_triggers") != 8 {
 		t.Fatalf("post-TTL dash must show 8, got %d %v", st, after)
@@ -560,10 +564,12 @@ func TestCacheWritePathsStayFresh(t *testing.T) {
 		t.Fatalf("beacon = %d", res2.StatusCode)
 	}
 
-	// 看板换短 TTL 缓存(60ms):先装载(此时 0 条提交),再提交——
-	// TTL 界内不泄露半真值,界后如实计入
+	// 看板换手工时钟缓存(TTL 60ms):先装载(此时 0 条提交),再提交——
+	// TTL 界内不泄露半真值,界后如实计入(时钟推进受控,无 sleep)
+	dashNow := time.Now()
+	dashClock := func() time.Time { return dashNow }
 	f.s.DashCache = readcache.New[dashboardEntry](readcache.Options{
-		Capacity: 16, TTL: 60 * time.Millisecond, Epoch: f.st.Epoch,
+		Capacity: 16, TTL: 60 * time.Millisecond, Epoch: f.st.Epoch, Now: dashClock,
 	})
 	if stA, bodyA := f.dash(t, "sess-owner-a", f.tenA); stA != 200 || metricValue(t, bodyA, "lead_submissions") != 0 {
 		t.Fatalf("pre-submit dash must show 0, got %d %v", stA, bodyA)
@@ -586,10 +592,11 @@ func TestCacheWritePathsStayFresh(t *testing.T) {
 	}
 
 	// TTL 界内:提交事实已入库,缓存仍如实报 0(有界陈旧,as_of 标明口径时刻)
+	dashNow = dashNow.Add(30 * time.Millisecond)
 	if stW, bodyW := f.dash(t, "sess-owner-a", f.tenA); stW != 200 || metricValue(t, bodyW, "lead_submissions") != 0 {
 		t.Fatalf("within-TTL dash must stay 0, got %d %v", stW, bodyW)
 	}
-	time.Sleep(120 * time.Millisecond)
+	dashNow = dashNow.Add(120 * time.Millisecond)
 	stB, afterBody := f.dash(t, "sess-owner-a", f.tenA)
 	if stB != 200 || metricValue(t, afterBody, "lead_submissions") != 1 {
 		t.Fatalf("post-TTL dash = %d %v", stB, afterBody)
