@@ -274,6 +274,29 @@
   }
 }
 
+/* ---- HUI-2628 fix2: ≤430 触控命中（WCAG 2.5.8，a11y 四项证据之 touch-target）----
+   导航与过滤链接、按钮类控件命中高度 ≥44px；桌面密度不动（1440+ 无感）。
+   行内文字链接（如「去看过期活动」）不在此规则内——按行内例外逐控件记账，
+   见 e2e spec 09 touch-targets.json below44。 */
+@media (max-width: 430px) {
+  .tk-nav a,
+  .tk-row > a {
+    display: inline-block;
+    padding: 0.7rem 0.4rem;
+  }
+
+  .tk-button,
+  .tk-quiet,
+  .tk-primary {
+    min-height: 44px;
+  }
+
+  /* 勾选行是 checkbox 的有效命中区（label 整行可点）：两行文案 42px → 补足 44 */
+  .tk-check {
+    min-height: 44px;
+  }
+}
+
 /* ---- HUI-2628 r2: tk-admin-*（/admin 面 inline style 归零落点；色值只引用既有 --tk-* token） ---- */
 .tk-admin-shell { max-width: 960px; margin: 40px auto; padding: 0 20px; }
 .tk-admin-narrow { max-width: 420px; margin: 60px auto; padding: 0 20px; }
