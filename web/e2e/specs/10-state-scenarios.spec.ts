@@ -109,6 +109,9 @@ test("offline：公共页真实断网提交报网络异常；路由中止驱动�
   await page.waitForTimeout(500);
   await screenshot(page, "state-offline-browser-boundary");
   await page.context().setOffline(false);
+  // 终结可能仍 pending 的断网 reload 事务：恢复联网后它会与下一段同 URL goto 互相打断
+  // （"interrupted by another navigation"，全量实挂过一次的时序竞态）。about:blank 不依赖网络，必成功。
+  await page.goto("about:blank");
 
   // 3) 路由中止 fixture（网络层等价断开）：公共页级 network_error + 应用内重试入口
   await page.route("**/api/public/links/**", (route) => route.abort());
