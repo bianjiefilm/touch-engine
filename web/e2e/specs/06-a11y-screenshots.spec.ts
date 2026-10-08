@@ -7,7 +7,8 @@ import { login, screenshot, seedCodes } from "../support/helpers";
 type RouteDef = { slug: string; path: string; auth: boolean };
 
 // 8 代表页（=MerchantHome、/work/stores、/work/campaigns/[id]、/work/materials、
-// /work/rewards、/work/analytics、/c/[code]、/c/[code]/contact）× 390/430 截图 + axe；1920 商家首页 1 张。
+// /work/rewards、/work/analytics、/c/[code]、/c/[code]/contact）× 390/430/1440 截图 + axe；1920 商家首页 1 张。
+// HUI-2628 r3：增 1440（2625 门跨栈矩阵 + 2626 口径 Desktop 1440 合理密度），全集 17→25 张。
 const ROUTES: RouteDef[] = [
   { slug: "home", path: "/", auth: true },
   { slug: "work-stores", path: "/work/stores", auth: true },
@@ -32,7 +33,7 @@ test("a11y + screenshots across 8 representative pages", async ({ page }) => {
   const codes = await seedCodes();
 
   const results: Array<{ slug: string; width: number; violations: Array<{ id: string; impact: string | null }> }> = [];
-  const widths = [390, 430];
+  const widths = [390, 430, 1440];
   for (const def of ROUTES) {
     for (const width of widths) {
       await page.setViewportSize({ width, height: 900 });
