@@ -129,8 +129,10 @@ describe("错误面与原始序列化不上页面源（fix2）", () => {
     const admin = read("app/admin/page.tsx");
     expect(admin).not.toContain("JSON.stringify");
     expect(admin).toContain("交接资料");
-    // 原始 JSON 不再整块塞给用户（fix2：raw_json_or_http_error 同模式清零）
-    expect(admin).not.toMatch(/<textarea/);
+    // 原始 JSON 不再整块塞给用户（fix2）：readOnly 展示型 textarea 是 dump 模式；
+    // 录入型 textarea（POI 名单粘贴）不在此列。
+    expect(admin).not.toMatch(/<textarea[^>]*readOnly/);
+    expect(admin).toContain('data-testid="professional-handoff"');
   });
 });
 
