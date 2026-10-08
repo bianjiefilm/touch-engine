@@ -124,6 +124,14 @@ describe("错误面与原始序列化不上页面源（fix2）", () => {
   it("活动列表页不再出现 statusText 词形", () => {
     expect(read("app/work/campaigns/page.tsx")).not.toMatch(/\bstatusText\b/);
   });
+
+  it("admin 页面源不再出现 JSON.stringify，交接资料改字段呈现", () => {
+    const admin = read("app/admin/page.tsx");
+    expect(admin).not.toContain("JSON.stringify");
+    expect(admin).toContain("交接资料");
+    // 原始 JSON 不再整块塞给用户（fix2：raw_json_or_http_error 同模式清零）
+    expect(admin).not.toMatch(/<textarea/);
+  });
 });
 
 // HUI-2628 r3：票面「Empty/Loading/Error/Expired/Paused/Ended 状态完整」+ 2626 红线
