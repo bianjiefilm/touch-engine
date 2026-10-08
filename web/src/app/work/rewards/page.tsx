@@ -28,6 +28,7 @@ export default function RewardsPage() {
   const [rulesNote, setRulesNote] = useState("规则还没读取");
   const [reward, setReward] = useState<RewardView>({ status: "unknown" });
   const [separation, setSeparation] = useState("");
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -58,7 +59,7 @@ export default function RewardsPage() {
     return () => {
       alive = false;
     };
-  }, [session]);
+  }, [session, attempt]);
 
   useEffect(() => {
     if (!campaignId) return;
@@ -106,7 +107,12 @@ export default function RewardsPage() {
       <h1 className="tk-title">奖励和规则</h1>
       <p className="tk-lead">未知奖励不是已发放。核销没有事实时保持未知。这一页只读，不改门槛，也不发券。</p>
       {phase === "loading" ? <p className="tk-state" data-state="loading">{surfaceLabel("loading")}</p> : null}
-      {phase === "error" ? <p className="tk-state tk-danger" data-state="error">{error || surfaceLabel("error")}</p> : null}
+      {phase === "error" ? (
+        <p className="tk-state tk-danger" data-state="error">
+          {error || surfaceLabel("error")}
+          <button className="tk-quiet" type="button" data-action="retry" onClick={() => setAttempt((a) => a + 1)}>重试</button>
+        </p>
+      ) : null}
       {phase === "empty" ? <p className="tk-state" data-state="empty">还没有活动，所以没有可查看的奖励规则。</p> : null}
       {phase === "ready" ? (
         <>

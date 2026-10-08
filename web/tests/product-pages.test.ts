@@ -117,3 +117,38 @@ describe("顾客页没有生态导航和平台宣传", () => {
     expect(css).not.toMatch(/\.tk-unknown\s*\{[^}]*var\(--tk-ok\)/);
   });
 });
+
+// HUI-2628 r3：票面「Empty/Loading/Error/Expired/Paused/Ended 状态完整」+ 2626 红线
+// 「只有文字的 loading/empty」——错误态必须带可点的恢复动作（重试），不能只写「请重试」。
+describe("错误态有恢复动作", () => {
+  it("商家七个错误面都有可点的重试控件，不是只有文字", () => {
+    const surfaces = [
+      "components/work/today-desk.tsx",
+      "app/work/stores/page.tsx",
+      "app/work/campaigns/page.tsx",
+      "app/work/materials/page.tsx",
+      "app/work/rewards/page.tsx",
+      "app/work/analytics/page.tsx",
+      "app/work/campaigns/[id]/page.tsx",
+    ];
+    for (const rel of surfaces) {
+      const source = read(rel);
+      expect(source, rel).toContain('data-state="error"');
+      expect(source, `${rel} 缺重试控件`).toContain('data-action="retry"');
+    }
+  });
+
+  it("重试按钮用现有 token 类，不引入内联样式", () => {
+    for (const rel of [
+      "components/work/today-desk.tsx",
+      "app/work/stores/page.tsx",
+      "app/work/campaigns/page.tsx",
+      "app/work/materials/page.tsx",
+      "app/work/rewards/page.tsx",
+      "app/work/analytics/page.tsx",
+      "app/work/campaigns/[id]/page.tsx",
+    ]) {
+      expect(read(rel), rel).not.toMatch(/style=\{\{/);
+    }
+  });
+});

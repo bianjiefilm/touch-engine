@@ -17,6 +17,7 @@ export default function AnalyticsPage() {
   const [phase, setPhase] = useState<"loading" | "error" | "empty" | "ready">("loading");
   const [error, setError] = useState("");
   const [metrics, setMetrics] = useState<Metric[]>([]);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -47,14 +48,19 @@ export default function AnalyticsPage() {
     return () => {
       alive = false;
     };
-  }, [session]);
+  }, [session, attempt]);
 
   return (
     <main>
       <h1 className="tk-title">今天的统计</h1>
       <p className="tk-lead">只显示已经发生的碰、扫码、留资和接收。外部播放、发布和核销拿不到就是未知。</p>
       {phase === "loading" ? <p className="tk-state" data-state="loading">{surfaceLabel("loading")}</p> : null}
-      {phase === "error" ? <p className="tk-state tk-danger" data-state="error">{error || surfaceLabel("error")}</p> : null}
+      {phase === "error" ? (
+        <p className="tk-state tk-danger" data-state="error">
+          {error || surfaceLabel("error")}
+          <button className="tk-quiet" type="button" data-action="retry" onClick={() => setAttempt((a) => a + 1)}>重试</button>
+        </p>
+      ) : null}
       {phase === "empty" ? <p className="tk-state" data-state="empty">{error || "这个窗口还没有可读的统计。未知不写成 0。"}</p> : null}
       {phase === "ready" ? (
         <ul className="tk-list">

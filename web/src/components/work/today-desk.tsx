@@ -43,6 +43,7 @@ function TodayBody() {
   const [handoffId, setHandoffId] = useState("");
   const [campaignCount, setCampaignCount] = useState(0);
   const [notice, setNotice] = useState("");
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -82,7 +83,7 @@ function TodayBody() {
     return () => {
       alive = false;
     };
-  }, [session]);
+  }, [session, attempt]);
 
   return (
     <main className="tk-page">
@@ -96,7 +97,12 @@ function TodayBody() {
         <li><a href="/work/analytics">统计</a></li>
       </ul>
       {phase === "loading" ? <p className="tk-state" data-state="loading">{surfaceLabel("loading")}</p> : null}
-      {phase === "error" ? <p className="tk-state tk-danger" data-state="error">{surfaceLabel("error")}</p> : null}
+      {phase === "error" ? (
+        <p className="tk-state tk-danger" data-state="error">
+          {surfaceLabel("error")}
+          <button className="tk-quiet" type="button" data-action="retry" onClick={() => setAttempt((a) => a + 1)}>重试</button>
+        </p>
+      ) : null}
       {phase === "ready" ? (
         <>
           <p className="tk-lead">{items[0]?.title ?? "先看今天还没收口的事。"}</p>

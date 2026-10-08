@@ -77,7 +77,12 @@ export default function StoresPage() {
       <h1 className="tk-title">门店</h1>
       <p className="tk-lead">先确认顾客会走进哪一家店。停用只挡住新活动，不改已经发出去的活动。</p>
       {phase === "loading" ? <p className="tk-state" data-state="loading">{surfaceLabel("loading")}</p> : null}
-      {phase === "error" ? <p className="tk-state tk-danger" data-state="error">{error || surfaceLabel("error")}</p> : null}
+      {phase === "error" ? (
+        <p className="tk-state tk-danger" data-state="error">
+          {error || surfaceLabel("error")}
+          <button className="tk-quiet" type="button" data-action="retry" onClick={() => void load()}>重试</button>
+        </p>
+      ) : null}
       {phase === "empty" ? <p className="tk-state" data-state="empty">还没有门店。总部可以在下面登记第一家。</p> : null}
       {error && phase !== "error" ? <p className="tk-warn">{error}</p> : null}
       <ul className="tk-list">
