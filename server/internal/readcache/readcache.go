@@ -96,9 +96,17 @@ func (c *Cache[V]) epoch() uint64 {
 // current structural epoch. Everything else is a miss (and the stale entry
 // is dropped on sight).
 func (c *Cache[V]) Get(key string) (V, bool) {
+	return c.get(key, true)
+}
+
+// get is Get with an opt-out from miss accounting: the internal double-check
+// inside GetOrLoad must not count the same cold key as two misses.
+func (c *Cache[V]) get(key string, countMiss bool) (V, bool) {
 	var zero V
 	if c.disabled.Load() {
-		c.misses.Add(1)
+		if countMiss {
+			c.misses.Add(1)
+		}
 		return zero, false
 	}
 	now := c.now()
@@ -107,7 +115,9 @@ func (c *Cache[V]) Get(key string) (V, bool) {
 	el, ok := c.items[key]
 	if !ok {
 		c.mu.Unlock()
-		c.misses.Add(1)
+		if countMiss {
+			c.misses.Add(1)
+		}
 		return zero, false
 	}
 	e := el.Value.(*entry[V])
@@ -115,7 +125,9 @@ func (c *Cache[V]) Get(key string) (V, bool) {
 		c.lru.Remove(el)
 		delete(c.items, key)
 		c.mu.Unlock()
-		c.misses.Add(1)
+		if countMiss {
+			c.misses.Add(1)
+		}
 		return zero, false
 	}
 	c.lru.MoveToFront(el)
@@ -165,8 +177,9 @@ func (c *Cache[V]) GetOrLoad(key string, load func() (V, error)) (V, bool, error
 	}
 	v, err := c.flights.do(key, func() (V, error) {
 		// double-check: a concurrent flight may have filled the entry while
-		// this caller waited for the flight slot.
-		if v, ok := c.Get(key); ok {
+		// this caller waited for the flight slot. Not counted as another miss
+		// (the cold key was already accounted once by this caller's first Get).
+		if v, ok := c.get(key, false); ok {
 			return v, nil
 		}
 		c.loads.Add(1)

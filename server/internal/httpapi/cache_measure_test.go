@@ -476,6 +476,29 @@ func TestMeasureBaseline(t *testing.T) {
 		t.Skip("measurement harness; run with HUI2981_MEASURE=on")
 	}
 	env := newMeasureEnv(t, nil)
+	runMeasureWorkload(t, env, false)
+}
+
+// TestMeasureCacheOn is the C-case arm of the comparison: IDENTICAL seed and
+// load with FEATURE_PUBLIC_CACHE / FEATURE_DASHBOARD_CACHE on. Reports the
+// same metrics plus cache hit rates and loader (backfill) counts so the
+// before/after columns of the comparison report come from one harness.
+func TestMeasureCacheOn(t *testing.T) {
+	if os.Getenv("HUI2981_MEASURE") != "on" {
+		t.Skip("measurement harness; run with HUI2981_MEASURE=on")
+	}
+	env := newMeasureEnv(t, func(c *config.Config) {
+		c.FeaturePublicCache = true
+		c.FeatureDashboardCache = true
+	})
+	runMeasureWorkload(t, env, true)
+}
+
+// runMeasureWorkload is the shared A/C harness: warm-up, isolated per-request
+// SQL counts, then the hot-spot load (90/10) with a concurrent dashboard
+// reader on the same single SQLite connection.
+func runMeasureWorkload(t *testing.T, env *measureEnv, cacheOn bool) {
+	t.Helper()
 
 	// ---- warm-up: fill any lazily built structures (f.IDENTITY etc.) ----
 	for i := 0; i < 30; i++ {
@@ -506,6 +529,9 @@ func TestMeasureBaseline(t *testing.T) {
 		return sqlCount(env.counter) - before
 	}()
 	dash := func() int64 {
+		if cacheOn { // pre-warm so the isolated measure observes a HIT path
+			authedDashboard(env.ts.URL+"/api/v1/dashboard?window_start="+env.dashWindow[0]+"&window_end="+env.dashWindow[1], "sess-owner-a", env.tenantID, env.dashWindow[0], env.dashWindow[1])
+		}
 		before := sqlCount(env.counter)
 		st, _ := authedDashboard(env.ts.URL+"/api/v1/dashboard?window_start="+env.dashWindow[0]+"&window_end="+env.dashWindow[1], "sess-owner-a", env.tenantID, env.dashWindow[0], env.dashWindow[1])
 		if st != 200 {
@@ -540,50 +566,86 @@ func TestMeasureBaseline(t *testing.T) {
 		}
 	}()
 
-	perWorker := measureFlows / measureWorkers
-	start := time.Now()
-	var wg sync.WaitGroup
-	for w := 0; w < measureWorkers; w++ {
-		wg.Add(1)
-		go func(w int) {
-			defer wg.Done()
-			lrng := rand.New(rand.NewSource(int64(w)*7919 + 13))
-			for i := 0; i < perWorker; i++ {
-				var code string
-				if lrng.Intn(10) < 9 {
-					code = env.hotCodes[lrng.Intn(len(env.hotCodes))]
-				} else {
-					code = env.coldCodes[lrng.Intn(len(env.coldCodes))]
+	// runLoadPass is one full sweep of the flow load (deterministic per-worker
+	// seeds, identical shape every pass).
+	runLoadPass := func(pageLat, formLat, beaconLat *latencies) time.Duration {
+		perWorker := measureFlows / measureWorkers
+		start := time.Now()
+		var wg sync.WaitGroup
+		for w := 0; w < measureWorkers; w++ {
+			wg.Add(1)
+			go func(w int) {
+				defer wg.Done()
+				lrng := rand.New(rand.NewSource(int64(w)*7919 + 13))
+				for i := 0; i < perWorker; i++ {
+					var code string
+					if lrng.Intn(10) < 9 {
+						code = env.hotCodes[lrng.Intn(len(env.hotCodes))]
+					} else {
+						code = env.coldCodes[lrng.Intn(len(env.coldCodes))]
+					}
+					if st, d := guestGet(env.ts.URL + "/api/v1/public/links/" + code); st == 200 {
+						pageLat.add(d)
+					}
+					if st, d := guestGet(env.ts.URL + "/api/v1/public/links/" + code + "/lead-form"); st == 200 {
+						formLat.add(d)
+					}
+					if st, d := guestPost(env.ts.URL + "/api/v1/public/links/" + code + "/view-events"); st == 204 {
+						beaconLat.add(d)
+					}
 				}
-				if st, d := guestGet(env.ts.URL + "/api/v1/public/links/" + code); st == 200 {
-					pageLat.add(d)
-				}
-				if st, d := guestGet(env.ts.URL + "/api/v1/public/links/" + code + "/lead-form"); st == 200 {
-					formLat.add(d)
-				}
-				if st, d := guestPost(env.ts.URL + "/api/v1/public/links/" + code + "/view-events"); st == 204 {
-					beaconLat.add(d)
-				}
-			}
-		}(w)
+			}(w)
+		}
+		wg.Wait()
+		return time.Since(start)
 	}
-	wg.Wait()
+
+	pass2Page, pass2Form, pass2Beacon := &latencies{}, &latencies{}, &latencies{}
+	elapsed := runLoadPass(pageLat, formLat, beaconLat)
+	pass2Elapsed := time.Duration(0)
+	if cacheOn { // steady-state pass: same shape, warm cache
+		pass2Elapsed = runLoadPass(pass2Page, pass2Form, pass2Beacon)
+	}
 	close(stopDash)
 	dashWG.Wait()
-	elapsed := time.Since(start)
 
-	p50, p95, p99 := pageLat.report()
-	f50, f95, f99 := formLat.report()
-	b50, b95, b99 := beaconLat.report()
+	reportArm := func(tag string, pageLat, formLat, beaconLat *latencies, elapsed time.Duration) {
+		p50, p95, p99 := pageLat.report()
+		f50, f95, f99 := formLat.report()
+		b50, b95, b99 := beaconLat.report()
+		total := pageLat.len() + formLat.len() + beaconLat.len()
+		t.Logf("HUI2981-MEASURE arm=%s workload=%d flows, workers=%d, elapsed=%s, requests=%d (%.0f req/s)",
+			tag, measureFlows, measureWorkers, elapsed.Round(time.Millisecond), total, float64(total)/elapsed.Seconds())
+		t.Logf("HUI2981-PERC arm=%s page_get p50=%.3f p95=%.3f p99=%.3f ms (n=%d)", tag, p50, p95, p99, pageLat.len())
+		t.Logf("HUI2981-PERC arm=%s lead_form p50=%.3f p95=%.3f p99=%.3f ms (n=%d)", tag, f50, f95, f99, formLat.len())
+		t.Logf("HUI2981-PERC arm=%s view_beacon p50=%.3f p95=%.3f p99=%.3f ms (n=%d)", tag, b50, b95, b99, beaconLat.len())
+	}
 	d50, d95, d99 := dashLat.report()
-	total := pageLat.len() + formLat.len() + beaconLat.len()
-	t.Logf("HUI2981-MEASURE workload=%d flows, workers=%d, elapsed=%s, requests=%d (%.0f req/s)",
-		measureFlows, measureWorkers, elapsed.Round(time.Millisecond), total, float64(total)/elapsed.Seconds())
-	t.Logf("HUI2981-SQL page_get=%d stmts, lead_form=%d, view_beacon=%d, dashboard=%d", page, form, beacon, dash)
-	t.Logf("HUI2981-PERC page_get p50=%.3f p95=%.3f p99=%.3f ms (n=%d)", p50, p95, p99, pageLat.len())
-	t.Logf("HUI2981-PERC lead_form p50=%.3f p95=%.3f p99=%.3f ms (n=%d)", f50, f95, f99, formLat.len())
-	t.Logf("HUI2981-PERC view_beacon p50=%.3f p95=%.3f p99=%.3f ms (n=%d)", b50, b95, b99, beaconLat.len())
-	t.Logf("HUI2981-PERC dashboard p50=%.3f p95=%.3f p99=%.3f ms (n=%d)", d50, d95, d99, dashLat.len())
+	if cacheOn {
+		t.Logf("HUI2981-SQL arm=C page_get=%d stmts(hit), lead_form=%d, view_beacon=%d, dashboard=%d(hit)", page, form, beacon, dash)
+		t.Logf("HUI2981-PERC arm=C dashboard p50=%.3f p95=%.3f p99=%.3f ms (n=%d)", d50, d95, d99, dashLat.len())
+		reportArm("C-pass1-cold", pageLat, formLat, beaconLat, elapsed)
+		reportArm("C-pass2-steady", pass2Page, pass2Form, pass2Beacon, pass2Elapsed)
+	} else {
+		t.Logf("HUI2981-SQL arm=A page_get=%d stmts, lead_form=%d, view_beacon=%d, dashboard=%d", page, form, beacon, dash)
+		t.Logf("HUI2981-PERC arm=A dashboard p50=%.3f p95=%.3f p99=%.3f ms (n=%d)", d50, d95, d99, dashLat.len())
+		reportArm("A", pageLat, formLat, beaconLat, elapsed)
+	}
+	if cacheOn {
+		pubHits, pubMisses, pubLoads := env.s.PubCache.Hits(), env.s.PubCache.Misses(), env.s.PubCache.Loads()
+		dashHits, dashMisses, dashLoads := env.s.DashCache.Hits(), env.s.DashCache.Misses(), env.s.DashCache.Loads()
+		pubRate, dashRate := 0.0, 0.0
+		if pubHits+pubMisses > 0 {
+			pubRate = 100 * float64(pubHits) / float64(pubHits+pubMisses)
+		}
+		if dashHits+dashMisses > 0 {
+			dashRate = 100 * float64(dashHits) / float64(dashHits+dashMisses)
+		}
+		t.Logf("HUI2981-CACHE arm=C public hits=%d misses=%d loads=%d hit_rate=%.2f%% entries=%d",
+			pubHits, pubMisses, pubLoads, pubRate, env.s.PubCache.Len())
+		t.Logf("HUI2981-CACHE arm=C dashboard hits=%d misses=%d loads=%d hit_rate=%.2f%% entries=%d",
+			dashHits, dashMisses, dashLoads, dashRate, env.s.DashCache.Len())
+	}
 }
 
 // len returns the sample count.
