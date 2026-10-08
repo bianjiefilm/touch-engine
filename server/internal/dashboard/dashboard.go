@@ -128,6 +128,10 @@ type Response struct {
 	} `json:"scope"`
 	Metrics    []Metric                  `json:"metrics"`
 	Dimensions store.DashboardDimensions `json:"dimensions"`
+	// AsOf (HUI-2981, only present when the dashboard cache flag is on) is
+	// the moment the cached facts were computed (RFC3339 UTC): the honest
+	// "as of" of a rebuildable snapshot. Empty = computed fresh this request.
+	AsOf string `json:"as_of,omitempty"`
 }
 
 // unknownDefs: the external-platform metrics this ticket must name but cannot
