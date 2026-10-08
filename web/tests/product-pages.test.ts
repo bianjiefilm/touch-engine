@@ -123,8 +123,9 @@ describe("顾客页没有生态导航和平台宣传", () => {
 describe("交接动作有唯一实心主行动", () => {
   it("make_campaign_image 实心且带 data-primary-action，其余次级", () => {
     const src = read("components/admin/TaskHandoffActions.tsx");
-    expect(src).toMatch(/kind === "make_campaign_image" \? "tk-button" : "tk-quiet"/);
-    expect((src.match(/data-primary-action="true"/g) ?? []).length).toBe(1);
+    expect(src).toMatch(/const primary = kind === "make_campaign_image";/);
+    expect(src).toMatch(/className=\{primary \? "tk-button" : "tk-quiet"\}/);
+    expect(src).toMatch(/data-primary-action=\{primary \? "true" : undefined\}/);
   });
 });
 
