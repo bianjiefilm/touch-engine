@@ -57,6 +57,7 @@ func (s *Store) UpsertLeadForm(tenantID, campaignID, noticeVersion string, marke
 		if ierr != nil {
 			return LeadForm{}, ierr
 		}
+		s.bumpEpoch()
 		return f, nil
 	case err != nil:
 		return LeadForm{}, err
@@ -70,6 +71,9 @@ func (s *Store) UpsertLeadForm(tenantID, campaignID, noticeVersion string, marke
 	cur.UpdatedAt = now()
 	_, err = s.DB.Exec(`UPDATE lead_forms SET notice_version=?,marketing_optin_enabled=?,enabled=?,updated_at=? WHERE id=?`,
 		cur.NoticeVersion, boolInt(cur.MarketingOptinEnabled), boolInt(cur.Enabled), cur.UpdatedAt, cur.ID)
+	if err == nil {
+		s.bumpEpoch()
+	}
 	return cur, err
 }
 

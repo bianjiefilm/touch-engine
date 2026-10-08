@@ -68,6 +68,7 @@ func (s *Store) BindTenantBrand(tenantID, brandID string) error {
 	if n == 0 {
 		return ErrNotFound
 	}
+	s.bumpEpoch()
 	return nil
 }
 
@@ -85,6 +86,7 @@ func (s *Store) SetTenantLifecycle(tenantID, lifecycle string) error {
 	if n == 0 {
 		return ErrNotFound
 	}
+	s.bumpEpoch()
 	return nil
 }
 
@@ -97,6 +99,7 @@ func (s *Store) SetChargeHold(tenantID string, hold bool) error {
 	if n == 0 {
 		return ErrNotFound
 	}
+	s.bumpEpoch()
 	return nil
 }
 
@@ -111,6 +114,7 @@ func (s *Store) StampLinkBrand(linkID, tenantID, brandID, host string) error {
 	if n == 0 {
 		return ErrNotFound
 	}
+	s.bumpEpoch()
 	return nil
 }
 
