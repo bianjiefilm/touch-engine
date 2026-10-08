@@ -100,7 +100,7 @@ export default function CampaignsPage() {
           return (
             <li key={item.id}>
               <a href={`/work/campaigns/${item.id}`}>{item.title}</a>
-              <span className="tk-note"> {statusText(item.status)}</span>
+              <span className="tk-note"> {statusLabel(item.status)}</span>
               {item.status === "paused" ? <span data-state="paused" className="tk-unknown"> {surfaceLabel("paused")}</span> : null}
               {item.status === "ended" ? <span data-state="ended" className="tk-note"> {surfaceLabel("ended")}</span> : null}
               {expired ? <span data-state="expired" className="tk-unknown"> {surfaceLabel("expired")}</span> : null}
@@ -147,7 +147,7 @@ function labelFor(filter: string): string {
   return filter;
 }
 
-function statusText(status: string): string {
+function statusLabel(status: string): string {
   if (status === "draft") return "草稿";
   if (status === "active") return "进行中";
   if (status === "paused") return "暂停";

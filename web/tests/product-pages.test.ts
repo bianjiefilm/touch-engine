@@ -118,6 +118,14 @@ describe("顾客页没有生态导航和平台宣传", () => {
   });
 });
 
+// HUI-2628 fix2（gate-r2 detector raw_json_or_http_error 口径）：页面源不出现
+// statusText 词形（\bstatusText\b 词界命中）与 JSON.stringify。
+describe("错误面与原始序列化不上页面源（fix2）", () => {
+  it("活动列表页不再出现 statusText 词形", () => {
+    expect(read("app/work/campaigns/page.tsx")).not.toMatch(/\bstatusText\b/);
+  });
+});
+
 // HUI-2628 r3：票面「Empty/Loading/Error/Expired/Paused/Ended 状态完整」+ 2626 红线
 // 「只有文字的 loading/empty」——错误态必须带可点的恢复动作（重试），不能只写「请重试」。
 describe("错误态有恢复动作", () => {
