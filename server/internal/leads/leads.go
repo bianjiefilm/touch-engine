@@ -30,12 +30,11 @@ const ProfileVersion = "directed-event/v1"
 
 // Event types. lead.authorized_submitted is E4-frozen; lead.consent_revoked is
 // a PROVISIONAL extension of the frozen enum required by HUI-1747 (撤销/停止
-// 营销必须可送达目标域). Until E4 extends the enum upstream, a real platform
-// notify would reject the revoke event — acceptable for T1 because the local
-// block is immediate and the gap is documented in _reports.
+// 营销必须可送达目标域). platform-notify now admits the fact (public-ai
+// HUI-3013 PR #255), so a real notify accepts the revoke event end to end.
 const (
 	EventLeadAuthorizedSubmitted = "lead.authorized_submitted"
-	EventLeadConsentRevoked      = "lead.consent_revoked" // PROVISIONAL: pending E4 enum extension
+	EventLeadConsentRevoked      = "lead.consent_revoked" // accepted by platform-notify since HUI-3013 (PR #255)
 )
 
 // Sync states of a lead submission (lead_submissions.sync_state).
@@ -254,8 +253,14 @@ func (e *Envelope) ApplyBrandTemplate(displayName, notificationRef string) {
 
 // BuildRevokeEnvelope states the consent withdrawal / stop-marketing fact for a
 // previously delivered submission (higher source_version; the target's
-// monotonic guard makes stale replays of the submit fact inert).
-func BuildRevokeEnvelope(sourceApp, targetApp, tenantScope, campaignID, submissionRef, consentAt string, version int) Envelope {
+// monotonic guard makes stale replays of the submit fact inert). The record
+// contact values pin the same provenance hash the submit fact carried: the
+// target re-fetches the record and verifies payload_ref.sha256 before it
+// converges the withdrawal, so a hash that does not describe the served record
+// makes the revoke fact unfetchable (HUI-3013: the empty-record hash
+// dead-lettered every revocation with 409 payload_hash_mismatch once the
+// platform-notify enum admitted the fact).
+func BuildRevokeEnvelope(sourceApp, targetApp, tenantScope, campaignID, submissionRef, consentAt string, version int, name, phone, wechat string) Envelope {
 	e := Envelope{
 		EventProfile: EventProfile{
 			ProfileVersion: ProfileVersion,
@@ -267,7 +272,7 @@ func BuildRevokeEnvelope(sourceApp, targetApp, tenantScope, campaignID, submissi
 			SourceRef:      submissionRef,
 			SourceVersion:  version,
 			Correlation:    Correlation{Ref: campaignID},
-			PayloadRef:     PayloadRef{Ref: RecordRef(submissionRef), SHA256: RecordSHA256("", "", "")},
+			PayloadRef:     PayloadRef{Ref: RecordRef(submissionRef), SHA256: RecordSHA256(name, phone, wechat)},
 		},
 		Payload: PayloadMetadata{
 			CampaignRef: campaignID, SourceVersion: version,

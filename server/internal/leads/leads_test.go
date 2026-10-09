@@ -188,12 +188,23 @@ func TestScanForContactPIIReasons(t *testing.T) {
 }
 
 func TestRevokeEnvelopeHigherVersion(t *testing.T) {
-	e := BuildRevokeEnvelope("touch-engine", "crm-app", "tnt_1", "cmp_1", "sub_abc", "2026-09-19T00:00:00Z", 2)
+	e := BuildRevokeEnvelope("touch-engine", "crm-app", "tnt_1", "cmp_1", "sub_abc", "2026-09-19T00:00:00Z", 2, "访客甲", "13800001234", "")
 	if e.EventProfile.EventType != EventLeadConsentRevoked {
 		t.Fatalf("event type = %q", e.EventProfile.EventType)
 	}
 	if e.EventProfile.SourceVersion != 2 || !e.Payload.Revoked {
 		t.Fatalf("revoke = %+v", e)
+	}
+	// HUI-3013: the target re-fetches the record and verifies payload_ref.sha256
+	// against the fetched values BEFORE it converges the withdrawal. The revoke
+	// fact must therefore pin the SAME record provenance hash as the submit
+	// fact; an empty-record hash is a guaranteed 409 payload_hash_mismatch and
+	// the revoke dead-letters (observed end to end).
+	if want := RecordSHA256("访客甲", "13800001234", ""); e.EventProfile.PayloadRef.SHA256 != want {
+		t.Fatalf("payload sha = %q, want record provenance hash %q", e.EventProfile.PayloadRef.SHA256, want)
+	}
+	if e.EventProfile.PayloadRef.SHA256 == RecordSHA256("", "", "") {
+		t.Fatal("empty-record hash must never travel on a revoke fact")
 	}
 	b, err := MarshalEnvelope(e)
 	if err != nil {
