@@ -361,7 +361,8 @@ func (s *Server) handlePublicLeadRevoke(w http.ResponseWriter, r *http.Request) 
 	revokeVersion := lead.SourceVersion + 1
 	revokeEnv := leads.BuildRevokeEnvelope(
 		s.Cfg.AppID, s.Cfg.LeadsTargetApp, lead.TenantID, lead.CampaignID,
-		lead.SubmissionRef, lead.ConsentAt, revokeVersion)
+		lead.SubmissionRef, lead.ConsentAt, revokeVersion,
+		lead.Name, lead.Phone, lead.Wechat)
 	revokePayload, err := leads.MarshalEnvelope(revokeEnv)
 	if err != nil {
 		fail(w, http.StatusInternalServerError, "internal", "revoke fact refused by PII scan")
