@@ -30,12 +30,11 @@ const ProfileVersion = "directed-event/v1"
 
 // Event types. lead.authorized_submitted is E4-frozen; lead.consent_revoked is
 // a PROVISIONAL extension of the frozen enum required by HUI-1747 (撤销/停止
-// 营销必须可送达目标域). Until E4 extends the enum upstream, a real platform
-// notify would reject the revoke event — acceptable for T1 because the local
-// block is immediate and the gap is documented in _reports.
+// 营销必须可送达目标域). platform-notify now admits the fact (public-ai
+// HUI-3013 PR #255), so a real notify accepts the revoke event end to end.
 const (
 	EventLeadAuthorizedSubmitted = "lead.authorized_submitted"
-	EventLeadConsentRevoked      = "lead.consent_revoked" // PROVISIONAL: pending E4 enum extension
+	EventLeadConsentRevoked      = "lead.consent_revoked" // accepted by platform-notify since HUI-3013 (PR #255)
 )
 
 // Sync states of a lead submission (lead_submissions.sync_state).
