@@ -101,7 +101,9 @@ type Config struct {
 
 	// PublicPermissionURL and MatrixDraftURL are optional supply bases.
 	// Empty means that supply is missing: the server still starts, and only
-	// the matrix button is disabled. These are not part of Gate.
+	// the matrix button is disabled. These are not part of Gate and are not
+	// a production default. Local acceptance may set both to
+	// http://127.0.0.1:18741, which dials only while that process is listening.
 	PublicPermissionURL string
 	MatrixDraftURL      string
 

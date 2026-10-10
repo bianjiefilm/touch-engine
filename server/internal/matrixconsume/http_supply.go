@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -45,11 +46,13 @@ func (h *httpPermission) Decide(ctx context.Context, principalID, tenantID, bran
 	}
 	res, err := h.http().Do(req)
 	if err != nil {
+		log.Printf("matrixconsume: dial permission %s error=%v", u.String(), err)
 		return Permission{Supply: SupplyMissing, Reason: ReasonPermissionSupply}, nil
 	}
 	defer res.Body.Close()
 	body, _ := io.ReadAll(io.LimitReader(res.Body, 1<<20))
 	if res.StatusCode != http.StatusOK {
+		log.Printf("matrixconsume: dial permission %s status=%d", u.String(), res.StatusCode)
 		return Permission{Supply: SupplyMissing, Reason: ReasonPermissionSupply}, nil
 	}
 	var parsed struct {
@@ -58,8 +61,10 @@ func (h *httpPermission) Decide(ctx context.Context, principalID, tenantID, bran
 		Reason  string `json:"reason"`
 	}
 	if err := json.Unmarshal(body, &parsed); err != nil || parsed.Supply == "" {
+		log.Printf("matrixconsume: dial permission %s status=%d supply=missing", u.String(), res.StatusCode)
 		return Permission{Supply: SupplyMissing, Reason: ReasonPermissionSupply}, nil
 	}
+	log.Printf("matrixconsume: dial permission %s status=%d supply=%s", u.String(), res.StatusCode, parsed.Supply)
 	return Permission{Allowed: parsed.Allowed, Supply: parsed.Supply, Reason: parsed.Reason}, nil
 }
 
@@ -104,11 +109,13 @@ func (h *httpDraft) PutDraft(ctx context.Context, doc matrixhandoff.Draft) (Draf
 	}
 	res, err := client.Do(req)
 	if err != nil {
+		log.Printf("matrixconsume: dial draft %s error=%v", h.base+"/drafts", err)
 		return DraftAck{}, err
 	}
 	defer res.Body.Close()
 	raw, _ := io.ReadAll(io.LimitReader(res.Body, 1<<20))
 	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusCreated {
+		log.Printf("matrixconsume: dial draft %s status=%d", h.base+"/drafts", res.StatusCode)
 		return DraftAck{}, errors.New("matrixconsume: matrix supply missing")
 	}
 	var ack struct {
@@ -123,6 +130,7 @@ func (h *httpDraft) PutDraft(ctx context.Context, doc matrixhandoff.Draft) (Draf
 	if status == "published" || status == "executed" {
 		ack.Executed = true
 	}
+	log.Printf("matrixconsume: dial draft %s status=%d plan_id=%s draft_status=%s executed=%t", h.base+"/drafts", res.StatusCode, ack.PlanID, ack.Status, ack.Executed)
 	return DraftAck{PlanID: ack.PlanID, Status: ack.Status, Executed: ack.Executed}, nil
 }
 
