@@ -14,7 +14,15 @@ import { copyJobClosed, copyJobKey, copyUsability, handoffHasFormalJump } from "
 import { acceptTenantPayload } from "@/lib/eco-nav/touch-shell";
 import { failureText } from "@/lib/failure-copy";
 import { toJsonBody } from "@/lib/http-json";
-import { resolveWorkspaceTenant, type MembershipScope } from "@/lib/workspace-tenant";
+import {
+  beginTenantOp,
+  currentTenantOp,
+  decideTenantConfirm,
+  resolveWorkspaceTenant,
+  TENANT_STORAGE_KEY,
+  writeTenantMemory,
+  type MembershipScope,
+} from "@/lib/workspace-tenant";
 
 interface Campaign {
   id: string;
@@ -70,8 +78,6 @@ interface AssetRec {
   asset_id: string;
   version: string;
 }
-
-const TENANT_KEY = "touch_admin_tenant";
 
 // fix2：交接资料字段呈现（server/internal/copydraft Handoff 的 JSON 字段名 → 中文标签）
 type ProfessionalHandoff = Record<string, unknown> & {
@@ -177,9 +183,54 @@ export default function AdminPage() {
   const tenantRef = useRef(tenantId);
   tenantRef.current = tenantId;
 
+  const confirmAdminTenant = useCallback(async (seq: number, tenantId: string, displayName: string, roleHint: string, items: MembershipScope[]) => {
+    let res: Response;
+    try {
+      res = await fetch("/api/whoami", { headers: { "x-tenant-id": tenantId } });
+    } catch {
+      if (seq !== currentTenantOp()) return;
+      writeTenantMemory("reject", tenantId, window.localStorage);
+      setRole("");
+      setTenantId("");
+      setTenantName("");
+      setError("没有读到当前组织。没有沿用上一户的数据。");
+      setOrgPhase("login");
+      return;
+    }
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    const decision = decideTenantConfirm({
+      seq,
+      whoamiOk: res.ok,
+      enabled: data.enabled,
+      role: data.role,
+      tenantId,
+      items,
+    });
+    if (decision === "stale") return;
+    writeTenantMemory(decision, tenantId, window.localStorage);
+    if (decision !== "accept") {
+      setRole("");
+      setTenantId("");
+      setTenantName("");
+      setError("没有读到当前组织。没有沿用上一户的数据。");
+      setOrgPhase("login");
+      return;
+    }
+    const role = typeof data.role === "string" && data.role ? data.role : roleHint;
+    const name = typeof data.tenant_name === "string" && data.tenant_name ? data.tenant_name : displayName;
+    tenantRef.current = tenantId;
+    setTenantId(tenantId);
+    setTenantName(name);
+    setRole(role);
+    setError("");
+    setOrgPhase("ready");
+  }, []);
+
   const loadMemberships = useCallback(async () => {
-    const remembered = window.localStorage.getItem(TENANT_KEY);
+    const seq = beginTenantOp();
+    const remembered = window.localStorage.getItem(TENANT_STORAGE_KEY);
     const res = await fetch("/api/session/memberships");
+    if (seq !== currentTenantOp()) return;
     const data = (await res.json().catch(() => ({}))) as { items?: MembershipScope[] };
     if (!res.ok) {
       setRole("");
@@ -190,18 +241,14 @@ export default function AdminPage() {
     setScopes(items);
     const resolved = resolveWorkspaceTenant(items, remembered);
     if (resolved.status === "selected") {
-      tenantRef.current = resolved.tenantId;
-      setTenantId(resolved.tenantId);
-      setTenantName(resolved.displayName);
-      setRole(resolved.role);
-      window.localStorage.setItem(TENANT_KEY, resolved.tenantId);
-      setOrgPhase("ready");
+      await confirmAdminTenant(seq, resolved.tenantId, resolved.displayName, resolved.role, items);
       return;
     }
+    if (seq !== currentTenantOp()) return;
     setRole("");
     setTenantId("");
     setOrgPhase(resolved.status === "choose" ? "choose" : "none");
-  }, []);
+  }, [confirmAdminTenant]);
 
   useEffect(() => {
     void loadMemberships();
@@ -332,9 +379,10 @@ export default function AdminPage() {
   }, [api, tenantId, loadTags]);
 
   function switchMerchant(nextTenantId: string) {
-    const hit = scopes.find((item) => item.enabled && item.source === "membership" && item.tenant_id === nextTenantId);
+    const items = scopes;
+    const hit = items.find((item) => item.enabled && item.source === "membership" && item.tenant_id === nextTenantId);
     if (!hit) return;
-    tenantRef.current = hit.tenant_id;
+    const seq = beginTenantOp();
     setCampaigns([]);
     setStores([]);
     setQrFor(null);
@@ -352,11 +400,11 @@ export default function AdminPage() {
     setCopyJob(null);
     setCopyJobBound("");
     setCopyError("");
-    setTenantId(hit.tenant_id);
-    setTenantName(hit.display_name);
-    setRole(hit.role);
-    setOrgPhase("ready");
-    localStorage.setItem(TENANT_KEY, hit.tenant_id);
+    setRole("");
+    setTenantId("");
+    setTenantName("");
+    setOrgPhase("boot");
+    void confirmAdminTenant(seq, hit.tenant_id, hit.display_name, hit.role, items);
   }
 
   useEffect(() => {

@@ -32,6 +32,7 @@ describe("活动到产品图的候选入口", () => {
   it("上游声称已生成或已发布时拒绝接收", () => {
     const launch = launchCampaignImage(input);
     expect(() => receiveCandidate({ generated: true }, launch)).toThrow("upstream_claimed_generation");
+    expect(() => receiveCandidate({ status: "generated" }, launch)).toThrow("upstream_claimed_generation");
     expect(() => receiveCandidate({ status: "published" }, launch)).toThrow("upstream_claimed_generation");
     expect(receiveCandidate({ status: "draft" }, launch).generated).toBe(false);
   });

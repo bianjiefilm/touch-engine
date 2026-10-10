@@ -78,12 +78,14 @@ type countingSink struct {
 	puts      int
 	available bool
 	ack       matrixconsume.DraftAck
+	last      matrixhandoff.Draft
 }
 
 func (c *countingSink) Available() bool { return c.available }
 
-func (c *countingSink) PutDraft(context.Context, matrixhandoff.Draft) (matrixconsume.DraftAck, error) {
+func (c *countingSink) PutDraft(_ context.Context, doc matrixhandoff.Draft) (matrixconsume.DraftAck, error) {
 	c.puts++
+	c.last = doc
 	return c.ack, nil
 }
 
@@ -107,8 +109,19 @@ func TestMatrixDraftMissingSupplyDisablesOnlyThatButton(t *testing.T) {
 	matrix, _ := body["matrix_button"].(map[string]any)
 	lead, _ := body["lead_button"].(map[string]any)
 	ugc, _ := body["ugc_button"].(map[string]any)
-	if matrix["enabled"] != false || matrix["reason"] != matrixconsume.ReasonPermissionSupply || lead["enabled"] != true || ugc["enabled"] != true {
+	if matrix["enabled"] != false || matrix["reason"] != matrixconsume.ReasonPermissionSupply || lead["enabled"] != false || ugc["enabled"] != true {
 		t.Fatalf("buttons = %v", body)
+	}
+	enableLeadSurface(f)
+	if _, err := f.s.St.UpsertLeadForm(f.tenA, camp.ID, "v1", false, f.ownA); err != nil {
+		t.Fatal(err)
+	}
+	status, _, body = f.do(t, "POST", "/api/v1/campaigns/"+camp.ID+"/matrix-draft", "sess-owner-a", f.tenA, "")
+	lead, _ = body["lead_button"].(map[string]any)
+	ugc, _ = body["ugc_button"].(map[string]any)
+	matrix, _ = body["matrix_button"].(map[string]any)
+	if status != 200 || matrix["enabled"] != false || lead["enabled"] != true || ugc["enabled"] != true {
+		t.Fatalf("open lead form = %d %v", status, body)
 	}
 	if strings.Contains(stringMust(body["copy"]), "发布成功") || strings.Contains(stringMust(body["copy"]), "外发完成") {
 		t.Fatalf("copy = %v", body["copy"])
@@ -120,7 +133,11 @@ func TestMatrixDraftRecordsDraftNotOutbound(t *testing.T) {
 	sink := &countingSink{available: true, ack: matrixconsume.DraftAck{PlanID: "pln_http", Status: matrixhandoff.StatusDraft, Executed: false}}
 	effects := &matrixhandoff.EffectSink{}
 	f.s.Matrix = readyMatrix(sink, effects)
+	enableLeadSurface(f)
 	camp := seedMatrixCampaign(t, f, time.Now().Add(48*time.Hour).UTC().Format(time.RFC3339), true)
+	if _, err := f.s.St.UpsertLeadForm(f.tenA, camp.ID, "v1", false, f.ownA); err != nil {
+		t.Fatal(err)
+	}
 
 	status, _, body := f.do(t, "POST", "/api/v1/campaigns/"+camp.ID+"/matrix-draft", "sess-owner-a", f.tenA, `{"brand_id":"forged","sha256":"00"}`)
 	if status != 200 || body["outbound_complete"] != false {
@@ -139,12 +156,82 @@ func TestMatrixDraftRecordsDraftNotOutbound(t *testing.T) {
 	if strings.Contains(copy, "发布成功") || strings.Contains(copy, "外发完成") || effects.LeadWrites != 0 || effects.UGCWrites != 0 || effects.RewardWrites != 0 {
 		t.Fatalf("copy %q effects %+v", copy, effects)
 	}
+	if sink.last.Activity.Version != 3 || len(sink.last.Activity.AssetHashes) != 1 || sink.last.Activity.AssetHashes[0] != strings.Repeat("ab", 32) || sink.last.Activity.Disclosure == "" || sink.last.ReturnLocationToken == "" || sink.last.Activity.OfferExpiry.IsZero() {
+		t.Fatalf("posted draft = %+v", sink.last)
+	}
+	kept := f.s.Matrix.Drafts()
+	if len(kept) != 1 || kept[0].ID != body["draft_id"] || kept[0].Activity.Version != 3 || kept[0].Activity.AssetHashes[0] != strings.Repeat("ab", 32) {
+		t.Fatalf("stored drafts = %+v", kept)
+	}
+	if status, _, again := f.do(t, "POST", "/api/v1/campaigns/"+camp.ID+"/matrix-draft", "sess-owner-a", f.tenA, ""); status != 200 || again["draft_id"] != body["draft_id"] || len(f.s.Matrix.Drafts()) != 1 {
+		t.Fatalf("replay = %d %v drafts %d", status, again, len(f.s.Matrix.Drafts()))
+	}
 
-	if status, _, denied := f.do(t, "POST", "/api/v1/campaigns/"+camp.ID+"/matrix-draft", "sess-owner-b", f.tenB, ""); status != 404 || sink.puts != 1 {
+	if status, _, denied := f.do(t, "POST", "/api/v1/campaigns/"+camp.ID+"/matrix-draft", "sess-owner-b", f.tenB, ""); status != 404 || sink.puts != 2 {
 		t.Fatalf("cross tenant = %d %v puts %d", status, denied, sink.puts)
 	}
-	if status, _, staff := f.do(t, "POST", "/api/v1/campaigns/"+camp.ID+"/matrix-draft", "sess-staff-a", f.tenA, ""); status != 422 || staff["outbound_complete"] != false || sink.puts != 1 {
+	if status, _, staff := f.do(t, "POST", "/api/v1/campaigns/"+camp.ID+"/matrix-draft", "sess-staff-a", f.tenA, ""); status != 422 || staff["outbound_complete"] != false || sink.puts != 2 {
 		t.Fatalf("staff = %d %v puts %d", status, staff, sink.puts)
+	}
+}
+
+func TestMatrixDraftRejectsDisabledMemberBeforeSupply(t *testing.T) {
+	f := newFixture(t, false)
+	sink := &countingSink{available: true, ack: matrixconsume.DraftAck{PlanID: "pln_http", Status: matrixhandoff.StatusDraft}}
+	f.s.Matrix = readyMatrix(sink, &matrixhandoff.EffectSink{})
+	camp := seedMatrixCampaign(t, f, time.Now().Add(48*time.Hour).UTC().Format(time.RFC3339), true)
+	members, err := f.s.St.ListMembers(f.tenA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var id string
+	for _, m := range members {
+		if m.PrincipalRef == f.ownA && m.Role == "org_owner" {
+			id = m.ID
+		}
+	}
+	off := false
+	if _, err := f.s.St.UpdateMember(id, nil, &off, nil); err != nil {
+		t.Fatal(err)
+	}
+	status, _, body := f.do(t, "POST", "/api/v1/campaigns/"+camp.ID+"/matrix-draft", "sess-owner-a", f.tenA, "")
+	if status != 403 || body["error"] != "member_disabled" || sink.puts != 0 || len(f.s.Matrix.Drafts()) != 0 {
+		t.Fatalf("disabled = %d %v puts %d", status, body, sink.puts)
+	}
+}
+
+func TestMatrixDraftEmptyEndsDoesNotInventExpiry(t *testing.T) {
+	f := newFixture(t, false)
+	sink := &countingSink{available: true, ack: matrixconsume.DraftAck{PlanID: "pln_http", Status: matrixhandoff.StatusDraft}}
+	f.s.Matrix = readyMatrix(sink, &matrixhandoff.EffectSink{})
+	camp := seedMatrixCampaign(t, f, "", true)
+	status, _, body := f.do(t, "POST", "/api/v1/campaigns/"+camp.ID+"/matrix-draft", "sess-owner-a", f.tenA, "")
+	matrix, _ := body["matrix_button"].(map[string]any)
+	if status != 200 || matrix["enabled"] != false || matrix["reason"] != matrixhandoff.ReasonOfferExpired || sink.puts != 0 || len(f.s.Matrix.Drafts()) != 0 {
+		t.Fatalf("empty ends = %d %v", status, body)
+	}
+	if status, _, again := f.do(t, "POST", "/api/v1/campaigns/"+camp.ID+"/matrix-draft", "sess-owner-a", f.tenA, ""); status != 200 || again["draft_id"] != "" || sink.puts != 0 {
+		t.Fatalf("second empty ends = %d %v puts %d", status, again, sink.puts)
+	}
+}
+
+func TestMatrixDraftLibraryErrorIsNotMissingVideo(t *testing.T) {
+	f := newFixture(t, false)
+	sink := &countingSink{available: true, ack: matrixconsume.DraftAck{PlanID: "pln_http", Status: matrixhandoff.StatusDraft}}
+	f.s.Matrix = readyMatrix(sink, &matrixhandoff.EffectSink{})
+	camp := seedMatrixCampaign(t, f, time.Now().Add(48*time.Hour).UTC().Format(time.RFC3339), true)
+	if _, err := f.s.St.DB.Exec(`ALTER TABLE lib_assets RENAME TO lib_assets_down`); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = f.s.St.DB.Exec(`ALTER TABLE lib_assets_down RENAME TO lib_assets`)
+	})
+	status, _, body := f.do(t, "POST", "/api/v1/campaigns/"+camp.ID+"/matrix-draft", "sess-owner-a", f.tenA, "")
+	if status != 500 || body["error"] != "internal" || sink.puts != 0 {
+		t.Fatalf("library error = %d %v", status, body)
+	}
+	if matrix, _ := body["matrix_button"].(map[string]any); matrix["reason"] == matrixhandoff.ReasonNeedsVideo {
+		t.Fatalf("library error disguised as needs_video: %v", body)
 	}
 }
 
@@ -152,8 +239,12 @@ func TestMatrixDraftBlocksExpiredAndMissingVideo(t *testing.T) {
 	f := newFixture(t, false)
 	sink := &countingSink{available: true, ack: matrixconsume.DraftAck{PlanID: "pln_http", Status: matrixhandoff.StatusDraft}}
 	f.s.Matrix = readyMatrix(sink, &matrixhandoff.EffectSink{})
+	enableLeadSurface(f)
 
 	expired := seedMatrixCampaign(t, f, time.Now().Add(-time.Hour).UTC().Format(time.RFC3339), true)
+	if _, err := f.s.St.UpsertLeadForm(f.tenA, expired.ID, "v1", false, f.ownA); err != nil {
+		t.Fatal(err)
+	}
 	status, _, body := f.do(t, "POST", "/api/v1/campaigns/"+expired.ID+"/matrix-draft", "sess-owner-a", f.tenA, "")
 	matrix, _ := body["matrix_button"].(map[string]any)
 	if status != 200 || matrix["reason"] != matrixhandoff.ReasonOfferExpired || sink.puts != 0 || body["outbound_complete"] != false {
@@ -161,10 +252,14 @@ func TestMatrixDraftBlocksExpiredAndMissingVideo(t *testing.T) {
 	}
 
 	plain := seedMatrixCampaign(t, f, time.Now().Add(48*time.Hour).UTC().Format(time.RFC3339), false)
+	if _, err := f.s.St.UpsertLeadForm(f.tenA, plain.ID, "v1", false, f.ownA); err != nil {
+		t.Fatal(err)
+	}
 	status, _, body = f.do(t, "POST", "/api/v1/campaigns/"+plain.ID+"/matrix-draft", "sess-owner-a", f.tenA, "")
 	matrix, _ = body["matrix_button"].(map[string]any)
 	lead, _ := body["lead_button"].(map[string]any)
-	if status != 200 || matrix["reason"] != matrixhandoff.ReasonNeedsVideo || lead["enabled"] != true || sink.puts != 0 {
+	ugc, _ := body["ugc_button"].(map[string]any)
+	if status != 200 || matrix["reason"] != matrixhandoff.ReasonNeedsVideo || lead["enabled"] != true || ugc["enabled"] != true || sink.puts != 0 {
 		t.Fatalf("needs video = %d %v", status, body)
 	}
 }
@@ -200,6 +295,14 @@ func seedMatrixCampaign(t *testing.T, f *fixture, endsAt string, withVideo bool)
 		t.Fatal(err)
 	}
 	return camp
+}
+
+func enableLeadSurface(f *fixture) {
+	f.s.Cfg.FeatureLeadsCapture = true
+	f.s.Cfg.NotifyBaseURL = "http://notify.test"
+	f.s.Cfg.NotifyToken = "notify-token"
+	f.s.Cfg.LeadsTargetApp = "leads-app"
+	f.s.Cfg.LeadsPhonePepper = "pepper"
 }
 
 func stringMust(v any) string {

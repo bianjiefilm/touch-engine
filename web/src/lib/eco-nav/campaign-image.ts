@@ -194,7 +194,7 @@ export function launchCampaignImage(input: CampaignImageLaunchInput): CampaignIm
 // receiveCandidate keeps a returned reference beside the official row.
 // An upstream claim of generation or publish is refused.
 export function receiveCandidate(upstream: Record<string, unknown>, launch: CampaignImageLaunch): CampaignImageLaunch {
-  if (upstream.executed === true || upstream.generated === true || upstream.status === "published" || upstream.status === "executed") {
+  if (upstream.executed === true || upstream.generated === true || upstream.status === "published" || upstream.status === "executed" || upstream.status === "generated") {
     throw new Error("upstream_claimed_generation");
   }
   return { ...launch, candidate: true, generated: false, charges_customer: false };

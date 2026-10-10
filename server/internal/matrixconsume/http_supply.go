@@ -89,12 +89,7 @@ func (h *httpDraft) PutDraft(ctx context.Context, doc matrixhandoff.Draft) (Draf
 	if !h.Available() {
 		return DraftAck{}, errors.New("matrixconsume: matrix supply missing")
 	}
-	payload, err := json.Marshal(map[string]any{
-		"activity_id": doc.Activity.ActivityID,
-		"tenant_id":   doc.Activity.TenantID,
-		"brand_id":    doc.Activity.BrandID,
-		"copy":        doc.Copy,
-	})
+	payload, err := json.Marshal(draftPostBody(doc))
 	if err != nil {
 		return DraftAck{}, err
 	}
@@ -129,4 +124,37 @@ func (h *httpDraft) PutDraft(ctx context.Context, doc matrixhandoff.Draft) (Draf
 		ack.Executed = true
 	}
 	return DraftAck{PlanID: ack.PlanID, Status: ack.Status, Executed: ack.Executed}, nil
+}
+
+// draftPostBody is the matrix draft document. ActivityVersion is the integer
+// campaign-asset version (non-numeric versions are already 1). sha256 is the
+// library hash. Offer expiry, disclosure and return location travel with it.
+func draftPostBody(doc matrixhandoff.Draft) map[string]any {
+	version := doc.Activity.Version
+	if version < 1 {
+		version = 1
+	}
+	sha := ""
+	assetID := ""
+	if len(doc.Activity.AssetHashes) > 0 {
+		sha = doc.Activity.AssetHashes[0]
+	}
+	if len(doc.Activity.AssetIDs) > 0 {
+		assetID = doc.Activity.AssetIDs[0]
+	}
+	return map[string]any{
+		"activity_id":           doc.Activity.ActivityID,
+		"tenant_id":             doc.Activity.TenantID,
+		"brand_id":              doc.Activity.BrandID,
+		"store_id":              doc.Activity.StoreID,
+		"copy":                  doc.Copy,
+		"activity_version":      version,
+		"sha256":                sha,
+		"asset_id":              assetID,
+		"asset_hashes":          doc.Activity.AssetHashes,
+		"offer_text":            doc.Activity.OfferText,
+		"offer_expiry":          doc.Activity.OfferExpiry,
+		"disclosure":            doc.Activity.Disclosure,
+		"return_location_token": doc.ReturnLocationToken,
+	}
 }

@@ -26,6 +26,52 @@ function usable(scopes: MembershipScope[] | null | undefined): MembershipScope[]
   return out;
 }
 
+export const TENANT_STORAGE_KEY = "touch_admin_tenant";
+
+export type TenantMemory = {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+  removeItem(key: string): void;
+};
+
+export type TenantConfirm = "stale" | "accept" | "reject";
+
+let tenantOp = 0;
+
+export function beginTenantOp(): number {
+  tenantOp += 1;
+  return tenantOp;
+}
+
+export function currentTenantOp(): number {
+  return tenantOp;
+}
+
+export function decideTenantConfirm(input: {
+  seq: number;
+  whoamiOk: boolean;
+  enabled: unknown;
+  role: unknown;
+  tenantId: string;
+  items: MembershipScope[] | null | undefined;
+}): TenantConfirm {
+  if (input.seq !== tenantOp) return "stale";
+  const role = typeof input.role === "string" ? input.role.trim() : "";
+  const id = input.tenantId.trim();
+  const listed = (input.items ?? []).some((item) => item.tenant_id === id && item.enabled === true && item.source === "membership");
+  if (!input.whoamiOk || input.enabled !== true || role === "" || !listed) return "reject";
+  return "accept";
+}
+
+export function writeTenantMemory(decision: TenantConfirm, tenantId: string, memory: TenantMemory): void {
+  if (decision === "stale") return;
+  if (decision === "accept") {
+    memory.setItem(TENANT_STORAGE_KEY, tenantId);
+    return;
+  }
+  if (memory.getItem(TENANT_STORAGE_KEY) === tenantId) memory.removeItem(TENANT_STORAGE_KEY);
+}
+
 export function resolveWorkspaceTenant(
   scopes: MembershipScope[] | null | undefined,
   remembered?: string | null,

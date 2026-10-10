@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/bianjiefilm/touch-engine/server/internal/assetlib"
+	"github.com/bianjiefilm/touch-engine/server/internal/custpublish"
 	"github.com/bianjiefilm/touch-engine/server/internal/matrixconsume"
 	"github.com/bianjiefilm/touch-engine/server/internal/matrixhandoff"
 	"github.com/bianjiefilm/touch-engine/server/internal/store"
@@ -24,6 +25,10 @@ func (s *Server) handleMatrixDraft(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusForbidden, "not_member", "principal is not a member of this tenant")
 		return
 	}
+	if !c.Member.Enabled {
+		fail(w, http.StatusForbidden, "member_disabled", "member disabled")
+		return
+	}
 	camp, err := s.St.GetCampaign(r.PathValue("id"), c.Member.TenantID)
 	if errors.Is(err, store.ErrNotFound) {
 		fail(w, http.StatusNotFound, "not_found", "campaign not found")
@@ -33,13 +38,13 @@ func (s *Server) handleMatrixDraft(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusInternalServerError, "internal", "campaign lookup failed")
 		return
 	}
-	surfaces := matrixconsume.Surfaces{LeadEnabled: true, UGCEnabled: true}
+	surfaces, err := s.matrixSurfaces(camp)
+	if err != nil {
+		fail(w, http.StatusInternalServerError, "internal", "surface lookup failed")
+		return
+	}
 	if s.Matrix == nil {
-		writeMatrixOutcome(w, http.StatusOK, matrixconsume.Outcome{
-			MatrixButton: matrixconsume.Button{Enabled: false, Reason: matrixconsume.ReasonPermissionSupply},
-			LeadButton:   matrixconsume.Button{Enabled: true},
-			UGCButton:    matrixconsume.Button{Enabled: true},
-		})
+		writeMatrixOutcome(w, http.StatusOK, disabledMatrix(surfaces, matrixconsume.ReasonPermissionSupply))
 		return
 	}
 	tenant, err := s.St.GetTenant(c.Member.TenantID)
@@ -65,7 +70,11 @@ func (s *Server) handleMatrixDraft(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusInternalServerError, "internal", "asset lookup failed")
 		return
 	}
-	video, version, found := s.matrixVideo(camp.TenantID, assets)
+	video, version, found, err := s.matrixVideo(camp.TenantID, assets)
+	if err != nil {
+		fail(w, http.StatusInternalServerError, "internal", "asset library lookup failed")
+		return
+	}
 	if !found {
 		writeMatrixOutcome(w, http.StatusOK, disabledMatrix(surfaces, matrixhandoff.ReasonNeedsVideo))
 		return
@@ -126,7 +135,7 @@ func writeMatrixOutcome(w http.ResponseWriter, status int, out matrixconsume.Out
 func matrixOfferExpiry(endsAt string, now time.Time) (time.Time, bool) {
 	endsAt = strings.TrimSpace(endsAt)
 	if endsAt == "" {
-		return now.Add(30 * 24 * time.Hour), true
+		return time.Time{}, false
 	}
 	t, err := time.Parse(time.RFC3339, endsAt)
 	if err != nil {
@@ -138,10 +147,36 @@ func matrixOfferExpiry(endsAt string, now time.Time) (time.Time, bool) {
 	return t, true
 }
 
-func (s *Server) matrixVideo(tenantID string, assets []store.CampaignAsset) (matrixhandoff.Asset, int, bool) {
+func (s *Server) matrixSurfaces(camp store.Campaign) (matrixconsume.Surfaces, error) {
+	lead := false
+	if s.Cfg.FeatureLeadsCapture {
+		form, err := s.St.GetLeadFormByCampaign(camp.ID)
+		switch {
+		case errors.Is(err, store.ErrNotFound):
+		case err != nil:
+			return matrixconsume.Surfaces{}, err
+		case form.Enabled && form.TenantID == camp.TenantID:
+			lead = true
+		}
+	}
+	notes, err := s.St.ListPublishAdapterNotes(camp.TenantID)
+	if err != nil {
+		return matrixconsume.Surfaces{}, err
+	}
+	ugc := false
+	for _, row := range custpublish.Matrix(notes) {
+		if row.Capability(custpublish.CapPreview).Enabled {
+			ugc = true
+			break
+		}
+	}
+	return matrixconsume.Surfaces{LeadEnabled: lead, UGCEnabled: ugc}, nil
+}
+
+func (s *Server) matrixVideo(tenantID string, assets []store.CampaignAsset) (matrixhandoff.Asset, int, bool, error) {
 	libs, err := s.St.ListLibAssets(tenantID)
 	if err != nil {
-		return matrixhandoff.Asset{}, 0, false
+		return matrixhandoff.Asset{}, 0, false, err
 	}
 	byRef := map[string]store.LibAsset{}
 	byID := map[string]store.LibAsset{}
@@ -167,7 +202,7 @@ func (s *Server) matrixVideo(tenantID string, assets []store.CampaignAsset) (mat
 		version = campaignAssetVersion(asset.Version)
 		ok = true
 	}
-	return found, version, ok
+	return found, version, ok, nil
 }
 
 func campaignAssetVersion(raw string) int {

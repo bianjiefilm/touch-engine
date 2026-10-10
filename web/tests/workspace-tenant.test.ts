@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { resolveWorkspaceTenant, type MembershipScope } from "@/lib/workspace-tenant";
+import {
+  beginTenantOp,
+  decideTenantConfirm,
+  resolveWorkspaceTenant,
+  TENANT_STORAGE_KEY,
+  writeTenantMemory,
+  type MembershipScope,
+  type TenantMemory,
+} from "@/lib/workspace-tenant";
 
 function scope(partial: Partial<MembershipScope> & Pick<MembershipScope, "tenant_id" | "display_name">): MembershipScope {
   return {
@@ -40,6 +48,30 @@ describe("resolveWorkspaceTenant", () => {
     }
   });
 
+  it("whoami 未启用、不在这次列表、或响应已过期时不写钥匙", () => {
+    const memory = memStore();
+    const items = [scope({ tenant_id: "tnt_a", display_name: "商家甲" })];
+    const seq = beginTenantOp();
+    expect(decideTenantConfirm({ seq, whoamiOk: true, enabled: true, role: "org_owner", tenantId: "tnt_a", items })).toBe("accept");
+    writeTenantMemory("accept", "tnt_a", memory);
+    expect(memory.getItem(TENANT_STORAGE_KEY)).toBe("tnt_a");
+
+    const stale = seq;
+    const next = beginTenantOp();
+    expect(decideTenantConfirm({ seq: stale, whoamiOk: true, enabled: true, role: "org_owner", tenantId: "tnt_b", items })).toBe("stale");
+    writeTenantMemory("stale", "tnt_b", memory);
+    expect(memory.getItem(TENANT_STORAGE_KEY)).toBe("tnt_a");
+
+    expect(decideTenantConfirm({ seq: next, whoamiOk: true, enabled: false, role: "org_owner", tenantId: "tnt_a", items })).toBe("reject");
+    writeTenantMemory("reject", "tnt_a", memory);
+    expect(memory.getItem(TENANT_STORAGE_KEY)).toBeNull();
+
+    memory.setItem(TENANT_STORAGE_KEY, "tnt_keep");
+    expect(decideTenantConfirm({ seq: next, whoamiOk: true, enabled: true, role: "org_owner", tenantId: "tnt_missing", items })).toBe("reject");
+    writeTenantMemory("reject", "tnt_missing", memory);
+    expect(memory.getItem(TENANT_STORAGE_KEY)).toBe("tnt_keep");
+  });
+
   it("停用、空编号和非成员来源不能成为当前组织", () => {
     expect(resolveWorkspaceTenant([
       scope({ tenant_id: "tnt_off", display_name: "停用", enabled: false }),
@@ -48,3 +80,12 @@ describe("resolveWorkspaceTenant", () => {
     ], "tnt_typed")).toEqual({ status: "none" });
   });
 });
+
+function memStore(): TenantMemory {
+  const box = new Map<string, string>();
+  return {
+    getItem: (key) => box.get(key) ?? null,
+    setItem: (key, value) => { box.set(key, value); },
+    removeItem: (key) => { box.delete(key); },
+  };
+}

@@ -2,6 +2,8 @@ package matrixconsume
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -39,6 +41,14 @@ func TestHTTPSupplyAcceptsDraftAndRejectsPublished(t *testing.T) {
 			_, _ = w.Write([]byte(`{"allowed":true,"supply":"ready","reason":"ok"}`))
 		case "/drafts":
 			sawDraft = true
+			raw, _ := io.ReadAll(r.Body)
+			var posted map[string]any
+			if err := json.Unmarshal(raw, &posted); err != nil {
+				t.Errorf("draft json: %v", err)
+			}
+			if posted["activity_version"] != float64(3) || posted["sha256"] != strings.Repeat("ab", 32) || posted["disclosure"] == "" || posted["return_location_token"] != "return:cmp" || posted["offer_expiry"] == nil || posted["offer_expiry"] == "" {
+				t.Errorf("draft body = %s", raw)
+			}
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"plan_id":"pln","status":"draft","executed":false}`))
 		default:

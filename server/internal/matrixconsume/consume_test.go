@@ -23,12 +23,14 @@ type scriptedSink struct {
 	ack       DraftAck
 	err       error
 	puts      int
+	last      matrixhandoff.Draft
 }
 
 func (s *scriptedSink) Available() bool { return s != nil && s.available }
 
-func (s *scriptedSink) PutDraft(_ context.Context, _ matrixhandoff.Draft) (DraftAck, error) {
+func (s *scriptedSink) PutDraft(_ context.Context, doc matrixhandoff.Draft) (DraftAck, error) {
 	s.puts++
+	s.last = doc
 	if s.err != nil {
 		return DraftAck{}, s.err
 	}
@@ -74,6 +76,19 @@ func TestScheduleDraftIsNotOutbound(t *testing.T) {
 	}
 	if effects.UGCWrites != 0 || effects.LeadWrites != 0 || effects.RewardWrites != 0 {
 		t.Fatalf("customer effects moved: %+v", effects)
+	}
+	if sink.last.Activity.Version != 3 || len(sink.last.Activity.AssetHashes) != 1 || sink.last.Activity.AssetHashes[0] != strings.Repeat("ab", 32) || sink.last.Activity.Disclosure != "广告" || sink.last.ReturnLocationToken != "ret_1" || sink.last.Activity.OfferExpiry.IsZero() {
+		t.Fatalf("preview = %+v", sink.last)
+	}
+	kept := c.Drafts()
+	if len(kept) != 1 || kept[0].ID != out.Draft.ID || kept[0].Activity.Version != 3 || kept[0].Plan.ID != "pln_1" {
+		t.Fatalf("kept = %+v", kept)
+	}
+	again, err := c.Schedule(context.Background(), time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC), Actor{
+		PrincipalID: "usr_a", TenantID: "tnt_a", BrandID: "br_a", Role: "org_owner",
+	}, sampleRequest(), Surfaces{LeadEnabled: true, UGCEnabled: true})
+	if err != nil || again.Draft.ID != out.Draft.ID || len(c.Drafts()) != 1 {
+		t.Fatalf("replay = %+v err %v drafts %d", again.Draft, err, len(c.Drafts()))
 	}
 }
 

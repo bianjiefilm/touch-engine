@@ -3,9 +3,15 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { failureText } from "@/lib/failure-copy";
 import { surfaceLabel } from "@/lib/product-finish";
-import { resolveWorkspaceTenant, type MembershipScope } from "@/lib/workspace-tenant";
-
-const TENANT_KEY = "touch_admin_tenant";
+import {
+  beginTenantOp,
+  currentTenantOp,
+  decideTenantConfirm,
+  resolveWorkspaceTenant,
+  TENANT_STORAGE_KEY,
+  writeTenantMemory,
+  type MembershipScope,
+} from "@/lib/workspace-tenant";
 
 export interface MerchantResult {
   ok: boolean;
@@ -137,45 +143,74 @@ function useMerchantSession(): MerchantSession {
   const [options, setOptions] = useState<MembershipScope[]>([]);
   const [attempt, setAttempt] = useState(0);
 
-  const confirmTenant = useCallback(async (nextTenant: string, displayName: string) => {
-    const res = await fetch("/api/whoami", { headers: { "x-tenant-id": nextTenant } });
-    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-    if (!res.ok || typeof data.role !== "string" || data.role === "") {
+  const confirmTenant = useCallback(async (seq: number, nextTenant: string, displayName: string, items: MembershipScope[]) => {
+    let res: Response;
+    try {
+      res = await fetch("/api/whoami", { headers: { "x-tenant-id": nextTenant } });
+    } catch {
+      if (seq !== currentTenantOp()) return;
+      writeTenantMemory("reject", nextTenant, window.localStorage);
       setRole("");
       setTenantId("");
+      setTenantName("");
       setError("没有读到当前组织。没有沿用上一户的数据。");
       setPhase("error");
       return;
     }
-    setRole(data.role);
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    const decision = decideTenantConfirm({
+      seq,
+      whoamiOk: res.ok,
+      enabled: data.enabled,
+      role: data.role,
+      tenantId: nextTenant,
+      items,
+    });
+    if (decision === "stale") return;
+    writeTenantMemory(decision, nextTenant, window.localStorage);
+    if (decision !== "accept") {
+      setRole("");
+      setTenantId("");
+      setTenantName("");
+      setError("没有读到当前组织。没有沿用上一户的数据。");
+      setPhase("error");
+      return;
+    }
+    setRole(typeof data.role === "string" ? data.role : "");
     setEmail(typeof data.email === "string" ? data.email : "");
     setTenantName(typeof data.tenant_name === "string" && data.tenant_name ? data.tenant_name : displayName);
     setTenantId(nextTenant);
+    setError("");
     setPhase("ready");
   }, []);
 
-  const applyScopes = useCallback(async (items: MembershipScope[], remembered: string | null) => {
+  const applyScopes = useCallback(async (items: MembershipScope[], remembered: string | null, seq: number) => {
+    if (seq !== currentTenantOp()) return;
     setOptions(items);
     const resolved = resolveWorkspaceTenant(items, remembered);
     if (resolved.status === "selected") {
-      window.localStorage.setItem(TENANT_KEY, resolved.tenantId);
-      await confirmTenant(resolved.tenantId, resolved.displayName);
+      await confirmTenant(seq, resolved.tenantId, resolved.displayName, items);
       return;
     }
+    if (seq !== currentTenantOp()) return;
     setTenantId("");
     setRole("");
+    setTenantName("");
     setPhase(resolved.status === "choose" ? "choose" : "none");
   }, [confirmTenant]);
 
   useEffect(() => {
-    const remembered = window.localStorage.getItem(TENANT_KEY);
+    const seq = beginTenantOp();
+    const remembered = window.localStorage.getItem(TENANT_STORAGE_KEY);
     void readScopes().then((items) => {
+      if (seq !== currentTenantOp()) return;
       if (items === null) {
         setPhase("anonymous");
         return;
       }
-      return applyScopes(items, remembered);
+      return applyScopes(items, remembered, seq);
     }).catch(() => {
+      if (seq !== currentTenantOp()) return;
       setError("没有连上服务。登录状态未知，没有把它当成已登录。");
       setPhase("error");
     });
@@ -208,9 +243,11 @@ function useMerchantSession(): MerchantSession {
     });
     const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     if (!res.ok) throw new Error(failureText(res.status, data));
+    const seq = beginTenantOp();
     const items = await readScopes();
+    if (seq !== currentTenantOp()) return;
     if (items === null) throw new Error("登录后没有读到组织");
-    await applyScopes(items, window.localStorage.getItem(TENANT_KEY));
+    await applyScopes(items, window.localStorage.getItem(TENANT_STORAGE_KEY), seq);
   }, [applyScopes]);
 
   const logout = useCallback(async () => {
@@ -221,14 +258,20 @@ function useMerchantSession(): MerchantSession {
   }, []);
 
   const switchTenant = useCallback((nextTenant: string) => {
-    const hit = options.find((item) => item.tenant_id === nextTenant && item.enabled && item.source === "membership");
+    const items = options;
+    const hit = items.find((item) => item.tenant_id === nextTenant && item.enabled && item.source === "membership");
     if (!hit) return;
-    window.localStorage.setItem(TENANT_KEY, hit.tenant_id);
-    setTenantName(hit.display_name);
+    const seq = beginTenantOp();
+    setTenantId("");
+    setRole("");
+    setTenantName("");
     setPhase("loading");
-    void confirmTenant(hit.tenant_id, hit.display_name).catch(() => {
+    void confirmTenant(seq, hit.tenant_id, hit.display_name, items).catch(() => {
+      if (seq !== currentTenantOp()) return;
+      writeTenantMemory("reject", hit.tenant_id, window.localStorage);
       setError("切换后没有读到身份。没有沿用上一户的数据。");
       setRole("");
+      setTenantId("");
       setPhase("error");
     });
   }, [confirmTenant, options]);

@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bianjiefilm/touch-engine/server/internal/matrixhandoff"
@@ -101,17 +102,36 @@ type Outcome struct {
 
 // Consumer schedules a merchant matrix draft.
 type Consumer struct {
-	gate    PermissionGate
-	sink    DraftSink
-	effects *matrixhandoff.EffectSink
+	gate     PermissionGate
+	sink     DraftSink
+	effects  *matrixhandoff.EffectSink
+	handoff  *matrixhandoff.Service
+	plans    *planClient
+	recordMu sync.Mutex
 }
 
 // New returns a consumer. Nil dependencies are missing supply, not success.
+// Drafts stay in the matrixhandoff service for the life of this consumer.
 func New(gate PermissionGate, sink DraftSink, effects *matrixhandoff.EffectSink) *Consumer {
 	if effects == nil {
 		effects = &matrixhandoff.EffectSink{}
 	}
-	return &Consumer{gate: gate, sink: sink, effects: effects}
+	plans := &planClient{}
+	return &Consumer{
+		gate:    gate,
+		sink:    sink,
+		effects: effects,
+		plans:   plans,
+		handoff: matrixhandoff.New(plans, effects),
+	}
+}
+
+// Drafts returns the drafts this process has kept. The slice is a copy.
+func (c *Consumer) Drafts() []matrixhandoff.Draft {
+	if c == nil || c.handoff == nil {
+		return nil
+	}
+	return c.handoff.List()
 }
 
 // Schedule records a matrix draft or disables only the matrix button.
@@ -147,15 +167,7 @@ func (c *Consumer) Schedule(ctx context.Context, now time.Time, actor Actor, req
 		out.MatrixButton = Button{Enabled: false, Reason: ReasonMatrixSupply}
 		return out, nil
 	}
-	preview := matrixhandoff.Draft{
-		Activity: matrixhandoff.TouchActivity{
-			TenantID: req.TenantID, BrandID: req.BrandID, StoreID: req.StoreID,
-			ActivityID: req.ActivityID, Version: req.ActivityVersion,
-		},
-		ActivityStatus: matrixhandoff.ActivityOpen,
-		Status:         matrixhandoff.StatusDraft,
-		Copy:           matrixhandoff.CopyDraft,
-	}
+	preview := previewDraft(req)
 	ack, err := c.sink.PutDraft(ctx, preview)
 	if err != nil {
 		out.MatrixButton = Button{Enabled: false, Reason: ReasonMatrixSupply}
@@ -165,12 +177,7 @@ func (c *Consumer) Schedule(ctx context.Context, now time.Time, actor Actor, req
 		out.MatrixButton = Button{Enabled: false, Reason: ReasonAckNotDraft}
 		return out, ErrNotDraft
 	}
-	svc := matrixhandoff.New(ackClient{id: ack.PlanID}, c.effects)
-	recorded, err := svc.CreateDraft(now, matrixhandoff.Actor{
-		TenantID: actor.TenantID,
-		BrandID:  actor.BrandID,
-		Role:     matrixhandoff.RoleBrandPublisher,
-	}, req)
+	recorded, err := c.remember(now, actor, req, ack.PlanID)
 	if err != nil {
 		out.MatrixButton = Button{Enabled: false, Reason: matrixhandoff.ReasonOf(err)}
 		if out.MatrixButton.Reason == "" {
@@ -194,11 +201,83 @@ func (c *Consumer) decide(ctx context.Context, actor Actor) (Permission, error) 
 	return c.gate.Decide(ctx, actor.PrincipalID, actor.TenantID, actor.BrandID)
 }
 
-type ackClient struct{ id string }
-
-func (a ackClient) RequiresVideo() bool { return true }
-func (a ackClient) LiveMatrix() bool    { return false }
-func (a ackClient) PutDraft(matrixhandoff.Draft) (matrixhandoff.MatrixPlanRef, error) {
-	return matrixhandoff.MatrixPlanRef{ID: a.id}, nil
+// remember keeps the full draft on the process-lifetime handoff service.
+// The HTTP sink already posted this document. The handoff client only stamps
+// the plan id the sink returned; it does not post a second, thinner body.
+// Role is rewritten to brand_publisher only after the caller passed the role
+// gate. A disabled member never reaches this function.
+func (c *Consumer) remember(now time.Time, actor Actor, req matrixhandoff.Request, planID string) (matrixhandoff.Result, error) {
+	if c == nil || c.handoff == nil || c.plans == nil {
+		return matrixhandoff.Result{}, errors.New("matrixconsume: draft store missing")
+	}
+	c.recordMu.Lock()
+	defer c.recordMu.Unlock()
+	c.plans.set(planID)
+	return c.handoff.CreateDraft(now, matrixhandoff.Actor{
+		TenantID: actor.TenantID,
+		BrandID:  actor.BrandID,
+		Role:     matrixhandoff.RoleBrandPublisher,
+	}, req)
 }
-func (a ackClient) RecordMerchant(matrixhandoff.MatrixPlanRef) error { return nil }
+
+func previewDraft(req matrixhandoff.Request) matrixhandoff.Draft {
+	ids := make([]string, 0, len(req.Assets))
+	hashes := make([]string, 0, len(req.Assets))
+	for _, asset := range req.Assets {
+		ids = append(ids, strings.TrimSpace(asset.ID))
+		hashes = append(hashes, strings.TrimSpace(asset.Hash))
+	}
+	version := req.ActivityVersion
+	if version < 1 {
+		version = 1
+	}
+	return matrixhandoff.Draft{
+		Activity: matrixhandoff.TouchActivity{
+			TenantID:    strings.TrimSpace(req.TenantID),
+			BrandID:     strings.TrimSpace(req.BrandID),
+			StoreID:     strings.TrimSpace(req.StoreID),
+			ActivityID:  strings.TrimSpace(req.ActivityID),
+			Version:     version,
+			AssetIDs:    ids,
+			AssetHashes: hashes,
+			OfferText:   strings.TrimSpace(req.OfferText),
+			OfferExpiry: req.OfferExpiry.UTC(),
+			Disclosure:  strings.TrimSpace(req.Disclosure),
+		},
+		ReturnLocationToken: strings.TrimSpace(req.ReturnLocationToken),
+		ActivityStatus:      matrixhandoff.ActivityOpen,
+		Status:              matrixhandoff.StatusDraft,
+		Copy:                matrixhandoff.CopyDraft,
+	}
+}
+
+// planClient stamps a plan id onto a draft the HTTP sink already accepted.
+// It does not dial and does not replace the posted document.
+type planClient struct {
+	mu sync.Mutex
+	id string
+}
+
+func (p *planClient) set(id string) {
+	if p == nil {
+		return
+	}
+	p.mu.Lock()
+	p.id = id
+	p.mu.Unlock()
+}
+
+func (p *planClient) RequiresVideo() bool { return true }
+func (p *planClient) LiveMatrix() bool    { return false }
+func (p *planClient) PutDraft(matrixhandoff.Draft) (matrixhandoff.MatrixPlanRef, error) {
+	if p == nil {
+		return matrixhandoff.MatrixPlanRef{}, errors.New("matrixconsume: plan id missing")
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if strings.TrimSpace(p.id) == "" {
+		return matrixhandoff.MatrixPlanRef{}, errors.New("matrixconsume: plan id missing")
+	}
+	return matrixhandoff.MatrixPlanRef{ID: p.id}, nil
+}
+func (p *planClient) RecordMerchant(matrixhandoff.MatrixPlanRef) error { return nil }
