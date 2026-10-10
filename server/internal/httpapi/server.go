@@ -117,6 +117,7 @@ func New(cfg config.Config, database *sql.DB, idc *identity.Client, upc *upload.
 	return &Server{
 		Cfg: cfg, St: st, ID: idc, Upload: upc, Log: logger,
 		LeadsLimiter: leads.NewRateLimiter(leadsRatePerMinute, time.Minute),
+		Matrix:       matrixFromConfig(cfg),
 		PubCache: readcache.New[store.ResolvedRows](readcache.Options{
 			Capacity: publicCacheCapacity, TTL: publicCacheTTL, Jitter: publicCacheJitter,
 			Epoch: st.Epoch,
@@ -126,6 +127,18 @@ func New(cfg config.Config, database *sql.DB, idc *identity.Client, upc *upload.
 			Epoch: st.Epoch,
 		}),
 	}
+}
+
+// matrixFromConfig installs the permission and draft clients only when a base
+// URL is configured. Both empty keeps Matrix nil, which the handler treats as
+// missing supply without opening a connection.
+func matrixFromConfig(cfg config.Config) *matrixconsume.Consumer {
+	perm := strings.TrimSpace(cfg.PublicPermissionURL)
+	draft := strings.TrimSpace(cfg.MatrixDraftURL)
+	if perm == "" && draft == "" {
+		return nil
+	}
+	return matrixconsume.New(matrixconsume.NewHTTPPermission(perm, nil), matrixconsume.NewHTTPDraftSink(draft, nil), nil)
 }
 
 // Open opens the database and returns a ready Server.

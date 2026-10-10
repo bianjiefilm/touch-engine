@@ -7,10 +7,24 @@ import (
 	"time"
 
 	"github.com/bianjiefilm/touch-engine/server/internal/assetlib"
+	"github.com/bianjiefilm/touch-engine/server/internal/config"
 	"github.com/bianjiefilm/touch-engine/server/internal/matrixconsume"
 	"github.com/bianjiefilm/touch-engine/server/internal/matrixhandoff"
 	"github.com/bianjiefilm/touch-engine/server/internal/store"
 )
+
+func TestMatrixFromConfigDoesNotInventSupply(t *testing.T) {
+	if matrixFromConfig(config.Config{}) != nil {
+		t.Fatal("empty urls must leave the consumer unset")
+	}
+	if matrixFromConfig(config.Config{PublicPermissionURL: "http://127.0.0.1:9"}) == nil {
+		t.Fatal("permission url should install a consumer")
+	}
+	f := newFixture(t, false)
+	if f.s.Matrix != nil {
+		t.Fatal("fixture env has no supply url")
+	}
+}
 
 func TestSessionMembershipsIgnoreForgedTenant(t *testing.T) {
 	f := newFixture(t, false)
