@@ -10,6 +10,7 @@ import { AdminShell } from "@/components/admin/AdminShell";
 import { MatrixDraftButton } from "@/components/admin/MatrixDraftButton";
 import { MerchantWorkbench } from "@/components/admin/MerchantWorkbench";
 import { TaskHandoffActions } from "@/components/admin/TaskHandoffActions";
+import { adminHeaderTenantName } from "@/lib/admin-header-tenant";
 import { copyJobClosed, copyJobKey, copyUsability, handoffHasFormalJump } from "@/lib/copy-draft";
 import { acceptTenantPayload } from "@/lib/eco-nav/touch-shell";
 import { failureText } from "@/lib/failure-copy";
@@ -182,6 +183,8 @@ export default function AdminPage() {
 
   const tenantRef = useRef(tenantId);
   tenantRef.current = tenantId;
+  const scopesRef = useRef(scopes);
+  scopesRef.current = scopes;
 
   const confirmAdminTenant = useCallback(async (seq: number, tenantId: string, displayName: string, roleHint: string, items: MembershipScope[]) => {
     let res: Response;
@@ -217,7 +220,12 @@ export default function AdminPage() {
       return;
     }
     const role = typeof data.role === "string" && data.role ? data.role : roleHint;
-    const name = typeof data.tenant_name === "string" && data.tenant_name ? data.tenant_name : displayName;
+    const name = adminHeaderTenantName({
+      whoamiName: data.tenant_name,
+      members: items,
+      tenantId,
+      kept: displayName,
+    });
     tenantRef.current = tenantId;
     setTenantId(tenantId);
     setTenantName(name);
@@ -364,7 +372,13 @@ export default function AdminPage() {
     setStoreScope(String(who.data.store_scope ?? ""));
     setEmailMasked(String(who.data.email ?? ""));
     setWorkbar(typeof who.data.workbar === "string" ? who.data.workbar : "");
-    setTenantName(typeof who.data.tenant_name === "string" ? who.data.tenant_name : "");
+    const headerMembers = scopesRef.current;
+    setTenantName((current) => adminHeaderTenantName({
+      whoamiName: who.data.tenant_name,
+      members: headerMembers,
+      tenantId: requested,
+      kept: current,
+    }));
     const brand = who.data.brand as { display_name?: string; support_name?: string; support_contact?: string } | undefined;
     setBrandName(brand?.display_name ?? "");
     setSupportLine([brand?.support_name, brand?.support_contact].filter(Boolean).join(" · "));
