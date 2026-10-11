@@ -163,6 +163,18 @@ func (c *Consumer) Schedule(ctx context.Context, now time.Time, actor Actor, req
 		out.MatrixButton = Button{Enabled: false, Reason: reason}
 		return out, nil
 	}
+	// Permission is decided above on every call. Only after it passes is the
+	// draft already recorded for this identity reused, so a repeat click,
+	// a timeout retry, or a re-login never posts a second matrix plan.
+	if existing, ok := c.handoff.Existing(req); ok {
+		existing.Executed = false
+		existing.CustomerPublish = false
+		out.Draft = existing
+		out.Copy = existing.Copy
+		out.OutboundComplete = false
+		out.MatrixButton = Button{Enabled: true, Reason: ReasonDraftRecorded}
+		return out, nil
+	}
 	if c.sink == nil || !c.sink.Available() {
 		out.MatrixButton = Button{Enabled: false, Reason: ReasonMatrixSupply}
 		return out, nil

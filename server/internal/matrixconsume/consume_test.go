@@ -147,3 +147,58 @@ func TestCrossTenantDoesNotSchedule(t *testing.T) {
 		t.Fatalf("cross tenant scheduled: err=%v out=%+v puts=%d", err, out, sink.puts)
 	}
 }
+
+// A repeated click, a timeout retry, or a re-login must resolve to the draft
+// already recorded for the same activity version. It must not post a second
+// plan to the matrix.
+func TestRepeatScheduleDoesNotPostSecondMatrixPlan(t *testing.T) {
+	sink := &scriptedSink{available: true, ack: DraftAck{PlanID: "pln_1", Status: "draft", Executed: false}}
+	c := New(PermissionFunc(readyPermission), sink, &matrixhandoff.EffectSink{})
+	actor := Actor{PrincipalID: "usr_a", TenantID: "tnt_a", BrandID: "br_a", Role: "org_owner"}
+	now := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	first, err := c.Schedule(context.Background(), now, actor, sampleRequest(), Surfaces{LeadEnabled: true, UGCEnabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sink.ack = DraftAck{PlanID: "pln_2", Status: "draft", Executed: false}
+	second, err := c.Schedule(context.Background(), now, actor, sampleRequest(), Surfaces{LeadEnabled: true, UGCEnabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sink.puts != 1 {
+		t.Fatalf("repeat schedule posted %d matrix drafts; want 1", sink.puts)
+	}
+	if second.Draft.ID != first.Draft.ID || second.Draft.Plan.ID != "pln_1" || !second.MatrixButton.Enabled || second.OutboundComplete {
+		t.Fatalf("repeat schedule = %+v; want the first draft pln_1", second)
+	}
+	if kept := c.Drafts(); len(kept) != 1 || kept[0].Plan.ID != "pln_1" {
+		t.Fatalf("kept drafts = %+v", kept)
+	}
+}
+
+// Revocation is checked before the stored draft is reused, so a repeat
+// click after the agent or member loses the grant is refused without a call.
+func TestRepeatScheduleAfterRevokeIsRefusedWithoutPost(t *testing.T) {
+	allowed := true
+	gate := PermissionFunc(func(_ context.Context, _, _, _ string) (Permission, error) {
+		if allowed {
+			return Permission{Allowed: true, Supply: SupplyReady, Reason: "brand_publish"}, nil
+		}
+		return Permission{Allowed: false, Supply: SupplyReady, Reason: "grant_revoked"}, nil
+	})
+	sink := &scriptedSink{available: true, ack: DraftAck{PlanID: "pln_1", Status: "draft", Executed: false}}
+	c := New(gate, sink, &matrixhandoff.EffectSink{})
+	actor := Actor{PrincipalID: "usr_a", TenantID: "tnt_a", BrandID: "br_a", Role: "org_owner"}
+	now := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	if _, err := c.Schedule(context.Background(), now, actor, sampleRequest(), Surfaces{LeadEnabled: true, UGCEnabled: true}); err != nil {
+		t.Fatal(err)
+	}
+	allowed = false
+	out, err := c.Schedule(context.Background(), now, actor, sampleRequest(), Surfaces{LeadEnabled: true, UGCEnabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.MatrixButton.Enabled || out.MatrixButton.Reason != "grant_revoked" || sink.puts != 1 {
+		t.Fatalf("revoked repeat = %+v puts=%d", out.MatrixButton, sink.puts)
+	}
+}

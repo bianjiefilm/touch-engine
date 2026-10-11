@@ -163,14 +163,16 @@ func TestMatrixDraftRecordsDraftNotOutbound(t *testing.T) {
 	if len(kept) != 1 || kept[0].ID != body["draft_id"] || kept[0].Activity.Version != 3 || kept[0].Activity.AssetHashes[0] != strings.Repeat("ab", 32) {
 		t.Fatalf("stored drafts = %+v", kept)
 	}
-	if status, _, again := f.do(t, "POST", "/api/v1/campaigns/"+camp.ID+"/matrix-draft", "sess-owner-a", f.tenA, ""); status != 200 || again["draft_id"] != body["draft_id"] || len(f.s.Matrix.Drafts()) != 1 {
+	// Replay (repeat click / retry / re-login) must reuse the recorded draft and
+	// must not post a second matrix plan: puts stays at 1.
+	if status, _, again := f.do(t, "POST", "/api/v1/campaigns/"+camp.ID+"/matrix-draft", "sess-owner-a", f.tenA, ""); status != 200 || again["draft_id"] != body["draft_id"] || len(f.s.Matrix.Drafts()) != 1 || sink.puts != 1 {
 		t.Fatalf("replay = %d %v drafts %d", status, again, len(f.s.Matrix.Drafts()))
 	}
 
-	if status, _, denied := f.do(t, "POST", "/api/v1/campaigns/"+camp.ID+"/matrix-draft", "sess-owner-b", f.tenB, ""); status != 404 || sink.puts != 2 {
+	if status, _, denied := f.do(t, "POST", "/api/v1/campaigns/"+camp.ID+"/matrix-draft", "sess-owner-b", f.tenB, ""); status != 404 || sink.puts != 1 {
 		t.Fatalf("cross tenant = %d %v puts %d", status, denied, sink.puts)
 	}
-	if status, _, staff := f.do(t, "POST", "/api/v1/campaigns/"+camp.ID+"/matrix-draft", "sess-staff-a", f.tenA, ""); status != 422 || staff["outbound_complete"] != false || sink.puts != 2 {
+	if status, _, staff := f.do(t, "POST", "/api/v1/campaigns/"+camp.ID+"/matrix-draft", "sess-staff-a", f.tenA, ""); status != 422 || staff["outbound_complete"] != false || sink.puts != 1 {
 		t.Fatalf("staff = %d %v puts %d", status, staff, sink.puts)
 	}
 }
