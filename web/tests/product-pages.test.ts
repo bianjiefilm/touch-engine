@@ -41,6 +41,9 @@ describe("根页不是工程说明", () => {
     expect(combined).not.toMatch(/平台生态|公共活动页|短码即入口|权限边界|touch-engine|独立应用|登录、门店、活动/);
     expect(combined).not.toMatch(/style=\{\{/);
     expect(desk).toContain("今天");
+    expect(desk).toContain('session.tenantName || "当前组织"');
+    expect(desk).not.toContain('session.tenantName || "门店"');
+    expect(read("components/work/work-frame.tsx")).toContain('tenantName || "当前组织"');
     expect(desk).toContain('href="/work/stores"');
     expect(desk).toContain('href="/work/campaigns"');
     expect(desk).toContain('href="/work/materials"');

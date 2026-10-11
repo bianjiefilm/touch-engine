@@ -374,6 +374,23 @@ func (s *Service) List() []Draft {
 	return out
 }
 
+// Existing returns the draft already recorded for the same identity (tenant,
+// brand, activity, version, assets, expiry) when it holds a matrix plan id and
+// is still a draft. It does not call the matrix.
+func (s *Service) Existing(req Request) (Draft, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	id, ok := s.byKey[identityKey(req)]
+	if !ok {
+		return Draft{}, false
+	}
+	doc, ok := s.docs[id]
+	if !ok || doc.Status != StatusDraft || strings.TrimSpace(doc.Plan.ID) == "" {
+		return Draft{}, false
+	}
+	return doc, true
+}
+
 // CreateDraft stores a draft or returns needs_video. It does not publish.
 func (s *Service) CreateDraft(now time.Time, actor Actor, req Request) (Result, error) {
 	s.mu.Lock()
